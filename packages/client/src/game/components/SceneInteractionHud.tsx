@@ -75,7 +75,7 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
   }
 
   if (tool.toolId === "brake") {
-    return `最多 ${tool.range ?? 0}`;
+    return `最多 ${tool.range ?? 0} 格`;
   }
 
   if (tool.charges > 1) {

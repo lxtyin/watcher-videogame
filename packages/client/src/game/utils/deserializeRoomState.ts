@@ -1,4 +1,10 @@
-import type { GameSnapshot, RolledToolId, ToolId } from "@watcher/shared";
+import type {
+  Direction,
+  GameSnapshot,
+  PlayerTurnFlag,
+  RolledToolId,
+  ToolId
+} from "@watcher/shared";
 
 interface SchemaCollection<T> extends Iterable<T> {
   values(): IterableIterator<T>;
@@ -8,8 +14,9 @@ interface RoomTileState {
   key: string;
   x: number;
   y: number;
-  type: "floor" | "wall" | "earthWall";
+  type: "floor" | "wall" | "earthWall" | "pit" | "lucky" | "conveyor";
   durability: number;
+  direction: Direction | "";
 }
 
 interface RoomPlayerState {
@@ -18,6 +25,9 @@ interface RoomPlayerState {
   color: string;
   x: number;
   y: number;
+  spawnX: number;
+  spawnY: number;
+  turnFlags: Iterable<PlayerTurnFlag>;
   tools: Iterable<RoomTurnToolState>;
 }
 
@@ -35,6 +45,7 @@ interface RoomTurnInfo {
   turnNumber: number;
   moveRoll: number;
   lastRolledToolId: RolledToolId | "";
+  toolDieSeed: number;
 }
 
 interface RoomEventLogEntry {
@@ -46,7 +57,9 @@ interface RoomEventLogEntry {
     | "turn_started"
     | "dice_rolled"
     | "tool_used"
-    | "turn_ended";
+    | "turn_ended"
+    | "terrain_triggered"
+    | "player_respawned";
   message: string;
   createdAt: number;
 }
@@ -71,7 +84,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       x: tile.x,
       y: tile.y,
       type: tile.type,
-      durability: tile.durability
+      durability: tile.durability,
+      direction: tile.direction === "" ? null : tile.direction
     })),
     players: Array.from(roomState.players.values()).map((player) => ({
       id: player.id,
@@ -81,6 +95,11 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         x: player.x,
         y: player.y
       },
+      spawnPosition: {
+        x: player.spawnX,
+        y: player.spawnY
+      },
+      turnFlags: Array.from(player.turnFlags),
       tools: Array.from(player.tools).map((tool) => ({
         instanceId: tool.instanceId,
         toolId: tool.toolId,
@@ -97,7 +116,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       lastRolledToolId:
         roomState.turnInfo.lastRolledToolId === ""
           ? null
-          : roomState.turnInfo.lastRolledToolId
+          : roomState.turnInfo.lastRolledToolId,
+      toolDieSeed: roomState.turnInfo.toolDieSeed
     },
     eventLog: Array.from(roomState.eventLog).map((entry) => ({
       id: entry.id,

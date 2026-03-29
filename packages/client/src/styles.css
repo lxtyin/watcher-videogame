@@ -296,6 +296,18 @@ button:disabled {
   background: #bc7441;
 }
 
+.legend-swatch.pit {
+  background: #5b4b46;
+}
+
+.legend-swatch.lucky {
+  background: #f1cc59;
+}
+
+.legend-swatch.conveyor {
+  background: #6db0c6;
+}
+
 .legend-swatch.active {
   background: #1f8f6a;
 }

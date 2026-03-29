@@ -1,9 +1,16 @@
-export type TileType = "floor" | "wall" | "earthWall";
+export type TileType =
+  | "floor"
+  | "wall"
+  | "earthWall"
+  | "pit"
+  | "lucky"
+  | "conveyor";
 export type TurnPhase = "roll" | "action";
 export type Direction = "up" | "down" | "left" | "right";
 export type ToolId = "movement" | "jump" | "hookshot" | "pivot" | "dash" | "brake";
 export type RolledToolId = Exclude<ToolId, "movement">;
 export type ToolTargetMode = "direction" | "tile" | "instant";
+export type PlayerTurnFlag = "lucky_tile_claimed";
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -11,7 +18,9 @@ export type EventType =
   | "turn_started"
   | "dice_rolled"
   | "tool_used"
-  | "turn_ended";
+  | "turn_ended"
+  | "terrain_triggered"
+  | "player_respawned";
 
 export interface GridPosition {
   x: number;
@@ -22,6 +31,7 @@ export interface TileDefinition extends GridPosition {
   key: string;
   type: TileType;
   durability: number;
+  direction: Direction | null;
 }
 
 export interface BoardDefinition {
@@ -35,6 +45,8 @@ export interface PlayerSnapshot {
   name: string;
   color: string;
   position: GridPosition;
+  spawnPosition: GridPosition;
+  turnFlags: PlayerTurnFlag[];
   tools: TurnToolSnapshot[];
 }
 
@@ -44,6 +56,7 @@ export interface TurnInfoSnapshot {
   turnNumber: number;
   moveRoll: number;
   lastRolledToolId: RolledToolId | null;
+  toolDieSeed: number;
 }
 
 export interface EventLogEntry {
@@ -95,6 +108,8 @@ export interface UseToolCommandPayload {
 export interface MovementActor {
   id: string;
   position: GridPosition;
+  spawnPosition: GridPosition;
+  turnFlags: PlayerTurnFlag[];
 }
 
 export interface MovementContext {
@@ -121,6 +136,8 @@ export type MovementResolution =
 export interface BoardPlayerState {
   id: string;
   position: GridPosition;
+  spawnPosition: GridPosition;
+  turnFlags: PlayerTurnFlag[];
 }
 
 export interface TileMutation {
@@ -134,6 +151,7 @@ export interface AffectedPlayerMove {
   playerId: string;
   target: GridPosition;
   reason: string;
+  turnFlags?: PlayerTurnFlag[];
 }
 
 export interface ActionContextBase {
@@ -149,18 +167,52 @@ export interface DirectionalActionContext extends ActionContextBase {
 export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
   tools: TurnToolSnapshot[];
+  toolDieSeed: number;
   direction?: Direction;
   targetPosition?: GridPosition;
 }
 
 export interface ResolvedActorState {
   position: GridPosition;
+  turnFlags: PlayerTurnFlag[];
 }
 
 export interface ToolAvailability {
   usable: boolean;
   reason: string | null;
 }
+
+export type TriggeredTerrainEffect =
+  | {
+      kind: "pit";
+      playerId: string;
+      tileKey: string;
+      position: GridPosition;
+      respawnPosition: GridPosition;
+    }
+  | {
+      kind: "lucky";
+      playerId: string;
+      tileKey: string;
+      position: GridPosition;
+      grantedTool: TurnToolSnapshot;
+    }
+  | {
+      kind: "conveyor_boost";
+      playerId: string;
+      tileKey: string;
+      position: GridPosition;
+      direction: Direction;
+      bonusMovePoints: number;
+    }
+  | {
+      kind: "conveyor_turn";
+      playerId: string;
+      tileKey: string;
+      position: GridPosition;
+      fromDirection: Direction;
+      toDirection: Direction;
+    };
 
 export type ActionResolution =
   | {
@@ -171,6 +223,8 @@ export type ActionResolution =
       tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
+      triggeredTerrainEffects: TriggeredTerrainEffect[];
+      nextToolDieSeed: number;
     }
   | {
       kind: "applied";
@@ -180,4 +234,6 @@ export type ActionResolution =
       tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
+      triggeredTerrainEffects: TriggeredTerrainEffect[];
+      nextToolDieSeed: number;
     };

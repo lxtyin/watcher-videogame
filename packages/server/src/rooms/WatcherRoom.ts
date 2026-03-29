@@ -12,10 +12,13 @@ import {
   rollToolDie,
   type AffectedPlayerMove,
   type BoardPlayerState,
+  type Direction,
   type EventType,
+  type PlayerTurnFlag,
   type TileMutation,
   type TileType,
   type ToolId,
+  type TriggeredTerrainEffect,
   type TurnToolSnapshot,
   type UseToolCommandPayload
 } from "@watcher/shared";
@@ -44,6 +47,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     // The room owns board setup so every client joins the same authoritative map.
     this.seedBoard();
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     this.onMessage("rollDice", (client) => {
       this.handleRollDice(client);
@@ -68,6 +72,8 @@ export class WatcherRoom extends Room<WatcherState> {
     player.color = PLAYER_COLORS[spawnIndex] ?? PLAYER_COLORS[0] ?? "#ec6f5a";
     player.x = spawn.x;
     player.y = spawn.y;
+    player.spawnX = spawn.x;
+    player.spawnY = spawn.y;
 
     this.clearPlayerTurnResources(player);
     this.state.players.set(client.sessionId, player);
@@ -94,6 +100,7 @@ export class WatcherRoom extends Room<WatcherState> {
       this.state.turnInfo.phase = "roll";
       this.state.turnInfo.moveRoll = 0;
       this.state.turnInfo.lastRolledToolId = "";
+      this.state.turnInfo.toolDieSeed = this.toolDieSeed;
       return;
     }
 
@@ -120,6 +127,7 @@ export class WatcherRoom extends Room<WatcherState> {
       tileState.y = tile.y;
       tileState.type = tile.type;
       tileState.durability = tile.durability;
+      tileState.direction = tile.direction ?? "";
       this.state.board.set(tile.key, tileState);
     }
   }
@@ -127,6 +135,10 @@ export class WatcherRoom extends Room<WatcherState> {
   private clearPlayerTurnResources(player: PlayerState): void {
     while (player.tools.length > 0) {
       player.tools.pop();
+    }
+
+    while (player.turnFlags.length > 0) {
+      player.turnFlags.pop();
     }
   }
 
@@ -142,6 +154,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.turnInfo.phase = "roll";
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     if (shouldAdvanceTurnNumber) {
       this.state.turnInfo.turnNumber += 1;
@@ -207,6 +220,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.turnInfo.phase = "action";
     this.state.turnInfo.moveRoll = moveRoll.value;
     this.state.turnInfo.lastRolledToolId = toolRoll.value;
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     this.pushEvent(
       "dice_rolled",
@@ -250,9 +264,12 @@ export class WatcherRoom extends Room<WatcherState> {
       board: this.createBoardDefinition(),
       actor: {
         id: player.id,
-        position: { x: player.x, y: player.y }
+        position: { x: player.x, y: player.y },
+        spawnPosition: { x: player.spawnX, y: player.spawnY },
+        turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
       },
       activeTool,
+      toolDieSeed: this.toolDieSeed,
       tools,
       direction: payload.direction ?? "up",
       ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
@@ -269,14 +286,19 @@ export class WatcherRoom extends Room<WatcherState> {
 
     player.x = resolution.actor.position.x;
     player.y = resolution.actor.position.y;
+    this.applyPlayerTurnFlags(player, resolution.actor.turnFlags);
 
     this.applyToolInventory(player, resolution.tools);
     this.applyTileMutations(resolution.tileMutations);
     this.applyAffectedPlayerMoves(resolution.affectedPlayers);
+    this.toolDieSeed = resolution.nextToolDieSeed;
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     if (resolution.tileMutations.length) {
       this.pushEvent("earth_wall_broken", `${player.name} broke an earth wall while moving.`);
     }
+
+    this.pushTerrainEvents(player.id, resolution.triggeredTerrainEffects);
 
     if (activeTool.toolId === "movement") {
       this.pushEvent(
@@ -340,6 +362,16 @@ export class WatcherRoom extends Room<WatcherState> {
     }
   }
 
+  private applyPlayerTurnFlags(player: PlayerState, turnFlags: string[]): void {
+    while (player.turnFlags.length > 0) {
+      player.turnFlags.pop();
+    }
+
+    for (const turnFlag of turnFlags) {
+      player.turnFlags.push(turnFlag);
+    }
+  }
+
   private createBoardDefinition() {
     return {
       width: this.state.boardWidth,
@@ -349,7 +381,8 @@ export class WatcherRoom extends Room<WatcherState> {
         x: tile.x,
         y: tile.y,
         type: tile.type as TileType,
-        durability: tile.durability
+        durability: tile.durability,
+        direction: tile.direction === "" ? null : (tile.direction as Direction)
       }))
     };
   }
@@ -360,7 +393,12 @@ export class WatcherRoom extends Room<WatcherState> {
       position: {
         x: entry.x,
         y: entry.y
-      }
+      },
+      spawnPosition: {
+        x: entry.spawnX,
+        y: entry.spawnY
+      },
+      turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
     }));
   }
 
@@ -375,6 +413,7 @@ export class WatcherRoom extends Room<WatcherState> {
       // A broken earth wall becomes a permanent floor tile for the whole room.
       tile.type = mutation.nextType;
       tile.durability = mutation.nextDurability;
+      tile.direction = "";
     }
   }
 
@@ -388,6 +427,52 @@ export class WatcherRoom extends Room<WatcherState> {
 
       player.x = affectedPlayer.target.x;
       player.y = affectedPlayer.target.y;
+
+      if (affectedPlayer.turnFlags) {
+        this.applyPlayerTurnFlags(player, affectedPlayer.turnFlags);
+      }
+    }
+  }
+
+  private pushTerrainEvents(actorId: string, triggeredTerrainEffects: TriggeredTerrainEffect[]): void {
+    for (const terrainEffect of triggeredTerrainEffects) {
+      const affectedPlayer = this.state.players.get(terrainEffect.playerId);
+      const actor = this.state.players.get(actorId);
+
+      if (!affectedPlayer) {
+        continue;
+      }
+
+      if (terrainEffect.kind === "pit") {
+        this.pushEvent(
+          "player_respawned",
+          `${affectedPlayer.name} fell into a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        );
+        continue;
+      }
+
+      if (terrainEffect.kind === "lucky") {
+        this.pushEvent(
+          "terrain_triggered",
+          `${affectedPlayer.name} landed on a lucky block and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+        );
+        continue;
+      }
+
+      if (terrainEffect.kind === "conveyor_boost" && actor) {
+        this.pushEvent(
+          "terrain_triggered",
+          `${actor.name} rode a conveyor for +${terrainEffect.bonusMovePoints} move points.`
+        );
+        continue;
+      }
+
+      if (terrainEffect.kind === "conveyor_turn" && actor) {
+        this.pushEvent(
+          "terrain_triggered",
+          `${actor.name} was redirected from ${terrainEffect.fromDirection} to ${terrainEffect.toDirection}.`
+        );
+      }
     }
   }
 

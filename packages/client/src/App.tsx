@@ -422,6 +422,18 @@ export default function App() {
             土墙
           </div>
           <div className="legend-row">
+            <span className="legend-swatch pit" />
+            坑洞，停留后回出生点
+          </div>
+          <div className="legend-row">
+            <span className="legend-swatch lucky" />
+            幸运方块，每回合最多送一次工具
+          </div>
+          <div className="legend-row">
+            <span className="legend-swatch conveyor" />
+            加速带，移动经过时会加速或转向
+          </div>
+          <div className="legend-row">
             <span className="legend-swatch active" />
             当前行动者标记
           </div>

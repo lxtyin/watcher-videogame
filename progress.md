@@ -156,3 +156,44 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
   - `output/web-game/ui-chinese-hint/disabled-dash-toast.png` shows the blocked Dash prompt toast after Movement has been consumed
   - `output/web-game/ui-chinese-hint/disabled-dash-state.json` shows only `Dash` remains selected and unavailable on turn 16
 - TODO: if we later expose the event log in the UI, verify the server-to-client Chinese event text rendering path end-to-end and normalize any encoding issues there.
+- Added a terrain-extension pass focused on reusable board-state hooks rather than per-tool hardcoding.
+- Extended shared tile data with directional terrain metadata and added three prototype terrains:
+  - `pit`
+  - `lucky`
+  - `conveyor`
+- Added `packages/shared/src/terrain.ts` as a terrain behavior registry with two trigger phases:
+  - `onPassThrough` for movement-path effects
+  - `onStop` for end-of-tool landing effects
+- Refactored `packages/shared/src/actions.ts` so tool resolution now happens in two stages:
+  - the tool executor computes direct movement / pull / spawn-tool effects
+  - a shared post-pass applies stop-terrain effects to the actor and any affected players
+- Added a shared grounded traversal helper so `Movement` and `Brake` reuse the same wall, earth-wall, and pass-through terrain logic.
+- Explicitly kept `Jump` on a separate leap path so conveyor pass-through effects do not apply to it.
+- Added actor spawn positions and per-turn terrain flags to shared snapshots, Colyseus schema state, and client deserialization.
+- Added deterministic terrain-side tool rewards by threading `toolDieSeed` through shared action resolution and room state.
+- Updated the room event pipeline to log terrain-trigger events and pit respawns from shared `TriggeredTerrainEffect` data.
+- Updated the prototype board layout to include nearby examples of:
+  - rightward conveyor into a lucky block
+  - downward redirect conveyor into a pit
+  - extra conveyor directions for scene rendering coverage
+- Added simple 3D board representations for pits, lucky blocks, and conveyors in `BoardScene.tsx`.
+- Updated the HUD legend to explain the new terrain tiles.
+- Updated docs to describe terrain metadata, pass-through vs stop semantics, and the new shared terrain registry.
+- Verified `npm.cmd run typecheck` passes after the terrain refactor.
+- Verified `npm.cmd run build` passes after the terrain refactor.
+- Verified a minimal Playwright smoke using the shared skill client:
+  - `output/web-game/terrain-systems/roll-inspect/state-0.json`
+  - `output/web-game/terrain-systems/roll-inspect/shot-0.png`
+- Verified lucky-block + conveyor boost flow with real 3D scene interaction:
+  - `output/web-game/terrain-systems/lucky/after-lucky-move.json` shows `(0,0) -> (2,0)`, conveyor boost, and a lucky-tool reward
+  - `output/web-game/terrain-systems/lucky/after-lucky-pivot.json` shows lucky only triggers once that turn while `Pivot` still produces `Movement(2)`
+  - screenshots: `output/web-game/terrain-systems/lucky/after-lucky-move.png`, `output/web-game/terrain-systems/lucky/after-lucky-pivot.png`
+- Verified conveyor redirect + pit respawn flow with real 3D scene interaction:
+  - `output/web-game/terrain-systems/pit-turn/turn1-after-brake.json` shows `Brake` repositioning to `(0,1)`
+  - `output/web-game/terrain-systems/pit-turn/turn2-after-pivot.json` shows `Pivot` creating a second `Movement(2)`
+  - `output/web-game/terrain-systems/pit-turn/turn2-after-pit.json` shows movement redirecting on the conveyor, landing on the pit, and respawning to `(0,0)`
+  - screenshots: `output/web-game/terrain-systems/pit-turn/turn1-after-brake.png`, `output/web-game/terrain-systems/pit-turn/turn2-after-pit.png`
+- Note: `npm run dev --workspace @watcher/server` currently crashes under the local Node 24 + decorator runtime path, so browser regression used `node packages/server/dist/index.js` after `npm.cmd run build`.
+- Note: installed `playwright` locally with `npm.cmd install --no-save --no-package-lock playwright` to run regression scripts without changing workspace package manifests.
+- TODO: decide whether non-actor players moved onto future reward tiles should be able to gain off-turn resources, because the current turn-scoped tool inventory intentionally keeps lucky rewards actor-only.
+- TODO: if we keep Colyseus schema decorators in native ESM, harden the server dev script for the local Node 24 runtime so `tsx watch` can boot without the current decorator crash.

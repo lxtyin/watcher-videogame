@@ -1,21 +1,39 @@
 import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants";
-import type { BoardDefinition, GridPosition, TileDefinition, TileType } from "./types";
+import type {
+  BoardDefinition,
+  Direction,
+  GridPosition,
+  TileDefinition,
+  TileType
+} from "./types";
 
 // The layout is intentionally tiny so the first prototype stays easy to inspect.
 const LAYOUT = [
-  "..#....",
-  ".e.#...",
-  "...#e..",
-  ".......",
+  ".>l#...",
+  ".v.#...",
+  ".pe#e..",
+  "..^....",
   "..e....",
   "...##..",
-  "....e.."
+  "....<.."
 ] as const;
 
-const SYMBOL_TO_TILE: Record<string, TileType> = {
-  ".": "floor",
-  "#": "wall",
-  e: "earthWall"
+interface LayoutSymbolDefinition {
+  type: TileType;
+  direction?: Direction;
+  durability?: number;
+}
+
+const SYMBOL_TO_TILE: Record<string, LayoutSymbolDefinition> = {
+  ".": { type: "floor" },
+  "#": { type: "wall" },
+  e: { type: "earthWall", durability: 2 },
+  p: { type: "pit" },
+  l: { type: "lucky" },
+  "^": { type: "conveyor", direction: "up" },
+  v: { type: "conveyor", direction: "down" },
+  "<": { type: "conveyor", direction: "left" },
+  ">": { type: "conveyor", direction: "right" }
 };
 
 export function toTileKey(position: GridPosition): string {
@@ -29,14 +47,15 @@ export function createDefaultBoardDefinition(): BoardDefinition {
     for (let x = 0; x < BOARD_WIDTH; x += 1) {
       // Character lookup keeps the board editable without changing runtime code.
       const symbol = LAYOUT[y]?.[x] ?? ".";
-      const type = SYMBOL_TO_TILE[symbol] ?? "floor";
+      const tileConfig = SYMBOL_TO_TILE[symbol] ?? SYMBOL_TO_TILE["."]!;
 
       tiles.push({
         key: toTileKey({ x, y }),
         x,
         y,
-        type,
-        durability: type === "earthWall" ? 2 : 0
+        type: tileConfig.type,
+        durability: tileConfig.durability ?? 0,
+        direction: tileConfig.direction ?? null
       });
     }
   }

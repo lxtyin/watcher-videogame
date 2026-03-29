@@ -110,11 +110,15 @@ export function buildActionPreview(
   const board = createBoardDefinitionFromSnapshot(snapshot);
   const players = snapshot.players.map((player) => ({
     id: player.id,
-    position: player.position
+    position: player.position,
+    spawnPosition: player.spawnPosition,
+    turnFlags: player.turnFlags
   }));
   const actor = {
     id: me.id,
-    position: me.position
+    position: me.position,
+    spawnPosition: me.spawnPosition,
+    turnFlags: me.turnFlags
   };
   const activeTool = findToolInstance(me.tools, payload.toolInstanceId);
 
@@ -126,6 +130,7 @@ export function buildActionPreview(
     board,
     actor,
     activeTool,
+    toolDieSeed: snapshot.turnInfo.toolDieSeed,
     tools: me.tools,
     ...(payload.direction ? { direction: payload.direction } : {}),
     ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),

@@ -13,6 +13,7 @@ export class TileState extends Schema {
   @type("number") y = 0;
   @type("string") type = "floor";
   @type("number") durability = 0;
+  @type("string") direction = "";
 }
 
 export class TurnToolState extends Schema {
@@ -29,6 +30,9 @@ export class PlayerState extends Schema {
   @type("string") color = "";
   @type("number") x = 0;
   @type("number") y = 0;
+  @type("number") spawnX = 0;
+  @type("number") spawnY = 0;
+  @type(["string"]) turnFlags = new ArraySchema<string>();
   @type([TurnToolState]) tools = new ArraySchema<TurnToolState>();
 }
 
@@ -38,6 +42,7 @@ export class TurnInfoState extends Schema {
   @type("number") turnNumber = 1;
   @type("number") moveRoll = 0;
   @type("string") lastRolledToolId: RolledToolId | "" = "";
+  @type("number") toolDieSeed = 1;
 }
 
 export class EventLogEntryState extends Schema {

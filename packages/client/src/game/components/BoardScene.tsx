@@ -52,6 +52,12 @@ interface SceneHudOffset {
 }
 
 const AIM_DRAG_THRESHOLD_PX = 14;
+const DIRECTION_ROTATION_Y: Record<Direction, number> = {
+  up: 0,
+  right: -Math.PI / 2,
+  down: Math.PI,
+  left: Math.PI / 2
+};
 
 function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
   const threshold = 0.24;
@@ -148,6 +154,67 @@ function getTileAimTarget(
   return null;
 }
 
+function ConveyorArrow({ direction }: { direction: Direction }) {
+  return (
+    <group rotation={[0, DIRECTION_ROTATION_Y[direction], 0]}>
+      <mesh position={[0, 0.17, -0.04]}>
+        <boxGeometry args={[0.16, 0.05, 0.42]} />
+        <meshStandardMaterial color="#eff3f6" emissive="#4a8da9" emissiveIntensity={0.26} />
+      </mesh>
+      <mesh position={[0, 0.18, -0.3]} rotation={[-Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.17, 0.26, 6]} />
+        <meshStandardMaterial color="#eff3f6" emissive="#4a8da9" emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[0, 0.13, 0.18]}>
+        <boxGeometry args={[0.68, 0.03, 0.2]} />
+        <meshStandardMaterial color="#6db0c6" emissive="#3f7388" emissiveIntensity={0.18} />
+      </mesh>
+    </group>
+  );
+}
+
+function LuckyBlock() {
+  return (
+    <group position={[0, 0.08, 0]}>
+      <mesh position={[0, 0.12, 0]} castShadow>
+        <boxGeometry args={[0.48, 0.34, 0.48]} />
+        <meshStandardMaterial color="#f1cc59" emissive="#8a6d10" emissiveIntensity={0.34} />
+      </mesh>
+      <mesh position={[0, 0.31, 0]}>
+        <boxGeometry args={[0.18, 0.06, 0.42]} />
+        <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[0, 0.31, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[0.18, 0.06, 0.42]} />
+        <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.18, 0.28, 28]} />
+        <meshBasicMaterial color="#ffe596" transparent opacity={0.72} />
+      </mesh>
+    </group>
+  );
+}
+
+function PitDecoration() {
+  return (
+    <group position={[0, -0.22, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.24, 0.42, 36]} />
+        <meshBasicMaterial color="#5b4b46" transparent opacity={0.88} />
+      </mesh>
+      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.22, 32]} />
+        <meshBasicMaterial color="#171418" />
+      </mesh>
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.34, 0.46, 36]} />
+        <meshBasicMaterial color="#9a7162" transparent opacity={0.42} />
+      </mesh>
+    </group>
+  );
+}
+
 function Tile({
   tile,
   boardWidth,
@@ -162,17 +229,38 @@ function Tile({
   previewColor: string;
 }) {
   const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
-  const height = tile.type === "wall" ? 1.15 : tile.type === "earthWall" ? 0.7 : 0.22;
-  const color = tile.type === "wall" ? "#455062" : tile.type === "earthWall" ? "#bc7441" : "#d5c6a1";
+  const height =
+    tile.type === "wall"
+      ? 1.15
+      : tile.type === "earthWall"
+        ? 0.7
+        : tile.type === "lucky"
+          ? 0.26
+          : 0.22;
+  const color =
+    tile.type === "wall"
+      ? "#455062"
+      : tile.type === "earthWall"
+        ? "#bc7441"
+        : tile.type === "pit"
+          ? "#8b705f"
+          : tile.type === "lucky"
+            ? "#d6bf70"
+            : tile.type === "conveyor"
+              ? "#b8c7cd"
+              : "#d5c6a1";
 
   return (
-    <group>
-      <mesh position={[x, height / 2 - 0.5, z]} castShadow receiveShadow>
+    <group position={[x, 0, z]}>
+      <mesh position={[0, height / 2 - 0.5, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.96, height, 0.96]} />
         <meshStandardMaterial color={color} />
       </mesh>
+      {tile.type === "pit" ? <PitDecoration /> : null}
+      {tile.type === "lucky" ? <LuckyBlock /> : null}
+      {tile.type === "conveyor" && tile.direction ? <ConveyorArrow direction={tile.direction} /> : null}
       {previewActive ? (
-        <mesh position={[x, -0.35, z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, -0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.82, 0.82]} />
           <meshBasicMaterial color={previewColor} transparent opacity={0.55} />
         </mesh>

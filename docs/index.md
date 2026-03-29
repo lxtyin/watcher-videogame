@@ -10,6 +10,10 @@
 - `shared / server / client` 三层 monorepo 工作区
 - 基于 Colyseus 的权威多人房间原型
 - 基础地形：`floor`、`wall`、`earthWall`
+- 扩展地形原型：`pit`、`lucky`、`conveyor`
+  - `pit` 在 Tool 结算结束后触发停留效果，立即回出生点
+  - `lucky` 在 Tool 结算结束后为当前行动玩家额外投一次工具骰，每回合限一次
+  - `conveyor` 只在地面移动型 Tool 的经过阶段生效，可加速或强制转向
 - 双阶段回合流程：`roll` 与 `action`
 - 双骰原型：移动骰子 + 工具骰子
 - 玩家每回合获得一份 `tools[]`
@@ -36,6 +40,10 @@
   - 方向型 Tool 使用场景内 3D 箭头提示方向
   - `Brake` 这种选格型 Tool 会直接高亮实际会停下的那一格
   - `Movement`、`Jump`、`Hookshot` 会额外显示预计落点或命中目标的脚底圈
+- 地形扩展链路原型
+  - 共享层区分 Tool 结算后的“停留”与移动路径中的“经过”
+  - `Movement`、`Brake` 复用同一条地面遍历管线
+  - `Jump` 不会触发加速带这类经过地形效果
 - 占位素材：cube 场景与椭球棋子
 
 ## Requirement Docs
