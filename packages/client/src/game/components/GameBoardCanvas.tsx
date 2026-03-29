@@ -4,7 +4,7 @@ import { BoardScene } from "./BoardScene";
 export function GameBoardCanvas() {
   return (
     <div className="board-shell">
-      <Canvas camera={{ position: [5.5, 7.5, 6.8], fov: 42 }} shadows>
+      <Canvas camera={{ position: [11, 15.6, 10], fov: 34 }} shadows>
         <BoardScene />
       </Canvas>
     </div>

@@ -1,4 +1,4 @@
-import type { GameSnapshot, ToolId } from "@watcher/shared";
+import type { GameSnapshot, RolledToolId, ToolId } from "@watcher/shared";
 
 interface SchemaCollection<T> extends Iterable<T> {
   values(): IterableIterator<T>;
@@ -18,24 +18,23 @@ interface RoomPlayerState {
   color: string;
   x: number;
   y: number;
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
-  availableTools: Iterable<RoomToolChargeState>;
+  tools: Iterable<RoomTurnToolState>;
 }
 
-interface RoomToolChargeState {
-  id: ToolId;
+interface RoomTurnToolState {
+  instanceId: string;
+  toolId: ToolId;
   charges: number;
+  movePoints: number;
+  range: number;
 }
 
 interface RoomTurnInfo {
   currentPlayerId: string;
   phase: "roll" | "action";
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
   turnNumber: number;
   moveRoll: number;
-  lastRolledToolId: ToolId | "";
+  lastRolledToolId: RolledToolId | "";
 }
 
 interface RoomEventLogEntry {
@@ -82,18 +81,17 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         x: player.x,
         y: player.y
       },
-      remainingMovePoints: player.remainingMovePoints,
-      movementActionsRemaining: player.movementActionsRemaining,
-      availableTools: Array.from(player.availableTools).map((tool) => ({
-        id: tool.id,
-        charges: tool.charges
+      tools: Array.from(player.tools).map((tool) => ({
+        instanceId: tool.instanceId,
+        toolId: tool.toolId,
+        charges: tool.charges,
+        movePoints: tool.toolId === "movement" ? tool.movePoints : null,
+        range: tool.toolId === "brake" ? tool.range : null
       }))
     })),
     turnInfo: {
       currentPlayerId: roomState.turnInfo.currentPlayerId,
       phase: roomState.turnInfo.phase,
-      remainingMovePoints: roomState.turnInfo.remainingMovePoints,
-      movementActionsRemaining: roomState.turnInfo.movementActionsRemaining,
       turnNumber: roomState.turnInfo.turnNumber,
       moveRoll: roomState.turnInfo.moveRoll,
       lastRolledToolId:

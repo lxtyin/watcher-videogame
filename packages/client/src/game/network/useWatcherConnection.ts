@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Room } from "colyseus.js";
 import { Client } from "colyseus.js";
-import { WATCHER_ROOM_NAME } from "@watcher/shared";
+import { WATCHER_ROOM_NAME, getToolAvailability } from "@watcher/shared";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
 
@@ -9,12 +9,26 @@ function createPlayerName(): string {
   return `Scout-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function pickDefaultToolInstanceId(snapshot: ReturnType<typeof deserializeRoomState>, sessionId: string | null): string | null {
+  if (!sessionId) {
+    return null;
+  }
+
+  const me = snapshot.players.find((player) => player.id === sessionId);
+
+  if (!me) {
+    return null;
+  }
+
+  return me.tools.find((tool) => getToolAvailability(tool, me.tools).usable)?.instanceId ?? null;
+}
+
 export function useWatcherConnection(): void {
   const setConnectionStatus = useGameStore((state) => state.setConnectionStatus);
   const setLastError = useGameStore((state) => state.setLastError);
   const setSession = useGameStore((state) => state.setSession);
   const setSnapshot = useGameStore((state) => state.setSnapshot);
-  const setSelectedActionId = useGameStore((state) => state.setSelectedActionId);
+  const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const clearSession = useGameStore((state) => state.clearSession);
 
   useEffect(() => {
@@ -43,14 +57,15 @@ export function useWatcherConnection(): void {
           // Convert Colyseus schema objects into plain UI-friendly data.
           const snapshot = deserializeRoomState(state);
           const currentState = useGameStore.getState();
-          const activePlayer =
-            snapshot.players.find((entry) => entry.id === snapshot.turnInfo.currentPlayerId) ?? null;
-          const selectedToolStillAvailable =
-            currentState.selectedActionId !== "move" &&
-            activePlayer?.availableTools.some((tool) => tool.id === currentState.selectedActionId);
+          const me = snapshot.players.find((entry) => entry.id === currentState.sessionId) ?? null;
+          const selectedTool = me?.tools.find(
+            (tool) => tool.instanceId === currentState.selectedToolInstanceId
+          );
+          const selectedToolStillUsable =
+            selectedTool && getToolAvailability(selectedTool, me?.tools ?? []).usable;
 
-          if (currentState.selectedActionId !== "move" && !selectedToolStillAvailable) {
-            setSelectedActionId("move");
+          if (!selectedToolStillUsable) {
+            setSelectedToolInstanceId(pickDefaultToolInstanceId(snapshot, currentState.sessionId));
           }
 
           setSnapshot(snapshot);
@@ -80,5 +95,5 @@ export function useWatcherConnection(): void {
 
       clearSession();
     };
-  }, [clearSession, setConnectionStatus, setLastError, setSelectedActionId, setSession, setSnapshot]);
+  }, [clearSession, setConnectionStatus, setLastError, setSelectedToolInstanceId, setSession, setSnapshot]);
 }

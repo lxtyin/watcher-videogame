@@ -1,13 +1,12 @@
 import {
-  resolveMovementAction,
+  findToolInstance,
   resolveToolAction,
   type ActionResolution,
   type BoardDefinition,
   type Direction,
   type GameSnapshot,
   type GridPosition,
-  type TileDefinition,
-  type ToolId
+  type UseToolCommandPayload
 } from "@watcher/shared";
 
 export function toWorldPosition(
@@ -18,6 +17,32 @@ export function toWorldPosition(
   const offsetX = boardWidth / 2 - 0.5;
   const offsetZ = boardHeight / 2 - 0.5;
   return [position.x - offsetX, 0, position.y - offsetZ];
+}
+
+export function toGridPositionFromWorld(
+  worldX: number,
+  worldZ: number,
+  boardWidth: number,
+  boardHeight: number
+): GridPosition {
+  const offsetX = boardWidth / 2 - 0.5;
+  const offsetY = boardHeight / 2 - 0.5;
+
+  return {
+    x: Math.round(worldX + offsetX),
+    y: Math.round(worldZ + offsetY)
+  };
+}
+
+export function clampGridPositionToBoard(
+  position: GridPosition,
+  boardWidth: number,
+  boardHeight: number
+): GridPosition {
+  return {
+    x: Math.min(boardWidth - 1, Math.max(0, position.x)),
+    y: Math.min(boardHeight - 1, Math.max(0, position.y))
+  };
 }
 
 export function directionFromStep(from: GridPosition, to: GridPosition): Direction | null {
@@ -69,8 +94,7 @@ export function createBoardDefinitionFromSnapshot(snapshot: GameSnapshot): Board
 export function buildActionPreview(
   snapshot: GameSnapshot,
   sessionId: string | null,
-  actionId: "move" | ToolId,
-  direction: Direction
+  payload: UseToolCommandPayload
 ): ActionResolution | null {
   if (!sessionId) {
     return null;
@@ -90,23 +114,21 @@ export function buildActionPreview(
   }));
   const actor = {
     id: me.id,
-    position: me.position,
-    remainingMovePoints: me.remainingMovePoints,
-    movementActionsRemaining: me.movementActionsRemaining
+    position: me.position
   };
+  const activeTool = findToolInstance(me.tools, payload.toolInstanceId);
 
-  return actionId === "move"
-    ? resolveMovementAction({
-        board,
-        actor,
-        direction,
-        players
-      })
-    : resolveToolAction({
-        board,
-        actor,
-        direction,
-        toolId: actionId,
-        players
-      });
+  if (!activeTool) {
+    return null;
+  }
+
+  return resolveToolAction({
+    board,
+    actor,
+    activeTool,
+    tools: me.tools,
+    ...(payload.direction ? { direction: payload.direction } : {}),
+    ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
+    players
+  });
 }

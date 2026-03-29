@@ -1,25 +1,57 @@
-import { OrbitControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
-  TOOL_DEFINITIONS,
+  findToolInstance,
+  getToolAvailability,
+  getToolDefinition,
+  isAimTool,
   isDirectionalTool,
+  isTileTargetTool,
   type Direction,
-  type TileDefinition
+  type GridPosition,
+  type TileDefinition,
+  type ToolId,
+  type ToolTargetMode,
+  type TurnToolSnapshot
 } from "@watcher/shared";
+import { getActionUiConfig } from "../config/actionUi";
 import { useGameStore } from "../state/useGameStore";
+import { SceneActionRing } from "./SceneInteractionHud";
+import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import {
   buildActionPreview,
-  directionFromAxis,
+  clampGridPositionToBoard,
+  toGridPositionFromWorld,
   toWorldPosition
 } from "../utils/boardMath";
 
-interface DragState {
-  startWorldX: number;
-  startWorldZ: number;
+interface AimStateBase {
+  toolId: ToolId;
+  toolInstanceId: string;
+  targetMode: Exclude<ToolTargetMode, "instant">;
+  startClientX: number;
+  startClientY: number;
+}
+
+interface DirectionAimState extends AimStateBase {
+  targetMode: "direction";
   direction: Direction | null;
 }
+
+interface TileAimState extends AimStateBase {
+  targetMode: "tile";
+  targetPosition: GridPosition | null;
+}
+
+type AimState = DirectionAimState | TileAimState;
+
+interface SceneHudOffset {
+  x: number;
+  y: number;
+}
+
+const AIM_DRAG_THRESHOLD_PX = 14;
 
 function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
   const threshold = 0.24;
@@ -35,6 +67,10 @@ function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
   return deltaZ >= 0 ? "down" : "up";
 }
 
+function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: number, _boardHeight: number): SceneHudOffset {
+  return { x: 0, y: 0 };
+}
+
 function projectClientToGround(
   clientX: number,
   clientY: number,
@@ -48,6 +84,15 @@ function projectClientToGround(
   const bounds = domElement.getBoundingClientRect();
 
   if (!bounds.width || !bounds.height) {
+    return null;
+  }
+
+  if (
+    clientX < bounds.left ||
+    clientX > bounds.right ||
+    clientY < bounds.top ||
+    clientY > bounds.bottom
+  ) {
     return null;
   }
 
@@ -67,20 +112,54 @@ function projectClientToGround(
   };
 }
 
+function getTileAimTarget(
+  worldX: number,
+  worldZ: number,
+  actorPosition: GridPosition,
+  boardWidth: number,
+  boardHeight: number
+): GridPosition | null {
+  const snappedPointer = clampGridPositionToBoard(
+    toGridPositionFromWorld(worldX, worldZ, boardWidth, boardHeight),
+    boardWidth,
+    boardHeight
+  );
+  const deltaX = snappedPointer.x - actorPosition.x;
+  const deltaY = snappedPointer.y - actorPosition.y;
+
+  if (!deltaX && !deltaY) {
+    return null;
+  }
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+    return {
+      x: snappedPointer.x,
+      y: actorPosition.y
+    };
+  }
+
+  if (deltaY !== 0) {
+    return {
+      x: actorPosition.x,
+      y: snappedPointer.y
+    };
+  }
+
+  return null;
+}
+
 function Tile({
   tile,
   boardWidth,
   boardHeight,
   previewActive,
-  previewColor,
-  onSelect
+  previewColor
 }: {
   tile: TileDefinition;
   boardWidth: number;
   boardHeight: number;
   previewActive: boolean;
   previewColor: string;
-  onSelect: (tile: TileDefinition) => void;
 }) {
   const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
   const height = tile.type === "wall" ? 1.15 : tile.type === "earthWall" ? 0.7 : 0.22;
@@ -88,7 +167,7 @@ function Tile({
 
   return (
     <group>
-      <mesh position={[x, height / 2 - 0.5, z]} castShadow receiveShadow onClick={() => onSelect(tile)}>
+      <mesh position={[x, height / 2 - 0.5, z]} castShadow receiveShadow>
         <boxGeometry args={[0.96, height, 0.96]} />
         <meshStandardMaterial color={color} />
       </mesh>
@@ -102,108 +181,304 @@ function Tile({
   );
 }
 
+function PreviewRing({
+  boardWidth,
+  boardHeight,
+  color,
+  opacity,
+  position,
+  radius
+}: {
+  boardWidth: number;
+  boardHeight: number;
+  color: string;
+  opacity: number;
+  position: GridPosition;
+  radius: number;
+}) {
+  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
+
+  return (
+    <group position={[x, -0.27, z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius - 0.08, radius, 40]} />
+        <meshBasicMaterial color={color} transparent opacity={opacity} />
+      </mesh>
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[radius - 0.12, 28]} />
+        <meshBasicMaterial color={color} transparent opacity={opacity * 0.26} />
+      </mesh>
+      <mesh position={[0, 0.14, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[radius - 0.12, 0.028, 12, 36]} />
+        <meshBasicMaterial color={color} transparent opacity={opacity * 0.84} />
+      </mesh>
+      <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.08, 20]} />
+        <meshBasicMaterial color={color} transparent opacity={opacity * 0.48} />
+      </mesh>
+    </group>
+  );
+}
+
 export function BoardScene() {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
-  const selectedActionId = useGameStore((state) => state.selectedActionId);
+  const selectedToolInstanceId = useGameStore((state) => state.selectedToolInstanceId);
+  const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
+  const showToolNotice = useGameStore((state) => state.showToolNotice);
+  const rollDice = useGameStore((state) => state.rollDice);
+  const endTurn = useGameStore((state) => state.endTurn);
+  const useInstantTool = useGameStore((state) => state.useInstantTool);
   const performDirectionalAction = useGameStore((state) => state.performDirectionalAction);
+  const performTileTargetAction = useGameStore((state) => state.performTileTargetAction);
   const simulationTimeMs = useGameStore((state) => state.simulationTimeMs);
-  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [aimState, setAimState] = useState<AimState | null>(null);
+  const aimStateRef = useRef<AimState | null>(null);
   const dragPlane = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const dragRaycaster = useMemo(() => new Raycaster(), []);
   const dragPointer = useMemo(() => new Vector2(), []);
   const dragIntersection = useMemo(() => new Vector3(), []);
 
-  const isDirectionalSelection =
-    selectedActionId === "move" || isDirectionalTool(selectedActionId);
-
   const myPlayer = snapshot?.players.find((player) => player.id === sessionId) ?? null;
   const isMyTurn =
     Boolean(snapshot && sessionId && snapshot.turnInfo.currentPlayerId === sessionId) &&
     snapshot?.turnInfo.phase === "action";
-  const canDragToAim = Boolean(myPlayer && isMyTurn && isDirectionalSelection);
+  const selectedTool =
+    myPlayer && selectedToolInstanceId ? findToolInstance(myPlayer.tools, selectedToolInstanceId) ?? null : null;
+  const selectedAimTool =
+    selectedTool &&
+    isAimTool(selectedTool.toolId) &&
+    getToolAvailability(selectedTool, myPlayer?.tools ?? []).usable
+      ? selectedTool
+      : null;
+  const selectedDirectionalTool =
+    selectedAimTool && isDirectionalTool(selectedAimTool.toolId) ? selectedAimTool : null;
+  const isAiming = Boolean(aimState);
+  const canShowDirectionArrows = Boolean(myPlayer && isMyTurn && selectedDirectionalTool);
+  const focusedDirection = aimState?.targetMode === "direction" ? aimState.direction : null;
+  const selectedAccent = selectedAimTool
+    ? getActionUiConfig(selectedAimTool.toolId).accent
+    : "#ffffff";
 
   useEffect(() => {
-    if (!dragState || !canDragToAim) {
+    aimStateRef.current = aimState;
+  }, [aimState]);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+    };
+
+    canvas.addEventListener("contextmenu", onContextMenu);
+
+    return () => {
+      canvas.removeEventListener("contextmenu", onContextMenu);
+    };
+  }, [gl]);
+
+  useEffect(() => {
+    if (!selectedAimTool || !myPlayer || !isMyTurn) {
+      aimStateRef.current = null;
+      setAimState(null);
+    }
+  }, [isMyTurn, myPlayer, selectedAimTool]);
+
+  useEffect(() => {
+    if (!aimState || !myPlayer || !snapshot || !isMyTurn) {
       return;
     }
 
+    const [startWorldX, , startWorldZ] = toWorldPosition(
+      myPlayer.position,
+      snapshot.boardWidth,
+      snapshot.boardHeight
+    );
+
+    const resolveAim = (clientX: number, clientY: number, currentState: AimState) => {
+      const screenDelta = Math.hypot(
+        clientX - currentState.startClientX,
+        clientY - currentState.startClientY
+      );
+
+      if (screenDelta < AIM_DRAG_THRESHOLD_PX) {
+        return currentState.targetMode === "direction"
+          ? { ...currentState, direction: null }
+          : { ...currentState, targetPosition: null };
+      }
+
+      const projectedPoint = projectClientToGround(
+        clientX,
+        clientY,
+        gl.domElement,
+        camera,
+        dragRaycaster,
+        dragPointer,
+        dragPlane,
+        dragIntersection
+      );
+
+      if (!projectedPoint) {
+        return currentState.targetMode === "direction"
+          ? { ...currentState, direction: null }
+          : { ...currentState, targetPosition: null };
+      }
+
+      if (currentState.targetMode === "direction") {
+        return {
+          ...currentState,
+          direction: getDragDirection(projectedPoint.x - startWorldX, projectedPoint.z - startWorldZ)
+        };
+      }
+
+      return {
+        ...currentState,
+        targetPosition: getTileAimTarget(
+          projectedPoint.x,
+          projectedPoint.z,
+          myPlayer.position,
+          snapshot.boardWidth,
+          snapshot.boardHeight
+        )
+      };
+    };
+
     const onPointerMove = (event: PointerEvent) => {
-      setDragState((currentState) => {
+      setAimState((currentState) => {
         if (!currentState) {
           return currentState;
         }
 
-        const projectedPoint = projectClientToGround(
-          event.clientX,
-          event.clientY,
-          gl.domElement,
-          camera,
-          dragRaycaster,
-          dragPointer,
-          dragPlane,
-          dragIntersection
-        );
+        const nextState = resolveAim(event.clientX, event.clientY, currentState);
+        aimStateRef.current = nextState;
 
-        if (!projectedPoint) {
-          return currentState;
-        }
-
-        return {
-          ...currentState,
-          direction: getDragDirection(
-            projectedPoint.x - currentState.startWorldX,
-            projectedPoint.z - currentState.startWorldZ
-          )
-        };
+        return nextState;
       });
     };
 
-    const onPointerUp = () => {
-      if (dragState.direction) {
-        performDirectionalAction(dragState.direction);
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.button !== 0) {
+        return;
       }
 
-      setDragState(null);
+      const currentState = aimStateRef.current;
+
+      if (currentState?.targetMode === "direction" && currentState.direction) {
+        performDirectionalAction(currentState.direction, currentState.toolInstanceId);
+      }
+
+      if (currentState?.targetMode === "tile" && currentState.targetPosition) {
+        performTileTargetAction(currentState.targetPosition, currentState.toolInstanceId);
+      }
+
+      aimStateRef.current = null;
+      setAimState(null);
+    };
+
+    const cancelAim = () => {
+      aimStateRef.current = null;
+      setAimState(null);
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 2) {
+        return;
+      }
+
+      event.preventDefault();
+      cancelAim();
+    };
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 2) {
+        return;
+      }
+
+      event.preventDefault();
+      cancelAim();
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      cancelAim();
     };
 
     window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp, { once: true });
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("contextmenu", onContextMenu);
 
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [
+    aimState,
     camera,
-    canDragToAim,
     dragIntersection,
     dragPlane,
     dragPointer,
     dragRaycaster,
-    dragState,
     gl,
-    performDirectionalAction
+    isMyTurn,
+    myPlayer,
+    performDirectionalAction,
+    performTileTargetAction,
+    snapshot
   ]);
 
   const previewResolution = useMemo(() => {
-    if (!snapshot || !sessionId || !dragState?.direction || !canDragToAim) {
+    if (!snapshot || !sessionId || !aimState) {
       return null;
     }
 
-    // The board preview uses the same shared action resolver as the server so
-    // the drag hint matches the authoritative outcome as closely as possible.
-    return buildActionPreview(snapshot, sessionId, selectedActionId, dragState.direction);
-  }, [canDragToAim, dragState?.direction, selectedActionId, sessionId, snapshot]);
+    if (aimState.targetMode === "direction" && aimState.direction) {
+      // The board preview uses the shared action resolver so the drag hint
+      // matches the authoritative room outcome as closely as possible.
+      return buildActionPreview(snapshot, sessionId, {
+        toolInstanceId: aimState.toolInstanceId,
+        direction: aimState.direction
+      });
+    }
+
+    if (aimState.targetMode === "tile" && aimState.targetPosition) {
+      return buildActionPreview(snapshot, sessionId, {
+        toolInstanceId: aimState.toolInstanceId,
+        targetPosition: aimState.targetPosition
+      });
+    }
+
+    return null;
+  }, [aimState, sessionId, snapshot]);
 
   const previewKeys = useMemo(() => {
     return new Set(previewResolution?.path.map((position) => `${position.x},${position.y}`) ?? []);
   }, [previewResolution]);
 
-  const previewColor =
-    selectedActionId === "move" ? "#6abf69" : TOOL_DEFINITIONS[selectedActionId].color;
+  const previewColor = aimState ? getActionUiConfig(aimState.toolId).accent : "#6abf69";
+  const previewLandingPosition =
+    myPlayer &&
+    previewResolution?.kind === "applied" &&
+    (previewResolution.actor.position.x !== myPlayer.position.x ||
+      previewResolution.actor.position.y !== myPlayer.position.y)
+      ? previewResolution.actor.position
+      : null;
+  const previewHookedPlayerPosition =
+    snapshot &&
+    aimState?.toolId === "hookshot" &&
+    previewResolution?.kind === "applied" &&
+    previewResolution.affectedPlayers.length
+      ? snapshot.players.find(
+          (player) => player.id === previewResolution.affectedPlayers[0]?.playerId
+        )?.position ?? null
+      : null;
 
   useEffect(() => {
     if (!snapshot) {
@@ -237,23 +512,52 @@ export function BoardScene() {
   const currentPlayer =
     snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
 
+  const beginAim = (
+    tool: TurnToolSnapshot,
+    startClientX: number,
+    startClientY: number
+  ) => {
+    const targetMode = getToolDefinition(tool.toolId).targetMode;
+
+    if (targetMode === "instant") {
+      return;
+    }
+
+    const nextState: AimState =
+      targetMode === "direction"
+        ? {
+            toolId: tool.toolId,
+            toolInstanceId: tool.instanceId,
+            targetMode,
+            direction: null,
+            startClientX,
+            startClientY
+          }
+        : {
+            toolId: tool.toolId,
+            toolInstanceId: tool.instanceId,
+            targetMode,
+            targetPosition: null,
+            startClientX,
+            startClientY
+          };
+
+    aimStateRef.current = nextState;
+    setSelectedToolInstanceId(tool.instanceId);
+    setAimState(nextState);
+  };
+
   const handlePiecePointerDown = (event: ThreeEvent<PointerEvent>) => {
-    if (!canDragToAim || !myPlayer) {
+    if (!selectedAimTool || !myPlayer || !isMyTurn) {
       return;
     }
 
     event.stopPropagation();
-    const [startWorldX, , startWorldZ] = toWorldPosition(
-      myPlayer.position,
-      snapshot.boardWidth,
-      snapshot.boardHeight
+    beginAim(
+      selectedAimTool,
+      event.nativeEvent.clientX,
+      event.nativeEvent.clientY
     );
-
-    setDragState({
-      startWorldX,
-      startWorldZ,
-      direction: null
-    });
   };
 
   return (
@@ -280,20 +584,6 @@ export function BoardScene() {
           boardHeight={snapshot.boardHeight}
           previewActive={previewKeys.has(tile.key)}
           previewColor={previewColor}
-          onSelect={(selectedTile) => {
-            if (!canDragToAim || !myPlayer) {
-              return;
-            }
-
-            const direction = directionFromAxis(myPlayer.position, {
-              x: selectedTile.x,
-              y: selectedTile.y
-            });
-
-            if (direction) {
-              performDirectionalAction(direction);
-            }
-          }}
         />
       ))}
 
@@ -302,19 +592,63 @@ export function BoardScene() {
         const isActive = player.id === snapshot.turnInfo.currentPlayerId;
         const isMe = player.id === sessionId;
         const pointerProps = isMe ? { onPointerDown: handlePiecePointerDown } : {};
-        // A small bob helps the placeholder piece read as a character, not a static prop.
-        const bob = Math.sin(simulationTimeMs / 450 + index) * 0.05;
+        const actionRingOffset = getActionRingOffset(
+          player.position.x,
+          player.position.y,
+          snapshot.boardWidth,
+          snapshot.boardHeight
+        );
+        const bob = isActive && isMe ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
         const pieceEmissive =
-          isMe && isDirectionalSelection && isMyTurn ? previewColor : isMe ? "#ffffff" : "#000000";
+          isMe && selectedAimTool && isMyTurn
+            ? selectedAccent
+            : isMe
+              ? "#ffffff"
+              : "#000000";
         const emissiveIntensity =
-          isMe && isDirectionalSelection && isMyTurn ? 0.28 : isMe ? 0.12 : 0;
+          isMe && selectedAimTool && isMyTurn ? 0.28 : isMe ? 0.12 : 0;
 
         return (
           <group key={player.id} position={[x, 0, z]}>
+            {isMe && snapshot.turnInfo.currentPlayerId === sessionId && !isAiming ? (
+              <SceneActionRing
+                tools={player.tools}
+                phase={snapshot.turnInfo.phase}
+                position={[0, 1.78 + bob, 0]}
+                screenOffsetX={actionRingOffset.x}
+                screenOffsetY={actionRingOffset.y}
+                selectedToolInstanceId={selectedToolInstanceId}
+                onEndTurn={endTurn}
+                onPressAimTool={(toolInstanceId, clientX, clientY) => {
+                  const tool = findToolInstance(player.tools, toolInstanceId);
+
+                  if (tool && isAimTool(tool.toolId)) {
+                    beginAim(tool, clientX, clientY);
+                  }
+                }}
+                onRollDice={rollDice}
+                onSelectTool={setSelectedToolInstanceId}
+                onShowUnavailableToolNotice={showToolNotice}
+                onUseInstantTool={useInstantTool}
+              />
+            ) : null}
+            {isMe && canShowDirectionArrows && selectedDirectionalTool ? (
+              <SceneDirectionArrows
+                actionId={selectedDirectionalTool.toolId}
+                activeDirection={focusedDirection}
+                position={[0, 0.02, 0]}
+              />
+            ) : null}
             <mesh position={[0, -0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.35, 0.46, 40]} />
               <meshBasicMaterial color={isActive ? "#1f8f6a" : "#8c8f97"} />
             </mesh>
+            {isMe ? (
+              <mesh position={[0, 0.34 + bob, 0]} scale={[1.46, 1.85, 1.46]} {...pointerProps}>
+                <sphereGeometry args={[0.34, 20, 20]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+              </mesh>
+            ) : null}
             <mesh
               position={[0, 0.3 + bob, 0]}
               scale={[0.82, 1.18, 0.82]}
@@ -332,6 +666,27 @@ export function BoardScene() {
         );
       })}
 
+      {previewLandingPosition ? (
+        <PreviewRing
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          color={previewColor}
+          opacity={0.72}
+          position={previewLandingPosition}
+          radius={0.56}
+        />
+      ) : null}
+      {previewHookedPlayerPosition ? (
+        <PreviewRing
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          color={previewColor}
+          opacity={0.68}
+          position={previewHookedPlayerPosition}
+          radius={0.52}
+        />
+      ) : null}
+
       {currentPlayer ? (
         <mesh
           position={[
@@ -345,8 +700,6 @@ export function BoardScene() {
           <meshBasicMaterial color="#10223b" />
         </mesh>
       ) : null}
-
-      <OrbitControls enablePan={false} enabled={!dragState} minPolarAngle={0.55} maxPolarAngle={1.3} />
     </>
   );
 }

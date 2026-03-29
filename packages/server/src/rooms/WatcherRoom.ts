@@ -1,29 +1,29 @@
 import { type Client, Room } from "colyseus";
 import {
-  BASE_MOVEMENT_ACTIONS_PER_TURN,
   PLAYER_COLORS,
   PLAYER_SPAWNS,
   createDefaultBoardDefinition,
+  createMovementToolInstance,
+  createRolledToolInstance,
+  findToolInstance,
   getToolDefinition,
-  resolveMovementAction,
   resolveToolAction,
   rollMovementDie,
   rollToolDie,
   type AffectedPlayerMove,
   type BoardPlayerState,
-  type Direction,
   type EventType,
-  type MoveCommandPayload,
   type TileMutation,
   type TileType,
   type ToolId,
+  type TurnToolSnapshot,
   type UseToolCommandPayload
 } from "@watcher/shared";
 import {
   EventLogEntryState,
   PlayerState,
   TileState,
-  ToolChargeState,
+  TurnToolState,
   WatcherState
 } from "../schema/WatcherState";
 
@@ -34,6 +34,7 @@ interface JoinOptions {
 export class WatcherRoom extends Room<WatcherState> {
   private moveDieSeed = 11;
   private toolDieSeed = 1;
+  private nextToolInstanceSerial = 1;
 
   override onCreate(): void {
     this.autoDispose = false;
@@ -46,10 +47,6 @@ export class WatcherRoom extends Room<WatcherState> {
 
     this.onMessage("rollDice", (client) => {
       this.handleRollDice(client);
-    });
-
-    this.onMessage("move", (client, payload: MoveCommandPayload) => {
-      this.handleMove(client, payload.direction);
     });
 
     this.onMessage("useTool", (client, payload: UseToolCommandPayload) => {
@@ -95,8 +92,6 @@ export class WatcherRoom extends Room<WatcherState> {
     if (!this.state.players.size) {
       this.state.turnInfo.currentPlayerId = "";
       this.state.turnInfo.phase = "roll";
-      this.state.turnInfo.remainingMovePoints = 0;
-      this.state.turnInfo.movementActionsRemaining = 0;
       this.state.turnInfo.moveRoll = 0;
       this.state.turnInfo.lastRolledToolId = "";
       return;
@@ -130,11 +125,8 @@ export class WatcherRoom extends Room<WatcherState> {
   }
 
   private clearPlayerTurnResources(player: PlayerState): void {
-    player.remainingMovePoints = 0;
-    player.movementActionsRemaining = 0;
-
-    while (player.availableTools.length > 0) {
-      player.availableTools.pop();
+    while (player.tools.length > 0) {
+      player.tools.pop();
     }
   }
 
@@ -148,8 +140,6 @@ export class WatcherRoom extends Room<WatcherState> {
     this.clearPlayerTurnResources(player);
     this.state.turnInfo.currentPlayerId = playerId;
     this.state.turnInfo.phase = "roll";
-    this.state.turnInfo.remainingMovePoints = 0;
-    this.state.turnInfo.movementActionsRemaining = 0;
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
 
@@ -209,73 +199,18 @@ export class WatcherRoom extends Room<WatcherState> {
     this.toolDieSeed = toolRoll.nextSeed;
 
     this.clearPlayerTurnResources(player);
-    player.remainingMovePoints = moveRoll.value;
-    player.movementActionsRemaining = BASE_MOVEMENT_ACTIONS_PER_TURN;
-
-    const toolCharge = new ToolChargeState();
-    toolCharge.id = toolRoll.value;
-    toolCharge.charges = getToolDefinition(toolRoll.value).chargesPerRoll;
-    player.availableTools.push(toolCharge);
+    this.applyToolInventory(player, [
+      createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll.value),
+      createRolledToolInstance(this.createToolInstanceId(toolRoll.value), toolRoll.value)
+    ]);
 
     this.state.turnInfo.phase = "action";
-    this.state.turnInfo.remainingMovePoints = player.remainingMovePoints;
-    this.state.turnInfo.movementActionsRemaining = player.movementActionsRemaining;
     this.state.turnInfo.moveRoll = moveRoll.value;
     this.state.turnInfo.lastRolledToolId = toolRoll.value;
 
     this.pushEvent(
       "dice_rolled",
-      `${player.name} rolled ${moveRoll.value} move and ${getToolDefinition(toolRoll.value).label}.`
-    );
-  }
-
-  private handleMove(client: Client, direction: Direction): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "action") {
-      this.pushEvent("move_blocked", `${player.name} must roll dice first.`);
-      return;
-    }
-
-    // Convert Colyseus schema data into plain shared-layer inputs before validation.
-    const resolution = resolveMovementAction({
-      board: this.createBoardDefinition(),
-      actor: {
-        id: player.id,
-        position: { x: player.x, y: player.y },
-        remainingMovePoints: player.remainingMovePoints,
-        movementActionsRemaining: player.movementActionsRemaining
-      },
-      direction,
-      players: this.createBoardPlayers()
-    });
-
-    if (resolution.kind === "blocked") {
-      this.pushEvent("move_blocked", `${player.name} cannot move ${direction}: ${resolution.reason}.`);
-      return;
-    }
-
-    player.x = resolution.actor.position.x;
-    player.y = resolution.actor.position.y;
-    player.remainingMovePoints = resolution.actor.remainingMovePoints;
-    player.movementActionsRemaining = resolution.actor.movementActionsRemaining;
-
-    this.state.turnInfo.remainingMovePoints = player.remainingMovePoints;
-    this.state.turnInfo.movementActionsRemaining = player.movementActionsRemaining;
-
-    this.applyTileMutations(resolution.tileMutations);
-
-    if (resolution.tileMutations.length) {
-      this.pushEvent("earth_wall_broken", `${player.name} broke an earth wall while moving.`);
-    }
-
-    this.pushEvent(
-      "piece_moved",
-      `${player.name} moved ${direction} to (${player.x}, ${player.y}).`
+      `${player.name} rolled Movement ${moveRoll.value} and ${getToolDefinition(toolRoll.value).label}.`
     );
   }
 
@@ -291,17 +226,23 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    const toolCharge = this.findToolCharge(player, payload.toolId);
+    const tools = this.createPlayerTools(player);
+    const activeTool = findToolInstance(tools, payload.toolInstanceId);
 
-    if (!toolCharge) {
+    if (!activeTool) {
       this.pushEvent("move_blocked", `${player.name} does not have that tool this turn.`);
       return;
     }
 
-    const toolDefinition = getToolDefinition(payload.toolId);
+    const toolDefinition = getToolDefinition(activeTool.toolId);
 
     if (toolDefinition.targetMode === "direction" && !payload.direction) {
       this.pushEvent("move_blocked", `${toolDefinition.label} needs a direction.`);
+      return;
+    }
+
+    if (toolDefinition.targetMode === "tile" && !payload.targetPosition) {
+      this.pushEvent("move_blocked", `${toolDefinition.label} needs a target tile.`);
       return;
     }
 
@@ -309,12 +250,12 @@ export class WatcherRoom extends Room<WatcherState> {
       board: this.createBoardDefinition(),
       actor: {
         id: player.id,
-        position: { x: player.x, y: player.y },
-        remainingMovePoints: player.remainingMovePoints,
-        movementActionsRemaining: player.movementActionsRemaining
+        position: { x: player.x, y: player.y }
       },
-      toolId: payload.toolId,
+      activeTool,
+      tools,
       direction: payload.direction ?? "up",
+      ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
       players: this.createBoardPlayers()
     });
 
@@ -326,23 +267,26 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    this.consumeToolCharge(player, payload.toolId);
-
     player.x = resolution.actor.position.x;
     player.y = resolution.actor.position.y;
-    player.remainingMovePoints = resolution.actor.remainingMovePoints;
-    player.movementActionsRemaining = resolution.actor.movementActionsRemaining;
 
-    this.state.turnInfo.remainingMovePoints = player.remainingMovePoints;
-    this.state.turnInfo.movementActionsRemaining = player.movementActionsRemaining;
-
+    this.applyToolInventory(player, resolution.tools);
     this.applyTileMutations(resolution.tileMutations);
     this.applyAffectedPlayerMoves(resolution.affectedPlayers);
 
-    this.pushEvent(
-      "tool_used",
-      `${player.name} used ${toolDefinition.label}.`
-    );
+    if (resolution.tileMutations.length) {
+      this.pushEvent("earth_wall_broken", `${player.name} broke an earth wall while moving.`);
+    }
+
+    if (activeTool.toolId === "movement") {
+      this.pushEvent(
+        "piece_moved",
+        `${player.name} used Movement ${payload.direction} to (${player.x}, ${player.y}).`
+      );
+      return;
+    }
+
+    this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
   }
 
   private handleEndTurn(client: Client): void {
@@ -364,25 +308,35 @@ export class WatcherRoom extends Room<WatcherState> {
     this.beginTurnFor(nextPlayerId, true);
   }
 
-  private findToolCharge(player: PlayerState, toolId: ToolId): ToolChargeState | undefined {
-    return Array.from(player.availableTools as Iterable<ToolChargeState>).find((tool) => tool.id === toolId);
+  private createToolInstanceId(toolId: ToolId): string {
+    const serial = this.nextToolInstanceSerial;
+    this.nextToolInstanceSerial += 1;
+    return `${toolId}-${serial}`;
   }
 
-  private consumeToolCharge(player: PlayerState, toolId: ToolId): void {
-    for (let index = 0; index < player.availableTools.length; index += 1) {
-      const tool = player.availableTools[index];
+  private createPlayerTools(player: PlayerState): TurnToolSnapshot[] {
+    return Array.from(player.tools as Iterable<TurnToolState>).map((tool) => ({
+      instanceId: tool.instanceId,
+      toolId: tool.toolId as ToolId,
+      charges: tool.charges,
+      movePoints: tool.toolId === "movement" ? tool.movePoints : null,
+      range: tool.toolId === "brake" ? tool.range : null
+    }));
+  }
 
-      if (!tool || tool.id !== toolId) {
-        continue;
-      }
+  private applyToolInventory(player: PlayerState, tools: TurnToolSnapshot[]): void {
+    while (player.tools.length > 0) {
+      player.tools.pop();
+    }
 
-      tool.charges -= 1;
-
-      if (tool.charges <= 0) {
-        player.availableTools.splice(index, 1);
-      }
-
-      return;
+    for (const tool of tools) {
+      const toolState = new TurnToolState();
+      toolState.instanceId = tool.instanceId;
+      toolState.toolId = tool.toolId;
+      toolState.charges = tool.charges;
+      toolState.movePoints = tool.movePoints ?? 0;
+      toolState.range = tool.range ?? 0;
+      player.tools.push(toolState);
     }
   }
 

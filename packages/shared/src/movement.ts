@@ -67,7 +67,7 @@ export function resolveMoveAttempt(context: MovementContext): MovementResolution
     destroyedTileKey = tile.key;
   }
 
-  if (context.actor.remainingMovePoints < moveCost) {
+  if (context.movePoints < moveCost) {
     return {
       kind: "blocked",
       reason: "Not enough move points",
@@ -80,13 +80,11 @@ export function resolveMoveAttempt(context: MovementContext): MovementResolution
         kind: "moved",
         target,
         moveCost,
-        remainingMovePoints: context.actor.remainingMovePoints - moveCost,
         destroyedTileKey
       }
     : {
         kind: "moved",
         target,
-        moveCost,
-        remainingMovePoints: context.actor.remainingMovePoints - moveCost
+        moveCost
       };
 }

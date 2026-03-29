@@ -2,8 +2,7 @@ import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
-  DEFAULT_MOVEMENT_ACTIONS,
-  DEFAULT_MOVE_POINTS,
+  type RolledToolId,
   type ToolId
 } from "@watcher/shared";
 
@@ -16,9 +15,12 @@ export class TileState extends Schema {
   @type("number") durability = 0;
 }
 
-export class ToolChargeState extends Schema {
-  @type("string") id = "";
+export class TurnToolState extends Schema {
+  @type("string") instanceId = "";
+  @type("string") toolId: ToolId | "" = "";
   @type("number") charges = 0;
+  @type("number") movePoints = 0;
+  @type("number") range = 0;
 }
 
 export class PlayerState extends Schema {
@@ -27,19 +29,15 @@ export class PlayerState extends Schema {
   @type("string") color = "";
   @type("number") x = 0;
   @type("number") y = 0;
-  @type("number") remainingMovePoints = DEFAULT_MOVE_POINTS;
-  @type("number") movementActionsRemaining = DEFAULT_MOVEMENT_ACTIONS;
-  @type([ToolChargeState]) availableTools = new ArraySchema<ToolChargeState>();
+  @type([TurnToolState]) tools = new ArraySchema<TurnToolState>();
 }
 
 export class TurnInfoState extends Schema {
   @type("string") currentPlayerId = "";
   @type("string") phase = "roll";
-  @type("number") remainingMovePoints = DEFAULT_MOVE_POINTS;
-  @type("number") movementActionsRemaining = DEFAULT_MOVEMENT_ACTIONS;
   @type("number") turnNumber = 1;
   @type("number") moveRoll = 0;
-  @type("string") lastRolledToolId: ToolId | "" = "";
+  @type("string") lastRolledToolId: RolledToolId | "" = "";
 }
 
 export class EventLogEntryState extends Schema {

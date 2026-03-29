@@ -5,23 +5,38 @@
 
 ## Current Scope
 
-当前代码已经覆盖前两步原型能力：
+当前代码已经覆盖到“统一 Turn Tool 列表”这一轮原型：
 
 - `shared / server / client` 三层 monorepo 工作区
 - 基于 Colyseus 的权威多人房间原型
 - 基础地形：`floor`、`wall`、`earthWall`
-- 回合流程：掷骰阶段 `roll` 与行动阶段 `action`
+- 双阶段回合流程：`roll` 与 `action`
 - 双骰原型：移动骰子 + 工具骰子
-- 基础工具：`Jump`、`Hookshot`、`Pivot`、`Dash`
-- 3D 交互原型：在场景中拖动棋子选择方向，也支持点选同轴地块执行动作
+- 玩家每回合获得一份 `tools[]`
+  - `Movement(points)` 也被视为一种 Tool
+  - 玩家可以按任意顺序消耗本回合 Tool
+- 当前基础 Tool
+  - `Movement`
+  - `Jump`
+  - `Hookshot`
+  - `Pivot`
+  - `Dash`
+  - `Brake`
+- Tool 条件系统原型
+  - `Dash` 需要当前工具列表中仍然存在 `Movement`
+- Tool 派生原型
+  - `Pivot` 会新增一个 `Movement(2)`
+  - `Dash` 会给当前列表中的所有 `Movement` +2 点
+- 3D 交互原型
+  - 头顶弧形 Tool 环动态展示本回合 `tools[]`
+  - `Movement` 按钮会直接显示点数
+  - 条件不满足的 Tool 会置灰禁用
+  - Tool 目标模式当前分为 `instant`、`direction`、`tile`
+  - 在场景中按住 Tool、拖动选目标、松手执行、右键取消
+  - 方向型 Tool 使用场景内 3D 箭头提示方向
+  - `Brake` 这种选格型 Tool 会直接高亮实际会停下的那一格
+  - `Movement`、`Jump`、`Hookshot` 会额外显示预计落点或命中目标的脚底圈
 - 占位素材：cube 场景与椭球棋子
-
-## Reading Order
-
-1. 先读玩法需求文档，明确规则目标和玩家体验。
-2. 再读架构需求文档，明确分层和职责边界。
-3. 然后阅读 `docs/arch` 下的实现文档，了解当前代码结构。
-4. 实际改代码前，再阅读 AI 开发指南。
 
 ## Requirement Docs
 
@@ -35,9 +50,9 @@
 - [架构总览](./arch/架构总览.md)
   - 总结当前工作区结构、运行链路和已实现范围。
 - [共享规则层](./arch/共享规则层.md)
-  - 说明共享数据模型、骰子/工具注册方式与动作结算入口。
+  - 说明共享数据模型、Turn Tool 列表、Tool 条件与统一结算入口。
 - [前后端联机原型](./arch/前后端联机原型.md)
-  - 说明 Colyseus 房间、客户端状态流和 3D 交互原型。
+  - 说明 Colyseus 房间、客户端状态流和 3D Tool 交互原型。
 
 ## Development Guide
 

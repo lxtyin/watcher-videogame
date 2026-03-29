@@ -1,8 +1,9 @@
 export type TileType = "floor" | "wall" | "earthWall";
 export type TurnPhase = "roll" | "action";
 export type Direction = "up" | "down" | "left" | "right";
-export type ToolId = "jump" | "hookshot" | "pivot" | "dash";
-export type ToolTargetMode = "direction" | "instant";
+export type ToolId = "movement" | "jump" | "hookshot" | "pivot" | "dash" | "brake";
+export type RolledToolId = Exclude<ToolId, "movement">;
+export type ToolTargetMode = "direction" | "tile" | "instant";
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -34,19 +35,15 @@ export interface PlayerSnapshot {
   name: string;
   color: string;
   position: GridPosition;
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
-  availableTools: ToolChargeSnapshot[];
+  tools: TurnToolSnapshot[];
 }
 
 export interface TurnInfoSnapshot {
   currentPlayerId: string;
   phase: TurnPhase;
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
   turnNumber: number;
   moveRoll: number;
-  lastRolledToolId: ToolId | null;
+  lastRolledToolId: RolledToolId | null;
 }
 
 export interface EventLogEntry {
@@ -56,16 +53,26 @@ export interface EventLogEntry {
   createdAt: number;
 }
 
-export interface ToolChargeSnapshot {
-  id: ToolId;
+export interface TurnToolSnapshot {
+  instanceId: string;
+  toolId: ToolId;
   charges: number;
+  movePoints: number | null;
+  range: number | null;
+}
+
+export interface ToolCondition {
+  kind: "tool_present";
+  toolId: ToolId;
 }
 
 export interface ToolDefinition {
   id: ToolId;
   label: string;
   description: string;
+  disabledHint: string | null;
   targetMode: ToolTargetMode;
+  conditions: ToolCondition[];
   chargesPerRoll: number;
   color: string;
 }
@@ -79,26 +86,22 @@ export interface GameSnapshot {
   eventLog: EventLogEntry[];
 }
 
-export interface MoveCommandPayload {
-  direction: Direction;
-}
-
 export interface UseToolCommandPayload {
-  toolId: ToolId;
+  toolInstanceId: string;
   direction?: Direction;
+  targetPosition?: GridPosition;
 }
 
 export interface MovementActor {
   id: string;
   position: GridPosition;
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
 }
 
 export interface MovementContext {
   board: BoardDefinition;
   actor: MovementActor;
   direction: Direction;
+  movePoints: number;
   occupiedPositions: GridPosition[];
 }
 
@@ -112,7 +115,6 @@ export type MovementResolution =
       kind: "moved";
       target: GridPosition;
       moveCost: number;
-      remainingMovePoints: number;
       destroyedTileKey?: string;
     };
 
@@ -134,21 +136,30 @@ export interface AffectedPlayerMove {
   reason: string;
 }
 
-export interface DirectionalActionContext {
+export interface ActionContextBase {
   board: BoardDefinition;
   actor: MovementActor;
-  direction: Direction;
   players: BoardPlayerState[];
 }
 
-export interface ToolActionContext extends DirectionalActionContext {
-  toolId: ToolId;
+export interface DirectionalActionContext extends ActionContextBase {
+  direction: Direction;
+}
+
+export interface ToolActionContext extends ActionContextBase {
+  activeTool: TurnToolSnapshot;
+  tools: TurnToolSnapshot[];
+  direction?: Direction;
+  targetPosition?: GridPosition;
 }
 
 export interface ResolvedActorState {
   position: GridPosition;
-  remainingMovePoints: number;
-  movementActionsRemaining: number;
+}
+
+export interface ToolAvailability {
+  usable: boolean;
+  reason: string | null;
 }
 
 export type ActionResolution =
@@ -157,16 +168,16 @@ export type ActionResolution =
       reason: string;
       path: GridPosition[];
       actor: ResolvedActorState;
+      tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
-      consumedMovePoints: number;
     }
   | {
       kind: "applied";
       summary: string;
       path: GridPosition[];
       actor: ResolvedActorState;
+      tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
-      consumedMovePoints: number;
     };

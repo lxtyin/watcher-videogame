@@ -1,6 +1,6 @@
 import { MOVEMENT_DIE_FACES } from "./constants";
 import { TOOL_DIE_FACES } from "./tools";
-import type { ToolId } from "./types";
+import type { RolledToolId } from "./types";
 
 export interface DieRollResult<T> {
   value: T;
@@ -25,6 +25,6 @@ export function rollMovementDie(seed: number): DieRollResult<number> {
   return rollFromFaces(MOVEMENT_DIE_FACES, seed);
 }
 
-export function rollToolDie(seed: number): DieRollResult<ToolId> {
+export function rollToolDie(seed: number): DieRollResult<RolledToolId> {
   return rollFromFaces(TOOL_DIE_FACES, seed);
 }

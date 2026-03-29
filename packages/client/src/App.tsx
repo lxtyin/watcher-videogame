@@ -1,10 +1,20 @@
 import { useEffect, type CSSProperties } from "react";
-import { TOOL_DEFINITIONS, isDirectionalTool, type Direction } from "@watcher/shared";
+import {
+  TOOL_DEFINITIONS,
+  findToolInstance,
+  getToolDisabledMessage,
+  getToolAvailability,
+  isDirectionalTool,
+  isTileTargetTool,
+  type Direction,
+  type GameSnapshot,
+  type TurnToolSnapshot
+} from "@watcher/shared";
 import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
 import { useWatcherConnection } from "./game/network/useWatcherConnection";
 import {
   useGameStore,
-  type SelectedActionId
+  type SelectedToolInstanceId
 } from "./game/state/useGameStore";
 
 const MOVEMENT_KEYS: Record<string, Direction> = {
@@ -18,8 +28,51 @@ const MOVEMENT_KEYS: Record<string, Direction> = {
   d: "right"
 };
 
+const CONNECTION_STATUS_LABELS = {
+  idle: "空闲",
+  connecting: "连接中",
+  connected: "已连接",
+  disconnected: "已断开",
+  error: "错误"
+} as const;
+
+const TURN_PHASE_LABELS = {
+  roll: "掷骰阶段",
+  action: "行动阶段"
+} as const;
+
+function findSelectedTool(
+  snapshot: GameSnapshot | null,
+  sessionId: string | null,
+  selectedToolInstanceId: SelectedToolInstanceId
+): TurnToolSnapshot | null {
+  if (!snapshot || !sessionId || !selectedToolInstanceId) {
+    return null;
+  }
+
+  const me = snapshot.players.find((player) => player.id === sessionId);
+
+  return me ? findToolInstance(me.tools, selectedToolInstanceId) ?? null : null;
+}
+
+function describeToolButton(tool: TurnToolSnapshot): string {
+  if (tool.toolId === "movement") {
+    return `${TOOL_DEFINITIONS[tool.toolId].label} ${tool.movePoints ?? 0}`;
+  }
+
+  if (tool.toolId === "brake") {
+    return `${TOOL_DEFINITIONS[tool.toolId].label} ${tool.range ?? 0}`;
+  }
+
+  return tool.charges > 1
+    ? `${TOOL_DEFINITIONS[tool.toolId].label} x${tool.charges}`
+    : TOOL_DEFINITIONS[tool.toolId].label;
+}
+
 function useKeyboardInteraction(): void {
-  const selectedActionId = useGameStore((state) => state.selectedActionId);
+  const snapshot = useGameStore((state) => state.snapshot);
+  const sessionId = useGameStore((state) => state.sessionId);
+  const selectedToolInstanceId = useGameStore((state) => state.selectedToolInstanceId);
   const performDirectionalAction = useGameStore((state) => state.performDirectionalAction);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
@@ -29,10 +82,20 @@ function useKeyboardInteraction(): void {
     // Keyboard input stays thin and forwards intent to the authoritative room.
     const onKeyDown = (event: KeyboardEvent) => {
       const direction = MOVEMENT_KEYS[event.key];
+      const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
+      const selectedTool =
+        me && selectedToolInstanceId ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
+      const selectedToolAvailability =
+        selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
 
-      if (direction) {
+      if (
+        direction &&
+        selectedTool &&
+        isDirectionalTool(selectedTool.toolId) &&
+        selectedToolAvailability?.usable
+      ) {
         event.preventDefault();
-        performDirectionalAction(direction);
+        performDirectionalAction(direction, selectedTool.instanceId);
       }
 
       if (event.key.toLowerCase() === "r") {
@@ -47,11 +110,12 @@ function useKeyboardInteraction(): void {
 
       if (
         (event.key === "Enter" || event.key === " ") &&
-        selectedActionId !== "move" &&
-        !isDirectionalTool(selectedActionId)
+        selectedTool &&
+        !isDirectionalTool(selectedTool.toolId) &&
+        selectedToolAvailability?.usable
       ) {
         event.preventDefault();
-        useInstantTool();
+        useInstantTool(selectedTool.instanceId);
       }
     };
 
@@ -60,27 +124,7 @@ function useKeyboardInteraction(): void {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [endTurn, performDirectionalAction, rollDice, selectedActionId, useInstantTool]);
-}
-
-function useActionSelectionGuard(): void {
-  const snapshot = useGameStore((state) => state.snapshot);
-  const sessionId = useGameStore((state) => state.sessionId);
-  const selectedActionId = useGameStore((state) => state.selectedActionId);
-  const setSelectedActionId = useGameStore((state) => state.setSelectedActionId);
-
-  useEffect(() => {
-    if (!snapshot || !sessionId || selectedActionId === "move") {
-      return;
-    }
-
-    const me = snapshot.players.find((player) => player.id === sessionId);
-    const hasSelectedTool = me?.availableTools.some((tool) => tool.id === selectedActionId);
-
-    if (!hasSelectedTool) {
-      setSelectedActionId("move");
-    }
-  }, [selectedActionId, sessionId, setSelectedActionId, snapshot]);
+  }, [endTurn, performDirectionalAction, rollDice, selectedToolInstanceId, sessionId, snapshot, useInstantTool]);
 }
 
 function useAnimationClock(): void {
@@ -120,7 +164,7 @@ function useAutomationBridge(): void {
         coordinateSystem: "origin=(0,0) at the top-left of the board, x grows right, y grows down",
         sessionId: state.sessionId,
         timeMs: state.simulationTimeMs,
-        selectedActionId: state.selectedActionId,
+        selectedToolInstanceId: state.selectedToolInstanceId,
         snapshot: state.snapshot
       };
 
@@ -137,31 +181,44 @@ function useAutomationBridge(): void {
 function describeInteractionHint(
   isMyTurn: boolean,
   phase: "roll" | "action" | null,
-  selectedActionId: SelectedActionId
+  selectedTool: TurnToolSnapshot | null,
+  localTools: TurnToolSnapshot[]
 ): string {
   if (!isMyTurn) {
-    return "Waiting for your turn.";
+    return "当前不是你的回合，请等待其他玩家行动。";
   }
 
   if (phase === "roll") {
-    return "Roll the dice to get move points and a tool for this turn.";
+    return "点击棋子头顶的骰子开始掷骰，或按 R。";
   }
 
-  if (selectedActionId === "move") {
-    return "Drag from your piece in the 3D board to choose a movement direction.";
+  if (!selectedTool) {
+    return localTools.length
+      ? "从头顶弧环中选择一个可用工具。灰色按钮代表当前条件未满足。"
+      : "本回合已经没有工具可用了，可以结束回合。";
   }
 
-  if (isDirectionalTool(selectedActionId)) {
-    return `Drag from your piece in the 3D board to aim ${TOOL_DEFINITIONS[selectedActionId].label}.`;
+  const availability = getToolAvailability(selectedTool, localTools);
+  const label = TOOL_DEFINITIONS[selectedTool.toolId].label;
+
+  if (!availability.usable) {
+    return `${label}当前不可用：${availability.reason}。`;
   }
 
-  return `Use ${TOOL_DEFINITIONS[selectedActionId].label} from the action card or press Enter.`;
+  if (isDirectionalTool(selectedTool.toolId)) {
+    return `按住${label}，拖到高亮方向箭头后松手执行，脚底圆环会预览结果。`;
+  }
+
+  if (isTileTargetTool(selectedTool.toolId)) {
+    return `按住${label}，把目标拖到棋盘格上后松手执行，高亮格会自动吸附到实际可达位置。`;
+  }
+
+  return `点击头顶弧环使用${label}，或按 Enter。`;
 }
 
 export default function App() {
   useWatcherConnection();
   useKeyboardInteraction();
-  useActionSelectionGuard();
   useAnimationClock();
   useAutomationBridge();
 
@@ -169,8 +226,11 @@ export default function App() {
   const lastError = useGameStore((state) => state.lastError);
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
-  const selectedActionId = useGameStore((state) => state.selectedActionId);
-  const setSelectedActionId = useGameStore((state) => state.setSelectedActionId);
+  const selectedToolInstanceId = useGameStore((state) => state.selectedToolInstanceId);
+  const toolNotice = useGameStore((state) => state.toolNotice);
+  const clearToolNotice = useGameStore((state) => state.clearToolNotice);
+  const showToolNotice = useGameStore((state) => state.showToolNotice);
+  const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
   const useInstantTool = useGameStore((state) => state.useInstantTool);
@@ -179,47 +239,65 @@ export default function App() {
   const activePlayer = snapshot?.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
   const isMyTurn = Boolean(activePlayer && sessionId && activePlayer.id === sessionId);
   const activePhase = snapshot?.turnInfo.phase ?? null;
-  const selectedToolDefinition =
-    selectedActionId === "move" ? null : TOOL_DEFINITIONS[selectedActionId];
+  const selectedTool = findSelectedTool(snapshot, sessionId, selectedToolInstanceId);
+  const selectedToolDefinition = selectedTool ? TOOL_DEFINITIONS[selectedTool.toolId] : null;
+  const selectedToolAvailability =
+    selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
   const instantToolReady =
-    selectedActionId !== "move" &&
-    !isDirectionalTool(selectedActionId) &&
-    me?.availableTools.some((tool) => tool.id === selectedActionId);
+    selectedTool &&
+    selectedToolDefinition &&
+    !isDirectionalTool(selectedTool.toolId) &&
+    selectedToolAvailability?.usable;
+  const usableToolCount = me?.tools.filter((tool) => getToolAvailability(tool, me.tools).usable).length ?? 0;
 
-  const interactionHint = describeInteractionHint(isMyTurn, activePhase, selectedActionId);
+  const interactionHint = describeInteractionHint(isMyTurn, activePhase, selectedTool, me?.tools ?? []);
+
+  useEffect(() => {
+    if (!toolNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearToolNotice();
+    }, 2200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [clearToolNotice, toolNotice]);
 
   return (
     <div className="app-shell">
       <aside className="hud-panel">
         <div className="brand-block">
-          <p className="eyebrow">Watcher Prototype</p>
-          <h1>Dice, tools, and drag-to-aim actions</h1>
+          <p className="eyebrow">Watcher 原型</p>
+          <h1>场景优先的骰子与工具回合</h1>
           <p className="lead">
-            Roll first, pick an action, then aim movement or directional tools directly inside the board.
+            当前回合以统一的工具列表结算。移动本身也是工具，因此执行顺序、使用条件和后续强化都会走同一套扩展路径。
           </p>
         </div>
 
         <section className="status-card">
-          <span className={`status-pill status-${connectionStatus}`}>{connectionStatus}</span>
+          <span className={`status-pill status-${connectionStatus}`}>{CONNECTION_STATUS_LABELS[connectionStatus]}</span>
           <p>{interactionHint}</p>
           {lastError ? <p className="error-copy">{lastError}</p> : null}
         </section>
 
         <section className="info-grid">
           <div className="info-card">
-            <p className="info-label">You</p>
-            <strong>{me?.name ?? "Connecting..."}</strong>
+            <p className="info-label">玩家</p>
+            <strong>{me?.name ?? "连接中..."}</strong>
             <span>{me ? `(${me.position.x}, ${me.position.y})` : "--"}</span>
           </div>
           <div className="info-card">
-            <p className="info-label">Active Turn</p>
+            <p className="info-label">当前回合</p>
             <strong>{activePlayer?.name ?? "--"}</strong>
-            <span>{snapshot ? activePhase : "--"}</span>
+            <span>{snapshot && activePhase ? TURN_PHASE_LABELS[activePhase] : "--"}</span>
           </div>
         </section>
 
         <section className="controls-card">
-          <p className="section-title">Turn Flow</p>
+          <p className="section-title">辅助操作</p>
           <div className="action-row">
             <button
               type="button"
@@ -227,7 +305,7 @@ export default function App() {
               onClick={() => rollDice()}
               disabled={!isMyTurn || activePhase !== "roll"}
             >
-              Roll Dice
+              掷骰
             </button>
             <button
               type="button"
@@ -235,126 +313,130 @@ export default function App() {
               onClick={() => endTurn()}
               disabled={!isMyTurn || activePhase !== "action"}
             >
-              End Turn
+              结束回合
             </button>
           </div>
-          <p className="hint-copy">Keyboard: `R` rolls dice, `E` ends the turn.</p>
+          <p className="hint-copy">主要操作都在棋子头顶完成。键盘辅助：`R` 掷骰，`E` 结束回合，方向键执行当前定向工具。</p>
         </section>
 
         <section className="roll-card">
-          <p className="section-title">Current Roll</p>
+          <p className="section-title">本回合掷骰</p>
           <div className="roll-grid">
             <div className="info-card compact">
-              <p className="info-label">Move Die</p>
+              <p className="info-label">移动骰</p>
               <strong>{snapshot?.turnInfo.moveRoll ?? 0}</strong>
             </div>
             <div className="info-card compact">
-              <p className="info-label">Move Points</p>
-              <strong>{me?.remainingMovePoints ?? 0}</strong>
-            </div>
-            <div className="info-card compact">
-              <p className="info-label">Segments</p>
-              <strong>{me?.movementActionsRemaining ?? 0}</strong>
-            </div>
-            <div className="info-card compact">
-              <p className="info-label">Tool Die</p>
+              <p className="info-label">工具骰</p>
               <strong>
                 {snapshot?.turnInfo.lastRolledToolId
                   ? TOOL_DEFINITIONS[snapshot.turnInfo.lastRolledToolId].label
                   : "--"}
               </strong>
             </div>
+            <div className="info-card compact">
+              <p className="info-label">工具总数</p>
+              <strong>{me?.tools.length ?? 0}</strong>
+            </div>
+            <div className="info-card compact">
+              <p className="info-label">可用数量</p>
+              <strong>{usableToolCount}</strong>
+            </div>
           </div>
         </section>
 
         <section className="tool-card">
-          <p className="section-title">Action Mode</p>
+          <p className="section-title">工具列表</p>
           <div className="tool-grid">
-            <button
-              type="button"
-              data-testid="action-select-move"
-              className={selectedActionId === "move" ? "tool-button selected" : "tool-button"}
-              onClick={() => setSelectedActionId("move")}
-            >
-              Move
-            </button>
-            {me?.availableTools.map((tool) => {
-              const definition = TOOL_DEFINITIONS[tool.id];
+            {me?.tools.map((tool, index) => {
+              const availability = getToolAvailability(tool, me.tools);
 
               return (
                 <button
-                  key={tool.id}
+                  key={tool.instanceId}
                   type="button"
-                  data-testid={`tool-button-${tool.id}`}
-                  className={selectedActionId === tool.id ? "tool-button selected" : "tool-button"}
-                  onClick={() => setSelectedActionId(tool.id)}
+                  data-testid={`tool-button-${tool.toolId}-${index}`}
+                  className={
+                    [
+                      "tool-button",
+                      selectedToolInstanceId === tool.instanceId ? "selected" : "",
+                      !availability.usable ? "disabled" : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  }
+                  aria-disabled={!availability.usable}
+                  onClick={() => {
+                    setSelectedToolInstanceId(tool.instanceId);
+
+                    if (!availability.usable) {
+                      showToolNotice(
+                        getToolDisabledMessage(tool, me.tools) ?? `${TOOL_DEFINITIONS[tool.toolId].label}当前不可用。`
+                      );
+                    }
+                  }}
                 >
-                  {definition.label} x{tool.charges}
+                  {describeToolButton(tool)}
                 </button>
               );
             })}
           </div>
-          {selectedToolDefinition ? (
+          {selectedToolDefinition && selectedTool ? (
             <div className="tool-detail" style={{ "--tool-accent": selectedToolDefinition.color } as CSSProperties}>
-              <strong>{selectedToolDefinition.label}</strong>
+              <strong>{describeToolButton(selectedTool)}</strong>
               <p>{selectedToolDefinition.description}</p>
+              {!selectedToolAvailability?.usable ? (
+                <p>{getToolDisabledMessage(selectedTool, me?.tools ?? [])}</p>
+              ) : null}
             </div>
           ) : (
             <div className="tool-detail">
-              <strong>Move</strong>
-              <p>Spend your rolled move points in one chosen direction.</p>
+              <strong>尚未选择工具</strong>
+              <p>可以从上方列表或场景里的头顶弧环选择一个工具。</p>
             </div>
           )}
           {instantToolReady ? (
             <button
               type="button"
               data-testid="use-instant-tool-button"
-              onClick={() => useInstantTool()}
+              onClick={() => useInstantTool(selectedTool.instanceId)}
             >
-              Use {selectedToolDefinition?.label}
+              使用{selectedToolDefinition?.label}
             </button>
           ) : null}
-          <p className="hint-copy">Arrow keys and `WASD` use the currently selected directional action.</p>
+          <p className="hint-copy">灰色工具仍会显示在列表里，点击后会提示当前为什么不能用。</p>
         </section>
 
         <section className="legend-card">
-          <p className="section-title">Board Legend</p>
+          <p className="section-title">棋盘图例</p>
           <div className="legend-row">
             <span className="legend-swatch floor" />
-            Floor cube
+            普通地块
           </div>
           <div className="legend-row">
             <span className="legend-swatch wall" />
-            Solid wall cube
+            实体墙
           </div>
           <div className="legend-row">
             <span className="legend-swatch earth-wall" />
-            Earth wall cube
+            土墙
           </div>
           <div className="legend-row">
             <span className="legend-swatch active" />
-            Active turn marker
+            当前行动者标记
           </div>
         </section>
-
-        {/* <section className="log-card">
-          <p className="section-title">Latest Events</p>
-          <ul>
-            {snapshot?.eventLog.length ? (
-              snapshot.eventLog
-                .slice()
-                .reverse()
-                .map((event) => <li key={event.id}>{event.message}</li>)
-            ) : (
-              <li>Waiting for room events...</li>
-            )}
-          </ul>
-        </section> */}
       </aside>
 
       <main className="scene-panel">
         <GameBoardCanvas />
       </main>
+
+      {toolNotice ? (
+        <div className="ui-notice" role="status" aria-live="polite">
+          {toolNotice.message}
+        </div>
+      ) : null}
     </div>
   );
 }

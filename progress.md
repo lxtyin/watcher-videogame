@@ -48,3 +48,111 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
 - TODO: add dedicated dice-roll and tool-use animations so action feedback is clearer in the 3D scene.
 - TODO: improve automated coverage for in-board tile clicking after adding a more precise tile-surface projection helper.
 - TODO: address the large Vite client chunk warning with code splitting when the prototype grows.
+- Implemented a scene-first interaction pass for the prototype UI:
+  - fixed the board camera to a stable angled top-down view
+  - made the scene panel keep a viewport-sized height while the sidebar scrolls independently
+  - added a floating action ring above the active local piece for `Roll`, `Move`, tools, and `End`
+  - added a four-direction wheel with distinct move/jump/hookshot visuals and highlight feedback
+  - added larger invisible pointer hit targets around the local piece so drag selection is easier near blockers
+- Verified full-page scene UI screenshots:
+  - `output/web-game/scene-ui-full/initial-roll-ring.png`
+  - `output/web-game/scene-ui-full/after-roll-move-wheel.png`
+  - `output/web-game/scene-ui-full/jump-wheel-selected.png`
+- Verified scene-only controls can drive gameplay:
+  - `output/web-game/scene-ui-scene-move/state.json` shows the player rolled from the floating die button and moved to `(1,0)` using the in-scene direction control
+- TODO: refine the spacing between the floating action ring and the direction wheel once dice/tool animations are added.
+- TODO: consider a dedicated icon set for action tokens to replace the current letter badges after the interaction model settles.
+- Reworked scene interaction to use press-drag-release directional commits:
+  - hovering scene buttons no longer shifts them; they only scale slightly
+  - directional actions now arm on button press and execute on left-button release
+  - right click cancels an armed directional action without consuming the turn
+  - four directional indicators now render as world-space 3D meshes around the active piece
+- Added centralized client action UI config in `packages/client/src/game/config/actionUi.ts` so ring tokens, accents, and arrow variants stay in one registry.
+- Updated the client store to allow directional execution with an explicit action id, which keeps drag-release commits decoupled from async selection state.
+- Added `packages/client/src/game/components/SceneDirectionArrows.tsx` with distinct move, jump, hookshot, and fallback arrow silhouettes.
+- Hardened the client Vite config with an explicit `root` so workspace-mapped builds emit `index.html` correctly.
+- Verified with browser automation:
+  - skill-script artifact: `output/web-game/scene-arrow-skill/shot-0.png`
+  - drag-release move: `output/web-game/scene-arrow-drag/drag-right-state.json` shows `(0,0) -> (1,0)`
+  - right-click cancel: `output/web-game/scene-arrow-drag/drag-cancel-state.json` keeps the player at `(0,0)`
+  - scene close-up: `output/web-game/scene-arrow-drag/drag-right-canvas.png`
+  - hookshot arrow style: `output/web-game/scene-arrow-drag/tool-directional-canvas.png`
+- TODO: lift the 3D arrows a little more or add a stronger active glow if they need to read better against denser final environments.
+- Refactored the turn economy so `Movement` is now a normal Tool instead of a separate move resource.
+- Replaced per-turn `availableTools`, remaining move points, and move-segment state with a unified per-player `tools[]` list of Tool instances.
+- Added shared Tool-instance helpers and condition checks so availability, consumption, and UI disabling all reuse the same logic.
+- Updated the shared action resolver to execute all actions through `toolInstanceId`, including `Movement`.
+- Changed `Pivot` to consume itself and append a derived `Movement(2)` Tool.
+- Changed `Dash` to consume itself, add `+2` to every current `Movement`, and require `Movement` to still exist in the current Tool list.
+- Updated the Colyseus room and schema to mirror the unified Tool-instance model instead of special-casing `move`.
+- Updated the client store, network layer, HUD, and scene interaction to select and execute Tool instances directly.
+- Updated the floating action ring to render the live per-turn Tool list:
+  - `Movement` buttons show their point value
+  - tools with unmet conditions render gray and cannot be pressed
+- Updated architecture docs to describe the new `tools[]` flow and Tool-condition model.
+- Verified `npm.cmd run typecheck` passes after the refactor.
+- Verified `npm.cmd run build` passes after the refactor.
+- Verified browser automation against the refactored prototype:
+  - `output/web-game/tool-refactor-skill/state-0.json` shows a rolled Tool list with `Movement(3)` and `Jump`
+  - `output/web-game/tool-refactor-e2e/pivot-after.json` shows `Pivot` producing an extra `Movement(2)`
+  - `output/web-game/tool-refactor-e2e/dash-after-buff.json` shows `Dash` buffing `Movement(6)` into `Movement(8)`
+  - `output/web-game/tool-refactor-e2e/dash-after-movement.json` shows `Dash` disabled after `Movement` has already been consumed
+- TODO: add a clearer visual treatment for disabled Tool conditions so the reason reads faster in the 3D arc UI.
+- TODO: extend `ToolCondition` beyond `tool_present` once we start prototyping buffs, pickups, and board-state requirements.
+- Extended the shared Tool interaction model beyond `instant` and `direction`:
+  - added `tile` as a first-class `ToolTargetMode`
+  - updated `UseToolCommandPayload` to optionally carry `targetPosition`
+  - updated the client preview pipeline to reuse the same payload shape as the server command
+- Added a new baseline Tool, `Brake`, as the first tile-target Tool prototype.
+- Extended `TurnToolSnapshot` and Colyseus `TurnToolState` with a `range` field so Tool instances can carry interaction-specific numeric parameters without overloading movement points.
+- Added shared helpers for `isAimTool`, `isTileTargetTool`, and `createBrakeToolInstance`.
+- Implemented `Brake` in the shared resolver:
+  - it snaps the dragged target onto an axis
+  - moves up to 3 tiles
+  - stops at the actual reachable tile if the drag goes farther than the range or the path is cut short
+- Refactored client aiming so scene interaction is now driven by a generic aim state rather than a direction-only drag state.
+- Updated the floating Tool ring so every non-instant Tool enters aim mode on press, which keeps future interaction types on the same path.
+- Added preview landing markers in the scene:
+  - `Movement` and `Jump` show the expected landing circle
+  - `Hookshot` shows the expected player-hit circle under the target piece
+  - `Brake` shows the actual stop tile circle, not just the raw hovered tile
+- Verified `npm.cmd run typecheck` passes after the interaction-mode refactor.
+- Verified `npm.cmd run build` passes after the interaction-mode refactor.
+- Verified the skill Playwright smoke still works with the refactor:
+  - `output/web-game/tool-target-skill/state-0.json`
+  - `output/web-game/tool-target-skill/shot-0.png`
+- Verified single-player preview and execution flows:
+  - `output/web-game/tool-target-preview/turn1-after-movement-cancel.json` keeps the player at `(0,0)` after canceling a Movement preview
+  - `output/web-game/tool-target-preview/turn1-after-brake.json` shows Brake moving `(0,0) -> (1,0)`
+  - `output/web-game/tool-target-preview/turn4-after-jump.json` shows Jump moving `(1,0) -> (1,2)`
+  - `output/web-game/tool-target-preview/turn4-jump-preview.png` captures the Jump landing ring
+- Verified clearer downward preview artifacts for nearby movement and tile targeting:
+  - `output/web-game/tool-target-preview-down/movement-down-preview.png`
+  - `output/web-game/tool-target-preview-down/brake-down-preview.png`
+  - `output/web-game/tool-target-preview-down/after-brake-down.json`
+- Verified the two-player Hookshot preview flow:
+  - `output/web-game/tool-hookshot-preview/hookshot-player-preview.png` shows the hit-preview circle under the target player
+  - `output/web-game/tool-hookshot-preview/hookshot-after-page1.json` and `output/web-game/tool-hookshot-preview/hookshot-after-page2.json` show the pulled target moving to `(0,4)`
+- TODO: if we add more tile-target tools, factor target snapping policies into a shared strategy layer instead of keeping the first axis-snap rule in the scene component.
+- TODO: consider surfacing the active preview payload in `render_game_to_text` if we want stronger automated assertions on in-flight aim states rather than only screenshots.
+- Localized the client-facing game UI to Chinese:
+  - translated sidebar copy, tool labels, tool descriptions, ring labels, and interaction hints
+  - switched scene button tokens to short Chinese glyphs
+- Added `disabledHint` to shared `ToolDefinition` so each Tool can configure its own blocked-click prompt text.
+- Added shared `getToolDisabledMessage()` so the client can reuse Tool-specific blocked hints instead of hardcoding prompt strings in multiple UI components.
+- Added a lightweight global client notice state in the Zustand store for transient blocked-tool prompts.
+- Updated both the sidebar tool list and the floating scene ring so gray tools remain clickable:
+  - clicking them selects the tool
+  - shows a Chinese prompt explaining why the tool is blocked
+  - still avoids sending an invalid room action
+- Updated scene aiming polish:
+  - the floating action ring now hides while the player is actively aiming a direction or tile target
+  - the ring reappears after release or right-click cancel
+- Verified `npm.cmd run typecheck` passes after the Chinese UI and notice changes.
+- Verified `npm.cmd run build` passes after the Chinese UI and notice changes.
+- Verified UI interaction regression artifacts:
+  - `output/web-game/ui-chinese-hint/initial-chinese-ui.png` shows the localized Chinese interface
+  - `output/web-game/ui-chinese-hint/aim-hides-ring.png` shows the action ring hidden during aiming
+  - `output/web-game/ui-chinese-hint/disabled-dash-toast.png` shows the blocked Dash prompt toast after Movement has been consumed
+  - `output/web-game/ui-chinese-hint/disabled-dash-state.json` shows only `Dash` remains selected and unavailable on turn 16
+- TODO: if we later expose the event log in the UI, verify the server-to-client Chinese event text rendering path end-to-end and normalize any encoding issues there.

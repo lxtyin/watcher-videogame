@@ -1,30 +1,45 @@
 import { create } from "zustand";
 import type { Client as ColyseusClient, Room } from "colyseus.js";
-import { isDirectionalTool, type Direction, type GameSnapshot, type ToolId } from "@watcher/shared";
+import {
+  findToolInstance,
+  getToolAvailability,
+  isDirectionalTool,
+  isTileTargetTool,
+  type Direction,
+  type GameSnapshot,
+  type GridPosition
+} from "@watcher/shared";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
-export type SelectedActionId = "move" | ToolId;
+export type SelectedToolInstanceId = string | null;
 
 interface GameStore {
   connectionStatus: ConnectionStatus;
   lastError: string | null;
+  toolNotice: {
+    id: number;
+    message: string;
+  } | null;
   sessionId: string | null;
   room: Room | null;
   client: ColyseusClient | null;
   snapshot: GameSnapshot | null;
   simulationTimeMs: number;
   manualTimeControl: boolean;
-  selectedActionId: SelectedActionId;
+  selectedToolInstanceId: SelectedToolInstanceId;
   setConnectionStatus: (status: ConnectionStatus) => void;
   setLastError: (message: string | null) => void;
+  clearToolNotice: () => void;
   setSession: (client: ColyseusClient, room: Room) => void;
   clearSession: () => void;
   setSnapshot: (snapshot: GameSnapshot) => void;
-  setSelectedActionId: (actionId: SelectedActionId) => void;
+  setSelectedToolInstanceId: (toolInstanceId: SelectedToolInstanceId) => void;
+  showToolNotice: (message: string) => void;
   rollDice: () => void;
   endTurn: () => void;
-  useInstantTool: () => void;
-  performDirectionalAction: (direction: Direction) => void;
+  useInstantTool: (toolInstanceId?: string | null) => void;
+  performDirectionalAction: (direction: Direction, toolInstanceId?: string | null) => void;
+  performTileTargetAction: (targetPosition: GridPosition, toolInstanceId?: string | null) => void;
   advanceTime: (ms: number) => void;
   tickRealTime: (ms: number) => void;
 }
@@ -32,18 +47,22 @@ interface GameStore {
 export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: "idle",
   lastError: null,
+  toolNotice: null,
   sessionId: null,
   room: null,
   client: null,
   snapshot: null,
   simulationTimeMs: 0,
   manualTimeControl: false,
-  selectedActionId: "move",
+  selectedToolInstanceId: null,
   setConnectionStatus: (connectionStatus) => {
     set({ connectionStatus });
   },
   setLastError: (lastError) => {
     set({ lastError });
+  },
+  clearToolNotice: () => {
+    set({ toolNotice: null });
   },
   setSession: (client, room) => {
     set({
@@ -60,17 +79,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
       room: null,
       sessionId: null,
       snapshot: null,
+      toolNotice: null,
       simulationTimeMs: 0,
       manualTimeControl: false,
-      selectedActionId: "move",
+      selectedToolInstanceId: null,
       connectionStatus: "disconnected"
     });
   },
   setSnapshot: (snapshot) => {
     set({ snapshot });
   },
-  setSelectedActionId: (selectedActionId) => {
-    set({ selectedActionId });
+  setSelectedToolInstanceId: (selectedToolInstanceId) => {
+    set({ selectedToolInstanceId });
+  },
+  showToolNotice: (message) => {
+    set({
+      toolNotice: {
+        id: Date.now(),
+        message
+      }
+    });
   },
   rollDice: () => {
     const room = get().room;
@@ -90,30 +118,62 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     room.send("endTurn");
   },
-  useInstantTool: () => {
+  useInstantTool: (toolId) => {
     const room = get().room;
-    const selectedActionId = get().selectedActionId;
+    const snapshot = get().snapshot;
+    const sessionId = get().sessionId;
+    const selectedToolInstanceId = toolId ?? get().selectedToolInstanceId;
 
-    if (!room || selectedActionId === "move" || isDirectionalTool(selectedActionId)) {
+    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
       return;
     }
 
-    room.send("useTool", { toolId: selectedActionId });
+    const me = snapshot.players.find((player) => player.id === sessionId);
+    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
+
+    if (!selectedTool || isDirectionalTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
+      return;
+    }
+
+    room.send("useTool", { toolInstanceId: selectedToolInstanceId });
   },
-  performDirectionalAction: (direction) => {
+  performDirectionalAction: (direction, toolInstanceId) => {
     const room = get().room;
-    const selectedActionId = get().selectedActionId;
+    const snapshot = get().snapshot;
+    const sessionId = get().sessionId;
+    const selectedToolInstanceId = toolInstanceId ?? get().selectedToolInstanceId;
 
-    if (!room) {
+    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
       return;
     }
 
-    if (selectedActionId === "move") {
-      room.send("move", { direction });
+    const me = snapshot.players.find((player) => player.id === sessionId);
+    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
+
+    if (!selectedTool || !isDirectionalTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
       return;
     }
 
-    room.send("useTool", { toolId: selectedActionId, direction });
+    room.send("useTool", { toolInstanceId: selectedToolInstanceId, direction });
+  },
+  performTileTargetAction: (targetPosition, toolInstanceId) => {
+    const room = get().room;
+    const snapshot = get().snapshot;
+    const sessionId = get().sessionId;
+    const selectedToolInstanceId = toolInstanceId ?? get().selectedToolInstanceId;
+
+    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
+      return;
+    }
+
+    const me = snapshot.players.find((player) => player.id === sessionId);
+    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
+
+    if (!selectedTool || !isTileTargetTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
+      return;
+    }
+
+    room.send("useTool", { toolInstanceId: selectedToolInstanceId, targetPosition });
   },
   advanceTime: (ms) => {
     set((state) => ({

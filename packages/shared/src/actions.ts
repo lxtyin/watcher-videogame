@@ -1,5 +1,10 @@
 import { getTile, isWithinBoard, toTileKey } from "./board";
-import { getToolDefinition } from "./tools";
+import {
+  consumeToolInstance,
+  createMovementToolInstance,
+  getToolAvailability,
+  getToolDefinition
+} from "./tools";
 import type {
   ActionResolution,
   AffectedPlayerMove,
@@ -11,7 +16,8 @@ import type {
   TileMutation,
   TileType,
   ToolActionContext,
-  ToolId
+  ToolId,
+  TurnToolSnapshot
 } from "./types";
 
 const DIRECTION_VECTORS: Record<Direction, GridPosition> = {
@@ -23,8 +29,15 @@ const DIRECTION_VECTORS: Record<Direction, GridPosition> = {
 
 type ToolExecutor = (context: ToolActionContext) => ActionResolution;
 
+interface AxisTarget {
+  direction: Direction;
+  distance: number;
+  snappedTarget: GridPosition;
+}
+
 function buildBlockedResolution(
   actor: MovementActor,
+  tools: TurnToolSnapshot[],
   reason: string,
   path: GridPosition[] = []
 ): ActionResolution {
@@ -33,19 +46,18 @@ function buildBlockedResolution(
     reason,
     path,
     actor: {
-      position: actor.position,
-      remainingMovePoints: actor.remainingMovePoints,
-      movementActionsRemaining: actor.movementActionsRemaining
+      position: actor.position
     },
+    tools,
     affectedPlayers: [],
-    tileMutations: [],
-    consumedMovePoints: 0
+    tileMutations: []
   };
 }
 
 function buildAppliedResolution(
   actor: MovementActor,
   nextActor: MovementActor,
+  tools: TurnToolSnapshot[],
   summary: string,
   path: GridPosition[],
   tileMutations: TileMutation[] = [],
@@ -56,13 +68,11 @@ function buildAppliedResolution(
     summary,
     path,
     actor: {
-      position: nextActor.position,
-      remainingMovePoints: nextActor.remainingMovePoints,
-      movementActionsRemaining: nextActor.movementActionsRemaining
+      position: nextActor.position
     },
+    tools,
     affectedPlayers,
-    tileMutations,
-    consumedMovePoints: actor.remainingMovePoints - nextActor.remainingMovePoints
+    tileMutations
   };
 }
 
@@ -140,32 +150,85 @@ function createTileMutation(position: GridPosition): TileMutation {
   };
 }
 
-export function resolveMovementAction(context: DirectionalActionContext): ActionResolution {
-  const { actor } = context;
+function createPivotMovementTool(activeTool: TurnToolSnapshot): TurnToolSnapshot {
+  return createMovementToolInstance(`${activeTool.instanceId}:pivot-movement`, 2);
+}
 
-  if (actor.movementActionsRemaining < 1) {
-    return buildBlockedResolution(actor, "No movement actions left");
+function consumeActiveTool(context: ToolActionContext): TurnToolSnapshot[] {
+  return consumeToolInstance(context.tools, context.activeTool.instanceId);
+}
+
+function requireDirection(context: ToolActionContext): Direction | null {
+  return context.direction ?? null;
+}
+
+function normalizeAxisTarget(
+  from: GridPosition,
+  target: GridPosition | undefined
+): AxisTarget | null {
+  if (!target) {
+    return null;
   }
 
-  if (actor.remainingMovePoints < 1) {
-    return buildBlockedResolution(actor, "No move points left");
+  const deltaX = target.x - from.x;
+  const deltaY = target.y - from.y;
+
+  if (!deltaX && !deltaY) {
+    return null;
   }
 
-  let currentPosition = actor.position;
-  let remainingMovePoints = actor.remainingMovePoints;
+  if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+    const direction = deltaX > 0 ? "right" : "left";
+    const distance = Math.abs(deltaX);
+
+    return {
+      direction,
+      distance,
+      snappedTarget: stepPosition(from, direction, distance)
+    };
+  }
+
+  if (deltaY !== 0) {
+    const direction = deltaY > 0 ? "down" : "up";
+    const distance = Math.abs(deltaY);
+
+    return {
+      direction,
+      distance,
+      snappedTarget: stepPosition(from, direction, distance)
+    };
+  }
+
+  return null;
+}
+
+function resolveMovementTool(context: ToolActionContext): ActionResolution {
+  const direction = requireDirection(context);
+  const maxMovePoints = context.activeTool.movePoints ?? 0;
+
+  if (!direction) {
+    return buildBlockedResolution(context.actor, context.tools, "Movement needs a direction");
+  }
+
+  if (maxMovePoints < 1) {
+    return buildBlockedResolution(context.actor, context.tools, "No move points left");
+  }
+
+  let currentPosition = context.actor.position;
+  let remainingMovePoints = maxMovePoints;
   const path: GridPosition[] = [];
   const tileMutations: TileMutation[] = [];
   let stopReason = "Movement ended";
 
   while (remainingMovePoints > 0) {
-    const target = stepPosition(currentPosition, context.direction);
+    const target = stepPosition(currentPosition, direction);
 
     if (!isWithinBoard(context.board, target)) {
       stopReason = "Board edge";
       break;
     }
 
-    if (hasOccupant(context.players, target, [actor.id])) {
+    if (hasOccupant(context.players, target, [context.actor.id])) {
       stopReason = "Tile occupied";
       break;
     }
@@ -199,32 +262,43 @@ export function resolveMovementAction(context: DirectionalActionContext): Action
   }
 
   if (!path.length) {
-    return buildBlockedResolution(actor, stopReason);
+    return buildBlockedResolution(context.actor, context.tools, stopReason);
   }
 
   return buildAppliedResolution(
-    actor,
+    context.actor,
     {
-      ...actor,
-      position: currentPosition,
-      remainingMovePoints,
-      movementActionsRemaining: Math.max(0, actor.movementActionsRemaining - 1)
+      ...context.actor,
+      position: currentPosition
     },
-    `Moved ${context.direction} for ${path.length} tile(s).`,
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
     path,
     tileMutations
   );
 }
 
 function resolveJumpTool(context: ToolActionContext): ActionResolution {
+  const direction = requireDirection(context);
+
+  if (!direction) {
+    return buildBlockedResolution(context.actor, context.tools, "Jump needs a direction");
+  }
+
+  const directionalContext: DirectionalActionContext = {
+    board: context.board,
+    actor: context.actor,
+    direction,
+    players: context.players
+  };
   const path = [1, 2]
-    .map((distance) => stepPosition(context.actor.position, context.direction, distance))
+    .map((distance) => stepPosition(context.actor.position, direction, distance))
     .filter((position) => isWithinBoard(context.board, position));
 
   for (let distance = 2; distance >= 1; distance -= 1) {
-    const landing = stepPosition(context.actor.position, context.direction, distance);
+    const landing = stepPosition(context.actor.position, direction, distance);
 
-    if (!isLandableTile(context, landing, [context.actor.id])) {
+    if (!isLandableTile(directionalContext, landing, [context.actor.id])) {
       continue;
     }
 
@@ -234,19 +308,26 @@ function resolveJumpTool(context: ToolActionContext): ActionResolution {
         ...context.actor,
         position: landing
       },
-      `Used ${getToolDefinition(context.toolId).label}.`,
+      consumeActiveTool(context),
+      `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
       path
     );
   }
 
-  return buildBlockedResolution(context.actor, "No landing tile", path);
+  return buildBlockedResolution(context.actor, context.tools, "No landing tile", path);
 }
 
 function resolveHookshotTool(context: ToolActionContext): ActionResolution {
+  const direction = requireDirection(context);
+
+  if (!direction) {
+    return buildBlockedResolution(context.actor, context.tools, "Hookshot needs a direction");
+  }
+
   const rayPath: GridPosition[] = [];
 
   for (let distance = 1; distance <= 3; distance += 1) {
-    const target = stepPosition(context.actor.position, context.direction, distance);
+    const target = stepPosition(context.actor.position, direction, distance);
 
     if (!isWithinBoard(context.board, target)) {
       break;
@@ -262,7 +343,7 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
     );
 
     if (hitPlayer) {
-      const pullDirection = getOppositeDirection(context.direction);
+      const pullDirection = getOppositeDirection(direction);
       let currentTarget = hitPlayer.position;
       const occupiedIds = [context.actor.id, hitPlayer.id];
 
@@ -276,7 +357,14 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
           break;
         }
 
-        if (!isLandableTile(context, nextTarget, occupiedIds)) {
+        const directionalContext: DirectionalActionContext = {
+          board: context.board,
+          actor: context.actor,
+          direction,
+          players: context.players
+        };
+
+        if (!isLandableTile(directionalContext, nextTarget, occupiedIds)) {
           break;
         }
 
@@ -287,13 +375,14 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
         currentTarget.x === hitPlayer.position.x &&
         currentTarget.y === hitPlayer.position.y
       ) {
-        return buildBlockedResolution(context.actor, "Target cannot be pulled", rayPath);
+        return buildBlockedResolution(context.actor, context.tools, "Target cannot be pulled", rayPath);
       }
 
       return buildAppliedResolution(
         context.actor,
         context.actor,
-        `Used ${getToolDefinition(context.toolId).label}.`,
+        consumeActiveTool(context),
+        `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
         rayPath,
         [],
         [
@@ -310,10 +399,10 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
 
     if (tile && isSolidTileType(tile.type)) {
       if (distance === 1) {
-        return buildBlockedResolution(context.actor, "No hookshot landing space", rayPath);
+        return buildBlockedResolution(context.actor, context.tools, "No hookshot landing space", rayPath);
       }
 
-      const landing = stepPosition(context.actor.position, context.direction, distance - 1);
+      const landing = stepPosition(context.actor.position, direction, distance - 1);
 
       return buildAppliedResolution(
         context.actor,
@@ -321,48 +410,150 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
           ...context.actor,
           position: landing
         },
-        `Used ${getToolDefinition(context.toolId).label}.`,
+        consumeActiveTool(context),
+        `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
         rayPath
       );
     }
   }
 
-  return buildBlockedResolution(context.actor, "No hookshot target", rayPath);
+  return buildBlockedResolution(context.actor, context.tools, "No hookshot target", rayPath);
 }
 
 function resolvePivotTool(context: ToolActionContext): ActionResolution {
   return buildAppliedResolution(
     context.actor,
-    {
-      ...context.actor,
-      movementActionsRemaining: context.actor.movementActionsRemaining + 1
-    },
-    `Used ${getToolDefinition(context.toolId).label}.`,
+    context.actor,
+    [...consumeActiveTool(context), createPivotMovementTool(context.activeTool)],
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
     []
   );
 }
 
 function resolveDashTool(context: ToolActionContext): ActionResolution {
+  const nextTools = consumeActiveTool(context).map((tool) =>
+    tool.toolId === "movement"
+      ? {
+          ...tool,
+          movePoints: (tool.movePoints ?? 0) + 2
+        }
+      : tool
+  );
+
   return buildAppliedResolution(
     context.actor,
-    {
-      ...context.actor,
-      remainingMovePoints: context.actor.remainingMovePoints + 2
-    },
-    `Used ${getToolDefinition(context.toolId).label}.`,
+    context.actor,
+    nextTools,
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
     []
   );
 }
 
+function resolveBrakeTool(context: ToolActionContext): ActionResolution {
+  const maxRange = context.activeTool.range ?? 0;
+  const axisTarget = normalizeAxisTarget(context.actor.position, context.targetPosition);
+
+  if (!axisTarget) {
+    return buildBlockedResolution(context.actor, context.tools, "Brake needs a target tile");
+  }
+
+  if (maxRange < 1) {
+    return buildBlockedResolution(context.actor, context.tools, "No brake range left");
+  }
+
+  const requestedDistance = Math.min(maxRange, axisTarget.distance);
+  let currentPosition = context.actor.position;
+  const path: GridPosition[] = [];
+  const tileMutations: TileMutation[] = [];
+  let stopReason = "Brake ended";
+
+  for (let step = 0; step < requestedDistance; step += 1) {
+    const target = stepPosition(currentPosition, axisTarget.direction);
+
+    if (!isWithinBoard(context.board, target)) {
+      stopReason = "Board edge";
+      break;
+    }
+
+    if (hasOccupant(context.players, target, [context.actor.id])) {
+      stopReason = "Tile occupied";
+      break;
+    }
+
+    const tile = getTile(context.board, target);
+
+    if (!tile) {
+      stopReason = "Missing tile";
+      break;
+    }
+
+    if (tile.type === "wall") {
+      stopReason = "Wall";
+      break;
+    }
+
+    currentPosition = target;
+    path.push(target);
+
+    if (tile.type === "earthWall") {
+      tileMutations.push(createTileMutation(target));
+    }
+
+    if (
+      currentPosition.x === axisTarget.snappedTarget.x &&
+      currentPosition.y === axisTarget.snappedTarget.y
+    ) {
+      break;
+    }
+  }
+
+  if (!path.length) {
+    return buildBlockedResolution(context.actor, context.tools, stopReason);
+  }
+
+  return buildAppliedResolution(
+    context.actor,
+    {
+      ...context.actor,
+      position: currentPosition
+    },
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    path,
+    tileMutations
+  );
+}
+
 const TOOL_EXECUTORS: Record<ToolId, ToolExecutor> = {
+  movement: resolveMovementTool,
   jump: resolveJumpTool,
   hookshot: resolveHookshotTool,
   pivot: resolvePivotTool,
-  dash: resolveDashTool
+  dash: resolveDashTool,
+  brake: resolveBrakeTool
 };
 
 export function resolveToolAction(context: ToolActionContext): ActionResolution {
+  const availability = getToolAvailability(context.activeTool, context.tools);
+  const toolDefinition = getToolDefinition(context.activeTool.toolId);
+
+  if (!availability.usable) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      availability.reason ?? "Tool cannot be used right now"
+    );
+  }
+
+  if (toolDefinition.targetMode === "direction" && !context.direction) {
+    return buildBlockedResolution(context.actor, context.tools, `${toolDefinition.label} needs a direction`);
+  }
+
+  if (toolDefinition.targetMode === "tile" && !context.targetPosition) {
+    return buildBlockedResolution(context.actor, context.tools, `${toolDefinition.label} needs a target tile`);
+  }
+
   // Tool behavior stays centralized here so room authority and client preview
   // can extend from the same registry instead of branching on tool ids in many places.
-  return TOOL_EXECUTORS[context.toolId](context);
+  return TOOL_EXECUTORS[context.activeTool.toolId](context);
 }
