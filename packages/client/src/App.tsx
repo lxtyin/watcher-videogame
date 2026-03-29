@@ -1,13 +1,17 @@
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   TOOL_DEFINITIONS,
+  describeToolButtonLabel,
+  describeToolParameters,
   findToolInstance,
+  getDebugGrantableToolIds,
   getToolDisabledMessage,
   getToolAvailability,
   isDirectionalTool,
   isTileTargetTool,
   type Direction,
   type GameSnapshot,
+  type ToolId,
   type TurnToolSnapshot
 } from "@watcher/shared";
 import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
@@ -41,6 +45,9 @@ const TURN_PHASE_LABELS = {
   action: "行动阶段"
 } as const;
 
+const DEBUG_TOOL_OPTIONS = getDebugGrantableToolIds();
+
+// Selected-tool lookup is shared by the sidebar and interaction hint copy.
 function findSelectedTool(
   snapshot: GameSnapshot | null,
   sessionId: string | null,
@@ -55,20 +62,12 @@ function findSelectedTool(
   return me ? findToolInstance(me.tools, selectedToolInstanceId) ?? null : null;
 }
 
+// Sidebar labels surface the most important per-instance numbers at a glance.
 function describeToolButton(tool: TurnToolSnapshot): string {
-  if (tool.toolId === "movement") {
-    return `${TOOL_DEFINITIONS[tool.toolId].label} ${tool.movePoints ?? 0}`;
-  }
-
-  if (tool.toolId === "brake") {
-    return `${TOOL_DEFINITIONS[tool.toolId].label} ${tool.range ?? 0}`;
-  }
-
-  return tool.charges > 1
-    ? `${TOOL_DEFINITIONS[tool.toolId].label} x${tool.charges}`
-    : TOOL_DEFINITIONS[tool.toolId].label;
+  return describeToolButtonLabel(tool);
 }
 
+// Keyboard input remains a convenience layer on top of the same store actions as the scene.
 function useKeyboardInteraction(): void {
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
@@ -80,6 +79,7 @@ function useKeyboardInteraction(): void {
 
   useEffect(() => {
     // Keyboard input stays thin and forwards intent to the authoritative room.
+    // One handler keeps keyboard shortcuts aligned with the current selected tool.
     const onKeyDown = (event: KeyboardEvent) => {
       const direction = MOVEMENT_KEYS[event.key];
       const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
@@ -127,6 +127,7 @@ function useKeyboardInteraction(): void {
   }, [endTurn, performDirectionalAction, rollDice, selectedToolInstanceId, sessionId, snapshot, useInstantTool]);
 }
 
+// The animation clock keeps lightweight scene motion advancing outside of automated runs.
 function useAnimationClock(): void {
   const tickRealTime = useGameStore((state) => state.tickRealTime);
 
@@ -134,6 +135,7 @@ function useAnimationClock(): void {
     let frameId = 0;
     let previousTime = performance.now();
 
+    // The RAF loop feeds a shared clock used by scene bobbing and other local-only effects.
     const loop = (currentTime: number) => {
       tickRealTime(currentTime - previousTime);
       previousTime = currentTime;
@@ -148,6 +150,7 @@ function useAnimationClock(): void {
   }, [tickRealTime]);
 }
 
+// Automation hooks expose stable control points for browser-driven inspection.
 function useAutomationBridge(): void {
   const advanceTime = useGameStore((state) => state.advanceTime);
 
@@ -178,6 +181,7 @@ function useAutomationBridge(): void {
   }, [advanceTime]);
 }
 
+// The hint line adapts to turn phase, tool selection, and current availability.
 function describeInteractionHint(
   isMyTurn: boolean,
   phase: "roll" | "action" | null,
@@ -216,6 +220,7 @@ function describeInteractionHint(
   return `点击头顶弧环使用${label}，或按 Enter。`;
 }
 
+// The app shell combines the sidebar HUD with the scene-first interaction surface.
 export default function App() {
   useWatcherConnection();
   useKeyboardInteraction();
@@ -233,7 +238,9 @@ export default function App() {
   const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
+  const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useInstantTool = useGameStore((state) => state.useInstantTool);
+  const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
   const activePlayer = snapshot?.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
@@ -241,6 +248,7 @@ export default function App() {
   const activePhase = snapshot?.turnInfo.phase ?? null;
   const selectedTool = findSelectedTool(snapshot, sessionId, selectedToolInstanceId);
   const selectedToolDefinition = selectedTool ? TOOL_DEFINITIONS[selectedTool.toolId] : null;
+  const selectedToolParameters = selectedTool ? describeToolParameters(selectedTool) : [];
   const selectedToolAvailability =
     selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
   const instantToolReady =
@@ -316,6 +324,29 @@ export default function App() {
               结束回合
             </button>
           </div>
+          <div className="debug-grant-row">
+            <select
+              value={debugToolId}
+              onChange={(event) => setDebugToolId(event.target.value as ToolId)}
+              disabled={!isMyTurn || activePhase !== "action"}
+              data-testid="debug-tool-select"
+            >
+              {DEBUG_TOOL_OPTIONS.map((toolId) => (
+                <option key={toolId} value={toolId}>
+                  {TOOL_DEFINITIONS[toolId].label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              data-testid="grant-debug-tool-button"
+              onClick={() => grantDebugTool(debugToolId)}
+              disabled={!isMyTurn || activePhase !== "action"}
+            >
+              获取调试工具
+            </button>
+          </div>
+          <p className="hint-copy">调试：行动阶段可以从下拉列表里直接发放任意已实现工具。</p>
           <p className="hint-copy">主要操作都在棋子头顶完成。键盘辅助：`R` 掷骰，`E` 结束回合，方向键执行当前定向工具。</p>
         </section>
 
@@ -385,6 +416,7 @@ export default function App() {
             <div className="tool-detail" style={{ "--tool-accent": selectedToolDefinition.color } as CSSProperties}>
               <strong>{describeToolButton(selectedTool)}</strong>
               <p>{selectedToolDefinition.description}</p>
+              {selectedToolParameters.length ? <p>{selectedToolParameters.join(" · ")}</p> : null}
               {!selectedToolAvailability?.usable ? (
                 <p>{getToolDisabledMessage(selectedTool, me?.tools ?? [])}</p>
               ) : null}

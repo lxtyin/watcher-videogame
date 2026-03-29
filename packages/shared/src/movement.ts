@@ -12,6 +12,7 @@ export function getDirectionVector(direction: Direction): GridPosition {
   return DIRECTION_VECTORS[direction];
 }
 
+// Legacy single-step movement remains available for isolated movement checks.
 export function resolveMoveAttempt(context: MovementContext): MovementResolution {
   // The shared resolver is the single source of truth for step-by-step movement.
   const vector = getDirectionVector(context.direction);
@@ -34,18 +35,6 @@ export function resolveMoveAttempt(context: MovementContext): MovementResolution
     return {
       kind: "blocked",
       reason: "Missing tile",
-      target
-    };
-  }
-
-  if (
-    context.occupiedPositions.some(
-      (position) => position.x === target.x && position.y === target.y
-    )
-  ) {
-    return {
-      kind: "blocked",
-      reason: "Tile occupied",
       target
     };
   }

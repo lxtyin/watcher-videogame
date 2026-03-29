@@ -9,6 +9,7 @@ import {
   type UseToolCommandPayload
 } from "@watcher/shared";
 
+// Board coordinates are centered in world space so the prototype camera stays symmetrical.
 export function toWorldPosition(
   position: GridPosition,
   boardWidth: number,
@@ -19,6 +20,7 @@ export function toWorldPosition(
   return [position.x - offsetX, 0, position.y - offsetZ];
 }
 
+// World coordinates snap back to the nearest board cell for drag targeting.
 export function toGridPositionFromWorld(
   worldX: number,
   worldZ: number,
@@ -34,6 +36,7 @@ export function toGridPositionFromWorld(
   };
 }
 
+// Pointer-derived cells are clamped so previews never drift outside the board.
 export function clampGridPositionToBoard(
   position: GridPosition,
   boardWidth: number,
@@ -45,6 +48,7 @@ export function clampGridPositionToBoard(
   };
 }
 
+// Single-step direction detection is used by path previews and diagnostics.
 export function directionFromStep(from: GridPosition, to: GridPosition): Direction | null {
   const deltaX = to.x - from.x;
   const deltaY = to.y - from.y;
@@ -68,6 +72,7 @@ export function directionFromStep(from: GridPosition, to: GridPosition): Directi
   return null;
 }
 
+// Axis direction detection is used by tile-target tools that snap along one lane.
 export function directionFromAxis(from: GridPosition, to: GridPosition): Direction | null {
   const deltaX = to.x - from.x;
   const deltaY = to.y - from.y;
@@ -83,6 +88,7 @@ export function directionFromAxis(from: GridPosition, to: GridPosition): Directi
   return null;
 }
 
+// Client previews rebuild the shared board shape from the latest room snapshot.
 export function createBoardDefinitionFromSnapshot(snapshot: GameSnapshot): BoardDefinition {
   return {
     width: snapshot.boardWidth,
@@ -91,6 +97,7 @@ export function createBoardDefinitionFromSnapshot(snapshot: GameSnapshot): Board
   };
 }
 
+// Preview generation reuses the shared action resolver so UI hints match server authority.
 export function buildActionPreview(
   snapshot: GameSnapshot,
   sessionId: string | null,

@@ -20,8 +20,7 @@ export class TurnToolState extends Schema {
   @type("string") instanceId = "";
   @type("string") toolId: ToolId | "" = "";
   @type("number") charges = 0;
-  @type("number") movePoints = 0;
-  @type("number") range = 0;
+  @type("string") paramsJson = "{}";
 }
 
 export class PlayerState extends Schema {

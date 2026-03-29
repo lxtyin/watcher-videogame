@@ -7,7 +7,8 @@ import {
   isTileTargetTool,
   type Direction,
   type GameSnapshot,
-  type GridPosition
+  type GridPosition,
+  type ToolId
 } from "@watcher/shared";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -37,6 +38,7 @@ interface GameStore {
   showToolNotice: (message: string) => void;
   rollDice: () => void;
   endTurn: () => void;
+  grantDebugTool: (toolId: ToolId) => void;
   useInstantTool: (toolInstanceId?: string | null) => void;
   performDirectionalAction: (direction: Direction, toolInstanceId?: string | null) => void;
   performTileTargetAction: (targetPosition: GridPosition, toolInstanceId?: string | null) => void;
@@ -44,6 +46,7 @@ interface GameStore {
   tickRealTime: (ms: number) => void;
 }
 
+// The store keeps networking, UI selection, and lightweight simulation time in one place.
 export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: "idle",
   lastError: null,
@@ -118,6 +121,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     room.send("endTurn");
   },
+  grantDebugTool: (toolId) => {
+    const room = get().room;
+
+    if (!room) {
+      return;
+    }
+
+    room.send("grantDebugTool", { toolId });
+  },
+  // Instant tools execute immediately once the local selection passes shared availability checks.
   useInstantTool: (toolId) => {
     const room = get().room;
     const snapshot = get().snapshot;
@@ -137,6 +150,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     room.send("useTool", { toolInstanceId: selectedToolInstanceId });
   },
+  // Directional actions validate the local selection before sending intent to the room.
   performDirectionalAction: (direction, toolInstanceId) => {
     const room = get().room;
     const snapshot = get().snapshot;
@@ -156,6 +170,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     room.send("useTool", { toolInstanceId: selectedToolInstanceId, direction });
   },
+  // Tile-target actions share the same local guard path as other tool requests.
   performTileTargetAction: (targetPosition, toolInstanceId) => {
     const room = get().room;
     const snapshot = get().snapshot;
@@ -175,6 +190,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     room.send("useTool", { toolInstanceId: selectedToolInstanceId, targetPosition });
   },
+  // Automation can take over time progression for deterministic screenshot and state capture.
   advanceTime: (ms) => {
     set((state) => ({
       simulationTimeMs: state.simulationTimeMs + ms,
@@ -182,6 +198,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       manualTimeControl: true
     }));
   },
+  // Real-time ticking pauses automatically once automation starts controlling the clock.
   tickRealTime: (ms) => {
     if (get().manualTimeControl) {
       return;

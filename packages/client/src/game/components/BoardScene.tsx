@@ -10,6 +10,7 @@ import {
   isTileTargetTool,
   type Direction,
   type GridPosition,
+  type PlayerSnapshot,
   type TileDefinition,
   type ToolId,
   type ToolTargetMode,
@@ -19,6 +20,7 @@ import { getActionUiConfig } from "../config/actionUi";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
+import { PetPiece } from "./PetPiece";
 import {
   buildActionPreview,
   clampGridPositionToBoard,
@@ -51,7 +53,16 @@ interface SceneHudOffset {
   y: number;
 }
 
+interface PlayerStackLayout {
+  count: number;
+  index: number;
+}
+
+type PreviewVariant = "tile" | "blast";
+
 const AIM_DRAG_THRESHOLD_PX = 14;
+const PLAYER_STACK_STEP_Y = 0.88;
+const PLAYER_BASE_Y = -0.28;
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
   right: -Math.PI / 2,
@@ -59,6 +70,34 @@ const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   left: Math.PI / 2
 };
 
+function toPositionKey(position: GridPosition): string {
+  return `${position.x},${position.y}`;
+}
+
+// Facing falls back to the dominant net movement axis when a player changes cells.
+function getFacingFromDelta(
+  previousPosition: GridPosition | undefined,
+  nextPosition: GridPosition
+): Direction | null {
+  if (!previousPosition) {
+    return null;
+  }
+
+  const deltaX = nextPosition.x - previousPosition.x;
+  const deltaY = nextPosition.y - previousPosition.y;
+
+  if (!deltaX && !deltaY) {
+    return null;
+  }
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+    return deltaX > 0 ? "right" : "left";
+  }
+
+  return deltaY > 0 ? "down" : "up";
+}
+
+// Dragging resolves to one cardinal direction once the pointer leaves a dead zone.
 function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
   const threshold = 0.24;
 
@@ -77,6 +116,7 @@ function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: nu
   return { x: 0, y: 0 };
 }
 
+// The aiming system projects screen coordinates onto the board plane before snapping.
 function projectClientToGround(
   clientX: number,
   clientY: number,
@@ -118,13 +158,16 @@ function projectClientToGround(
   };
 }
 
+// Tile-target tools clamp to a single axis so drag intent stays predictable.
 function getTileAimTarget(
   worldX: number,
   worldZ: number,
+  toolId: ToolId,
   actorPosition: GridPosition,
   boardWidth: number,
   boardHeight: number
 ): GridPosition | null {
+  const targetingMode = getToolDefinition(toolId).tileTargeting ?? "board_any";
   const snappedPointer = clampGridPositionToBoard(
     toGridPositionFromWorld(worldX, worldZ, boardWidth, boardHeight),
     boardWidth,
@@ -133,69 +176,90 @@ function getTileAimTarget(
   const deltaX = snappedPointer.x - actorPosition.x;
   const deltaY = snappedPointer.y - actorPosition.y;
 
-  if (!deltaX && !deltaY) {
+  if (targetingMode === "axis_line") {
+    if (!deltaX && !deltaY) {
+      return null;
+    }
+
+    if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+      return {
+        x: snappedPointer.x,
+        y: actorPosition.y
+      };
+    }
+
+    if (deltaY !== 0) {
+      return {
+        x: actorPosition.x,
+        y: snappedPointer.y
+      };
+    }
+
     return null;
   }
 
-  if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+  if (targetingMode === "adjacent_ring") {
+    const clampedX = Math.max(-1, Math.min(1, deltaX));
+    const clampedY = Math.max(-1, Math.min(1, deltaY));
+
+    if (!clampedX && !clampedY) {
+      return null;
+    }
+
     return {
-      x: snappedPointer.x,
-      y: actorPosition.y
+      x: actorPosition.x + clampedX,
+      y: actorPosition.y + clampedY
     };
   }
 
-  if (deltaY !== 0) {
-    return {
-      x: actorPosition.x,
-      y: snappedPointer.y
-    };
-  }
-
-  return null;
+  return deltaX || deltaY ? snappedPointer : null;
 }
 
-function ConveyorArrow({ direction }: { direction: Direction }) {
+// Conveyor tiles render their direction directly on the board surface.
+function ConveyorArrow({ direction, color = "#6db0c6" }: { direction: Direction; color?: string }) {
   return (
     <group rotation={[0, DIRECTION_ROTATION_Y[direction], 0]}>
-      <mesh position={[0, 0.17, -0.04]}>
-        <boxGeometry args={[0.16, 0.05, 0.42]} />
-        <meshStandardMaterial color="#eff3f6" emissive="#4a8da9" emissiveIntensity={0.26} />
+      <mesh position={[0, -0.2, -0.3]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
+        <coneGeometry args={[0.27, 0.2, 6]} />
+        <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0, 0.18, -0.3]} rotation={[-Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.17, 0.26, 6]} />
-        <meshStandardMaterial color="#eff3f6" emissive="#4a8da9" emissiveIntensity={0.3} />
+      <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
+        <coneGeometry args={[0.27, 0.2, 6]} />
+        <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0, 0.13, 0.18]}>
-        <boxGeometry args={[0.68, 0.03, 0.2]} />
-        <meshStandardMaterial color="#6db0c6" emissive="#3f7388" emissiveIntensity={0.18} />
+      <mesh position={[0, -0.2, 0.3]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
+        <coneGeometry args={[0.27, 0.2, 6]} />
+        <meshStandardMaterial color={color} />
       </mesh>
     </group>
   );
 }
 
+// Lucky blocks use a bright placeholder shape until final art arrives.
 function LuckyBlock() {
   return (
     <group position={[0, 0.08, 0]}>
-      <mesh position={[0, 0.12, 0]} castShadow>
+      <mesh position={[0, -0.1, 0]} castShadow>
         <boxGeometry args={[0.48, 0.34, 0.48]} />
         <meshStandardMaterial color="#f1cc59" emissive="#8a6d10" emissiveIntensity={0.34} />
       </mesh>
-      <mesh position={[0, 0.31, 0]}>
-        <boxGeometry args={[0.18, 0.06, 0.42]} />
+      <mesh position={[0, -0.07, 0]}>
+        <boxGeometry args={[0.5, 0.3, 0.15]} />
         <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
       </mesh>
-      <mesh position={[0, 0.31, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[0.18, 0.06, 0.42]} />
+      <mesh position={[0, -0.07, 0]}>
+        <boxGeometry args={[0.15, 0.3, 0.5]} />
         <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
       </mesh>
-      <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.18, 0.28, 28]} />
         <meshBasicMaterial color="#ffe596" transparent opacity={0.72} />
-      </mesh>
+      </mesh> */}
     </group>
   );
 }
 
+// Pit tiles sink below the floor so the hazard reads clearly from the camera angle.
 function PitDecoration() {
   return (
     <group position={[0, -0.22, 0]}>
@@ -215,28 +279,54 @@ function PitDecoration() {
   );
 }
 
+// Rocket previews need a stronger marker so the full blast radius reads at a glance.
+function BlastPreviewMarker({ color }: { color: string }) {
+  return (
+    <group>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <boxGeometry args={[1.1, 1.1]} />
+        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.34} />
+      </mesh>
+
+      {/* <mesh position={[0, 0.016, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+        <ringGeometry args={[0.34, 0.47, 4]} />
+        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.94} />
+      </mesh> */}
+      {/* <mesh position={[0, 0.028, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.16, 0.31, 28]} />
+        <meshBasicMaterial color="#fff3ed" toneMapped={false} transparent opacity={0.78} />
+      </mesh> */}
+      {/* <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.08, 18]} />
+        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.92} />
+      </mesh> */}
+    </group>
+  );
+}
+
+// Each tile mesh derives its placeholder style from the shared tile definition.
 function Tile({
   tile,
   boardWidth,
   boardHeight,
   previewActive,
-  previewColor
+  previewColor,
+  previewVariant
 }: {
   tile: TileDefinition;
   boardWidth: number;
   boardHeight: number;
   previewActive: boolean;
   previewColor: string;
+  previewVariant: PreviewVariant;
 }) {
   const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
   const height =
     tile.type === "wall"
       ? 1.15
       : tile.type === "earthWall"
-        ? 0.7
-        : tile.type === "lucky"
-          ? 0.26
-          : 0.22;
+        ? 0.7 : 0.22;
   const color =
     tile.type === "wall"
       ? "#455062"
@@ -260,15 +350,22 @@ function Tile({
       {tile.type === "lucky" ? <LuckyBlock /> : null}
       {tile.type === "conveyor" && tile.direction ? <ConveyorArrow direction={tile.direction} /> : null}
       {previewActive ? (
-        <mesh position={[0, -0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.82, 0.82]} />
-          <meshBasicMaterial color={previewColor} transparent opacity={0.55} />
-        </mesh>
+        <group position={[0, -0.26, 0]}>
+          {previewVariant === "blast" ? (
+            <BlastPreviewMarker color={previewColor} />
+          ) : (
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[0.82, 0.82]} />
+              <meshBasicMaterial color={previewColor} transparent opacity={0.58} />
+            </mesh>
+          )}
+        </group>
       ) : null}
     </group>
   );
 }
 
+// Preview rings mark projected landings and target hits in world space.
 function PreviewRing({
   boardWidth,
   boardHeight,
@@ -308,6 +405,35 @@ function PreviewRing({
   );
 }
 
+// Wall ghosts show where a build action will place a new earth wall.
+function PreviewWallGhost({
+  boardWidth,
+  boardHeight,
+  position,
+  color
+}: {
+  boardWidth: number;
+  boardHeight: number;
+  position: GridPosition;
+  color: string;
+}) {
+  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
+
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, -0.15, 0]} castShadow>
+        <boxGeometry args={[0.9, 0.7, 0.9]} />
+        <meshStandardMaterial color={color} transparent opacity={0.45} />
+      </mesh>
+      <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.2, 0.34, 28]} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
+// The scene mirrors authoritative state while handling only local aiming and previews.
 export function BoardScene() {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
@@ -324,6 +450,8 @@ export function BoardScene() {
   const simulationTimeMs = useGameStore((state) => state.simulationTimeMs);
   const [aimState, setAimState] = useState<AimState | null>(null);
   const aimStateRef = useRef<AimState | null>(null);
+  const previousPositionsRef = useRef<Record<string, GridPosition>>({});
+  const facingByIdRef = useRef<Record<string, Direction>>({});
   const dragPlane = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const dragRaycaster = useMemo(() => new Raycaster(), []);
   const dragPointer = useMemo(() => new Vector2(), []);
@@ -346,17 +474,80 @@ export function BoardScene() {
   const isAiming = Boolean(aimState);
   const canShowDirectionArrows = Boolean(myPlayer && isMyTurn && selectedDirectionalTool);
   const focusedDirection = aimState?.targetMode === "direction" ? aimState.direction : null;
-  const selectedAccent = selectedAimTool
-    ? getActionUiConfig(selectedAimTool.toolId).accent
-    : "#ffffff";
+  const playerStackLayout = useMemo(() => {
+    const layout = new Map<string, PlayerStackLayout>();
+
+    if (!snapshot) {
+      return layout;
+    }
+
+    const groupedPlayers = new Map<string, PlayerSnapshot[]>();
+
+    for (const player of snapshot.players) {
+      const key = toPositionKey(player.position);
+      const currentGroup = groupedPlayers.get(key) ?? [];
+      currentGroup.push(player);
+      groupedPlayers.set(key, currentGroup);
+    }
+
+    for (const [, players] of groupedPlayers) {
+      const orderedPlayers = [...players].sort((left, right) => {
+        const leftScore =
+          Number(left.id === snapshot.turnInfo.currentPlayerId) + Number(left.id === sessionId);
+        const rightScore =
+          Number(right.id === snapshot.turnInfo.currentPlayerId) + Number(right.id === sessionId);
+
+        return leftScore - rightScore;
+      });
+
+      orderedPlayers.forEach((player, index) => {
+        layout.set(player.id, {
+          count: orderedPlayers.length,
+          index
+        });
+      });
+    }
+
+    return layout;
+  }, [sessionId, snapshot]);
+  const facingById = useMemo(() => {
+    const nextFacingById = { ...facingByIdRef.current };
+
+    if (!snapshot) {
+      return nextFacingById;
+    }
+
+    for (const player of snapshot.players) {
+      const nextFacing =
+        getFacingFromDelta(previousPositionsRef.current[player.id], player.position) ??
+        nextFacingById[player.id] ??
+        "down";
+
+      nextFacingById[player.id] = nextFacing;
+    }
+
+    return nextFacingById;
+  }, [snapshot]);
 
   useEffect(() => {
     aimStateRef.current = aimState;
   }, [aimState]);
 
   useEffect(() => {
+    if (!snapshot) {
+      return;
+    }
+
+    facingByIdRef.current = facingById;
+    previousPositionsRef.current = Object.fromEntries(
+      snapshot.players.map((player) => [player.id, player.position])
+    );
+  }, [facingById, snapshot]);
+
+  useEffect(() => {
     const canvas = gl.domElement;
 
+    // The browser context menu is disabled so right click stays reserved for cancel.
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
     };
@@ -386,6 +577,7 @@ export function BoardScene() {
       snapshot.boardHeight
     );
 
+    // Pointer movement updates the current aim target without committing the tool.
     const resolveAim = (clientX: number, clientY: number, currentState: AimState) => {
       const screenDelta = Math.hypot(
         clientX - currentState.startClientX,
@@ -427,6 +619,7 @@ export function BoardScene() {
         targetPosition: getTileAimTarget(
           projectedPoint.x,
           projectedPoint.z,
+          currentState.toolId,
           myPlayer.position,
           snapshot.boardWidth,
           snapshot.boardHeight
@@ -434,6 +627,7 @@ export function BoardScene() {
       };
     };
 
+    // Global move tracking keeps drag aiming alive even when the cursor leaves the canvas.
     const onPointerMove = (event: PointerEvent) => {
       setAimState((currentState) => {
         if (!currentState) {
@@ -447,6 +641,7 @@ export function BoardScene() {
       });
     };
 
+    // Releasing the left button commits the current preview target if one is valid.
     const onPointerUp = (event: PointerEvent) => {
       if (event.button !== 0) {
         return;
@@ -466,11 +661,13 @@ export function BoardScene() {
       setAimState(null);
     };
 
+    // A single cancel helper keeps right-click cancel behavior consistent across handlers.
     const cancelAim = () => {
       aimStateRef.current = null;
       setAimState(null);
     };
 
+    // Pointer down is watched so right-click can cancel even before the browser menu opens.
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 2) {
         return;
@@ -480,6 +677,7 @@ export function BoardScene() {
       cancelAim();
     };
 
+    // Mouse down mirrors the pointer handler for browsers that dispatch cancel paths differently.
     const onMouseDown = (event: MouseEvent) => {
       if (event.button !== 2) {
         return;
@@ -489,6 +687,7 @@ export function BoardScene() {
       cancelAim();
     };
 
+    // Context menu is always suppressed while the board is in interactive mode.
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
       cancelAim();
@@ -547,10 +746,18 @@ export function BoardScene() {
   }, [aimState, sessionId, snapshot]);
 
   const previewKeys = useMemo(() => {
-    return new Set(previewResolution?.path.map((position) => `${position.x},${position.y}`) ?? []);
+    return new Set(
+      previewResolution?.previewTiles.map((position) => `${position.x},${position.y}`) ?? []
+    );
   }, [previewResolution]);
 
-  const previewColor = aimState ? getActionUiConfig(aimState.toolId).accent : "#6abf69";
+  const previewColor =
+    aimState?.toolId === "rocket"
+      ? "#f15a49"
+      : aimState
+        ? getActionUiConfig(aimState.toolId).accent
+        : "#6abf69";
+  const previewVariant: PreviewVariant = aimState?.toolId === "rocket" ? "blast" : "tile";
   const previewLandingPosition =
     myPlayer &&
     previewResolution?.kind === "applied" &&
@@ -558,15 +765,24 @@ export function BoardScene() {
       previewResolution.actor.position.y !== myPlayer.position.y)
       ? previewResolution.actor.position
       : null;
-  const previewHookedPlayerPosition =
+  const previewHookedPlayerPositions =
     snapshot &&
     aimState?.toolId === "hookshot" &&
     previewResolution?.kind === "applied" &&
     previewResolution.affectedPlayers.length
-      ? snapshot.players.find(
-          (player) => player.id === previewResolution.affectedPlayers[0]?.playerId
-        )?.position ?? null
-      : null;
+      ? previewResolution.affectedPlayers.flatMap((affectedPlayer) => {
+          const player = snapshot.players.find((entry) => entry.id === affectedPlayer.playerId);
+
+          return player ? [player.position] : [];
+        })
+      : [];
+  const previewWallPositions =
+    snapshot &&
+    previewResolution?.kind === "applied"
+      ? previewResolution.tileMutations
+          .filter((mutation) => mutation.nextType === "earthWall")
+          .map((mutation) => mutation.position)
+      : [];
 
   useEffect(() => {
     if (!snapshot) {
@@ -600,6 +816,7 @@ export function BoardScene() {
   const currentPlayer =
     snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
 
+  // Entering aim mode captures the tool id and starting pointer so drag intent can be derived later.
   const beginAim = (
     tool: TurnToolSnapshot,
     startClientX: number,
@@ -635,6 +852,7 @@ export function BoardScene() {
     setAimState(nextState);
   };
 
+  // The local piece acts as the primary drag handle for directional and tile-target tools.
   const handlePiecePointerDown = (event: ThreeEvent<PointerEvent>) => {
     if (!selectedAimTool || !myPlayer || !isMyTurn) {
       return;
@@ -672,6 +890,16 @@ export function BoardScene() {
           boardHeight={snapshot.boardHeight}
           previewActive={previewKeys.has(tile.key)}
           previewColor={previewColor}
+          previewVariant={previewVariant}
+        />
+      ))}
+      {previewWallPositions.map((position) => (
+        <PreviewWallGhost
+          key={`preview-wall-${position.x}-${position.y}`}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          position={position}
+          color={previewColor}
         />
       ))}
 
@@ -680,6 +908,7 @@ export function BoardScene() {
         const isActive = player.id === snapshot.turnInfo.currentPlayerId;
         const isMe = player.id === sessionId;
         const pointerProps = isMe ? { onPointerDown: handlePiecePointerDown } : {};
+        const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
         const actionRingOffset = getActionRingOffset(
           player.position.x,
           player.position.y,
@@ -687,14 +916,9 @@ export function BoardScene() {
           snapshot.boardHeight
         );
         const bob = isActive && isMe ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
-        const pieceEmissive =
-          isMe && selectedAimTool && isMyTurn
-            ? selectedAccent
-            : isMe
-              ? "#ffffff"
-              : "#000000";
-        const emissiveIntensity =
-          isMe && selectedAimTool && isMyTurn ? 0.28 : isMe ? 0.12 : 0;
+        const pieceBaseY = PLAYER_BASE_Y + stackLayout.index * PLAYER_STACK_STEP_Y + bob;
+        const pieceTopY = pieceBaseY + 0.96;
+        const facingDirection = facingById[player.id] ?? "down";
 
         return (
           <group key={player.id} position={[x, 0, z]}>
@@ -702,7 +926,7 @@ export function BoardScene() {
               <SceneActionRing
                 tools={player.tools}
                 phase={snapshot.turnInfo.phase}
-                position={[0, 1.78 + bob, 0]}
+                position={[0, pieceTopY + 0.7, 0]}
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={selectedToolInstanceId}
@@ -729,27 +953,19 @@ export function BoardScene() {
             ) : null}
             <mesh position={[0, -0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.35, 0.46, 40]} />
-              <meshBasicMaterial color={isActive ? "#1f8f6a" : "#8c8f97"} />
+              <meshBasicMaterial color={isActive ? "#1f8f6a" : player.color} />
             </mesh>
             {isMe ? (
-              <mesh position={[0, 0.34 + bob, 0]} scale={[1.46, 1.85, 1.46]} {...pointerProps}>
+              <mesh position={[0, pieceBaseY + 0.44, 0]} scale={[1.4, 1.7, 1.4]} {...pointerProps}>
                 <sphereGeometry args={[0.34, 20, 20]} />
                 <meshBasicMaterial transparent opacity={0} depthWrite={false} />
               </mesh>
             ) : null}
-            <mesh
-              position={[0, 0.3 + bob, 0]}
-              scale={[0.82, 1.18, 0.82]}
-              castShadow
-              {...pointerProps}
-            >
-              <sphereGeometry args={[0.34, 32, 32]} />
-              <meshStandardMaterial
-                color={player.color}
-                emissive={pieceEmissive}
-                emissiveIntensity={emissiveIntensity}
-              />
-            </mesh>
+            <PetPiece
+              playerId={player.id}
+              position={[0, pieceBaseY, 0]}
+              rotationY={DIRECTION_ROTATION_Y[facingDirection]}
+            />
           </group>
         );
       })}
@@ -764,16 +980,17 @@ export function BoardScene() {
           radius={0.56}
         />
       ) : null}
-      {previewHookedPlayerPosition ? (
+      {previewHookedPlayerPositions.map((position, index) => (
         <PreviewRing
+          key={`hookshot-preview-${position.x}-${position.y}-${index}`}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           color={previewColor}
           opacity={0.68}
-          position={previewHookedPlayerPosition}
+          position={position}
           radius={0.52}
         />
-      ) : null}
+      ))}
 
       {currentPlayer ? (
         <mesh

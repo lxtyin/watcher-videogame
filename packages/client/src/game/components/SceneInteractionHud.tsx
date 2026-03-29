@@ -1,6 +1,7 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
+  describeToolButtonValue,
   getToolDisabledMessage,
   getToolAvailability,
   isAimTool,
@@ -53,6 +54,7 @@ const RING_CENTER_X = 150;
 const RING_CENTER_Y = 154;
 const RING_RADIUS = 112;
 
+// Buttons are distributed along a fixed arc so the ring layout stays stable per frame.
 function getRingButtonStyle(index: number, total: number): CSSProperties {
   const angle =
     total === 1
@@ -66,16 +68,14 @@ function getRingButtonStyle(index: number, total: number): CSSProperties {
   };
 }
 
+// Tool subtitles expose the most relevant numeric state for the current ring button.
 function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
   const availability = getToolAvailability(tool, tools);
   const baseDetail = getActionUiConfig(tool.toolId).detail;
+  const buttonValue = describeToolButtonValue(tool);
 
-  if (tool.toolId === "movement") {
-    return `${tool.movePoints ?? 0} 点`;
-  }
-
-  if (tool.toolId === "brake") {
-    return `最多 ${tool.range ?? 0} 格`;
+  if (buttonValue) {
+    return buttonValue;
   }
 
   if (tool.charges > 1) {
@@ -85,6 +85,7 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
   return availability.usable ? baseDetail : availability.reason ?? baseDetail;
 }
 
+// The caption explains the currently selected interaction mode at the center of the arc.
 function getSelectedCaption(
   phase: "roll" | "action",
   selectedTool: TurnToolSnapshot | null,
@@ -120,6 +121,7 @@ function getSelectedCaption(
   return `${label}已准备好`;
 }
 
+// The floating action ring is the in-scene entry point for roll, tool choice, and end turn.
 export function SceneActionRing({
   tools,
   phase,

@@ -5,10 +5,12 @@ import { WATCHER_ROOM_NAME, getToolAvailability } from "@watcher/shared";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
 
+// Player names stay lightweight and local because identity is not a prototype focus yet.
 function createPlayerName(): string {
   return `Scout-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// The client falls back to the first usable tool when the previous selection disappears.
 function pickDefaultToolInstanceId(snapshot: ReturnType<typeof deserializeRoomState>, sessionId: string | null): string | null {
   if (!sessionId) {
     return null;
@@ -23,6 +25,7 @@ function pickDefaultToolInstanceId(snapshot: ReturnType<typeof deserializeRoomSt
   return me.tools.find((tool) => getToolAvailability(tool, me.tools).usable)?.instanceId ?? null;
 }
 
+// Connection setup mirrors room state into the local store and keeps selection in sync.
 export function useWatcherConnection(): void {
   const setConnectionStatus = useGameStore((state) => state.setConnectionStatus);
   const setLastError = useGameStore((state) => state.setLastError);

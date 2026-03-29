@@ -3,7 +3,8 @@ import type {
   GameSnapshot,
   PlayerTurnFlag,
   RolledToolId,
-  ToolId
+  ToolId,
+  ToolParameterValueMap
 } from "@watcher/shared";
 
 interface SchemaCollection<T> extends Iterable<T> {
@@ -35,8 +36,7 @@ interface RoomTurnToolState {
   instanceId: string;
   toolId: ToolId;
   charges: number;
-  movePoints: number;
-  range: number;
+  paramsJson: string;
 }
 
 interface RoomTurnInfo {
@@ -59,7 +59,8 @@ interface RoomEventLogEntry {
     | "tool_used"
     | "turn_ended"
     | "terrain_triggered"
-    | "player_respawned";
+    | "player_respawned"
+    | "debug_granted";
   message: string;
   createdAt: number;
 }
@@ -73,8 +74,16 @@ interface RoomStateShape {
   eventLog: Iterable<RoomEventLogEntry>;
 }
 
+// Colyseus schema objects are flattened into plain data for React and Zustand consumption.
 export function deserializeRoomState(state: unknown): GameSnapshot {
   const roomState = state as RoomStateShape;
+  const parseToolParams = (paramsJson: string): ToolParameterValueMap => {
+    try {
+      return JSON.parse(paramsJson) as ToolParameterValueMap;
+    } catch {
+      return {};
+    }
+  };
 
   return {
     boardWidth: roomState.boardWidth,
@@ -104,8 +113,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         instanceId: tool.instanceId,
         toolId: tool.toolId,
         charges: tool.charges,
-        movePoints: tool.toolId === "movement" ? tool.movePoints : null,
-        range: tool.toolId === "brake" ? tool.range : null
+        params: parseToolParams(tool.paramsJson)
       }))
     })),
     turnInfo: {

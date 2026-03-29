@@ -9,13 +9,13 @@ import type {
 
 // The layout is intentionally tiny so the first prototype stays easy to inspect.
 const LAYOUT = [
-  ".>l#...",
-  ".v.#...",
-  ".pe#e..",
-  "..^....",
-  "..e....",
-  "...##..",
-  "....<.."
+  "#.>l#...#",
+  "#.v.#...#",
+  "#.pe#e..#",
+  "#..^....#",
+  "#..e....#",
+  "#...##..#",
+  "#....<..#"
 ] as const;
 
 interface LayoutSymbolDefinition {
@@ -40,6 +40,7 @@ export function toTileKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
 }
 
+// The default board comes from a compact symbol layout so prototype maps stay easy to edit.
 export function createDefaultBoardDefinition(): BoardDefinition {
   const tiles: TileDefinition[] = [];
 
@@ -67,10 +68,12 @@ export function createDefaultBoardDefinition(): BoardDefinition {
   };
 }
 
+// Tile lookup stays centralized so movement and terrain code share one access path.
 export function getTile(board: BoardDefinition, position: GridPosition): TileDefinition | undefined {
   return board.tiles.find((tile) => tile.x === position.x && tile.y === position.y);
 }
 
+// Bounds checks are shared by both authoritative resolution and client previews.
 export function isWithinBoard(board: BoardDefinition, position: GridPosition): boolean {
   return (
     position.x >= 0 &&

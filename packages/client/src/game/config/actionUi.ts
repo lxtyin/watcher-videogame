@@ -1,7 +1,13 @@
 import { TOOL_DEFINITIONS, type ToolId } from "@watcher/shared";
 
 export type ActionUiId = "roll" | ToolId | "end";
-export type DirectionVisualVariant = "move" | "jump" | "hookshot" | "special";
+export type DirectionVisualVariant =
+  | "move"
+  | "jump"
+  | "hookshot"
+  | "basketball"
+  | "rocket"
+  | "special";
 
 interface ActionUiConfig {
   accent: string;
@@ -34,11 +40,6 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     detail: "按住瞄准",
     directionalVariant: "hookshot"
   },
-  pivot: {
-    token: "枢",
-    accent: TOOL_DEFINITIONS.pivot.color,
-    detail: "立即使用"
-  },
   dash: {
     token: "冲",
     accent: TOOL_DEFINITIONS.dash.color,
@@ -49,6 +50,28 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: TOOL_DEFINITIONS.brake.color,
     detail: "按住选格"
   },
+  buildWall: {
+    token: "墙",
+    accent: TOOL_DEFINITIONS.buildWall.color,
+    detail: "按住选格"
+  },
+  basketball: {
+    token: "球",
+    accent: TOOL_DEFINITIONS.basketball.color,
+    detail: "按住定向",
+    directionalVariant: "basketball"
+  },
+  rocket: {
+    token: "箭",
+    accent: TOOL_DEFINITIONS.rocket.color,
+    detail: "按住定向",
+    directionalVariant: "rocket"
+  },
+  teleport: {
+    token: "瞬",
+    accent: TOOL_DEFINITIONS.teleport.color,
+    detail: "按住选格"
+  },
   end: {
     token: "结",
     accent: "#607087",
@@ -56,10 +79,12 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   }
 };
 
+// Action UI config keeps scene ring labels and accents in one registry.
 export function getActionUiConfig(actionId: ActionUiId): ActionUiConfig {
   return ACTION_UI_CONFIG[actionId];
 }
 
+// Directional variants map tools onto reusable world-space arrow silhouettes.
 export function getDirectionalActionVariant(actionId: ToolId): DirectionVisualVariant {
   return ACTION_UI_CONFIG[actionId].directionalVariant ?? "special";
 }

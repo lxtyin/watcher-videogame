@@ -2,18 +2,20 @@ import { getTile, isWithinBoard, toTileKey } from "./board";
 import { applyStopTerrainEffects, resolvePassThroughTerrainEffect } from "./terrain";
 import {
   consumeToolInstance,
-  createMovementToolInstance,
+  createToolInstance,
   getToolAvailability,
-  getToolDefinition
+  getToolDefinition,
+  getToolParam
 } from "./tools";
 import type {
   ActionResolution,
   AffectedPlayerMove,
+  BoardDefinition,
   BoardPlayerState,
   Direction,
-  DirectionalActionContext,
   GridPosition,
   MovementActor,
+  TileDefinition,
   TileMutation,
   TileType,
   ToolActionContext,
@@ -28,6 +30,8 @@ const DIRECTION_VECTORS: Record<Direction, GridPosition> = {
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 }
 };
+
+const CARDINAL_DIRECTIONS: Direction[] = ["up", "right", "down", "left"];
 
 type ToolExecutor = (context: ToolActionContext) => ActionResolution;
 
@@ -47,18 +51,64 @@ interface GroundTraversalResult {
   triggeredTerrainEffects: TriggeredTerrainEffect[];
 }
 
+interface GroundTraversalOptions {
+  actorId: string;
+  board: BoardDefinition;
+  direction: Direction;
+  movePoints: number;
+  maxSteps?: number;
+  position: GridPosition;
+  priorTileMutations?: TileMutation[];
+}
+
+interface ProjectileTraceResult {
+  path: GridPosition[];
+  collision:
+    | {
+        kind: "none";
+        endPosition: GridPosition;
+        direction: Direction;
+      }
+    | {
+        kind: "edge";
+        endPosition: GridPosition;
+        direction: Direction;
+      }
+    | {
+        kind: "solid";
+        position: GridPosition;
+        previousPosition: GridPosition;
+        direction: Direction;
+        tile: TileDefinition;
+      }
+    | {
+        kind: "player";
+        position: GridPosition;
+        previousPosition: GridPosition;
+        direction: Direction;
+        players: BoardPlayerState[];
+      };
+}
+
+function toPositionKey(position: GridPosition): string {
+  return `${position.x},${position.y}`;
+}
+
+// Blocked resolutions preserve tool inventory so previews can explain why an action failed.
 function buildBlockedResolution(
   actor: MovementActor,
   tools: TurnToolSnapshot[],
   reason: string,
   nextToolDieSeed: number,
   path: GridPosition[] = [],
-  triggeredTerrainEffects: TriggeredTerrainEffect[] = []
+  triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
+  previewTiles: GridPosition[] = []
 ): ActionResolution {
   return {
     kind: "blocked",
     reason,
     path,
+    previewTiles,
     actor: {
       position: actor.position,
       turnFlags: actor.turnFlags
@@ -71,6 +121,7 @@ function buildBlockedResolution(
   };
 }
 
+// Applied resolutions capture the immediate tool result before stop-terrain post-processing.
 function buildAppliedResolution(
   nextActor: MovementActor,
   tools: TurnToolSnapshot[],
@@ -79,12 +130,14 @@ function buildAppliedResolution(
   path: GridPosition[],
   tileMutations: TileMutation[] = [],
   affectedPlayers: AffectedPlayerMove[] = [],
-  triggeredTerrainEffects: TriggeredTerrainEffect[] = []
+  triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
+  previewTiles: GridPosition[] = []
 ): ActionResolution {
   return {
     kind: "applied",
     summary,
     path,
+    previewTiles,
     actor: {
       position: nextActor.position,
       turnFlags: nextActor.turnFlags
@@ -97,6 +150,7 @@ function buildAppliedResolution(
   };
 }
 
+// Stop terrain runs after tool mechanics so every executor inherits the same landing rules.
 function finalizeAppliedResolution(
   context: ToolActionContext,
   resolution: ActionResolution
@@ -105,8 +159,6 @@ function finalizeAppliedResolution(
     return resolution;
   }
 
-  // Tool executors own their direct mechanics; terrain stop effects are layered
-  // afterward so every tool shares the same landing rules.
   const stopResolution = applyStopTerrainEffects({
     activeTool: context.activeTool,
     actor: context.actor,
@@ -136,6 +188,7 @@ export function getDirectionVector(direction: Direction): GridPosition {
   return DIRECTION_VECTORS[direction];
 }
 
+// Opposite directions are reused when hookshot pulls a target back toward the actor.
 export function getOppositeDirection(direction: Direction): Direction {
   switch (direction) {
     case "up":
@@ -149,6 +202,7 @@ export function getOppositeDirection(direction: Direction): Direction {
   }
 }
 
+// Step math stays centralized so every tool uses the same board coordinate system.
 export function stepPosition(
   position: GridPosition,
   direction: Direction,
@@ -162,16 +216,36 @@ export function stepPosition(
   };
 }
 
+// Solid tiles block both grounded traversal and landing checks.
 export function isSolidTileType(tileType: TileType): boolean {
   return tileType === "wall" || tileType === "earthWall";
 }
 
-function hasOccupant(
+function positionsEqual(a: GridPosition, b: GridPosition): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function dedupePositions(positions: GridPosition[]): GridPosition[] {
+  const seen = new Set<string>();
+
+  return positions.filter((position) => {
+    const key = toPositionKey(position);
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function findPlayersAtPosition(
   players: BoardPlayerState[],
   position: GridPosition,
   ignoredPlayerIds: string[] = []
-): boolean {
-  return players.some(
+): BoardPlayerState[] {
+  return players.filter(
     (player) =>
       !ignoredPlayerIds.includes(player.id) &&
       player.position.x === position.x &&
@@ -179,45 +253,79 @@ function hasOccupant(
   );
 }
 
-function isLandableTile(
-  context: DirectionalActionContext,
+// Tile lookups can be overridden by pending mutations during one composite action.
+function getTileAfterMutations(
+  board: BoardDefinition,
+  tileMutations: TileMutation[],
+  position: GridPosition
+): TileDefinition | null {
+  const tile = getTile(board, position);
+
+  if (!tile) {
+    return null;
+  }
+
+  const matchingMutation = tileMutations.find((entry) => entry.key === tile.key);
+
+  if (!matchingMutation) {
+    return tile;
+  }
+
+  return {
+    ...tile,
+    type: matchingMutation.nextType,
+    durability: matchingMutation.nextDurability
+  };
+}
+
+// Landing validation only checks board topology now that players can stack.
+function isLandablePosition(
+  board: BoardDefinition,
   position: GridPosition,
-  ignoredPlayerIds: string[] = []
+  tileMutations: TileMutation[] = []
 ): boolean {
-  if (!isWithinBoard(context.board, position)) {
+  if (!isWithinBoard(board, position)) {
     return false;
   }
 
-  const tile = getTile(context.board, position);
+  const tile = getTileAfterMutations(board, tileMutations, position);
 
   if (!tile || isSolidTileType(tile.type)) {
     return false;
   }
 
-  return !hasOccupant(context.players, position, ignoredPlayerIds);
+  return true;
 }
 
-function createTileMutation(position: GridPosition): TileMutation {
+// Tile mutations are emitted through one helper so floors and walls use the same room sync path.
+function createTileMutation(
+  position: GridPosition,
+  nextType: TileType,
+  nextDurability: number
+): TileMutation {
   return {
     key: toTileKey(position),
     position,
-    nextType: "floor",
-    nextDurability: 0
+    nextType,
+    nextDurability
   };
 }
 
-function createPivotMovementTool(activeTool: TurnToolSnapshot): TurnToolSnapshot {
-  return createMovementToolInstance(`${activeTool.instanceId}:pivot-movement`, 2);
+function buildDerivedToolInstanceId(activeTool: TurnToolSnapshot, suffix: string): string {
+  return `${activeTool.instanceId}:${suffix}`;
 }
 
+// Tool consumption stays centralized so executors do not rewrite inventory logic.
 function consumeActiveTool(context: ToolActionContext): TurnToolSnapshot[] {
   return consumeToolInstance(context.tools, context.activeTool.instanceId);
 }
 
+// Directional executors read from the optional payload through one shared helper.
 function requireDirection(context: ToolActionContext): Direction | null {
   return context.direction ?? null;
 }
 
+// Tile-target tools snap off-axis drags onto one cardinal lane before resolving.
 function normalizeAxisTarget(
   from: GridPosition,
   target: GridPosition | undefined
@@ -258,36 +366,27 @@ function normalizeAxisTarget(
   return null;
 }
 
-// Ground traversal keeps step rules in one place so tools can share terrain and wall logic.
-function resolveGroundTraversal(
-  context: ToolActionContext,
-  direction: Direction,
-  movePoints: number,
-  maxSteps = Number.POSITIVE_INFINITY
-): GroundTraversalResult {
-  let currentDirection = direction;
-  let currentPosition = context.actor.position;
-  let remainingMovePoints = movePoints;
-  let remainingSteps = maxSteps;
+// Ground traversal is shared by movement and push-like effects so tile rules stay identical.
+function resolveGroundTraversal(options: GroundTraversalOptions): GroundTraversalResult {
+  let currentDirection = options.direction;
+  let currentPosition = options.position;
+  let remainingMovePoints = options.movePoints;
+  let remainingSteps = options.maxSteps ?? Number.POSITIVE_INFINITY;
   const path: GridPosition[] = [];
   const tileMutations: TileMutation[] = [];
+  const effectiveTileMutations = [...(options.priorTileMutations ?? [])];
   const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
   let stopReason = "Movement ended";
 
   while (remainingMovePoints > 0 && remainingSteps > 0) {
     const target = stepPosition(currentPosition, currentDirection);
 
-    if (!isWithinBoard(context.board, target)) {
+    if (!isWithinBoard(options.board, target)) {
       stopReason = "Board edge";
       break;
     }
 
-    if (hasOccupant(context.players, target, [context.actor.id])) {
-      stopReason = "Tile occupied";
-      break;
-    }
-
-    const tile = getTile(context.board, target);
+    const tile = getTileAfterMutations(options.board, effectiveTileMutations, target);
 
     if (!tile) {
       stopReason = "Missing tile";
@@ -312,12 +411,14 @@ function resolveGroundTraversal(
     path.push(target);
 
     if (tile.type === "earthWall") {
-      tileMutations.push(createTileMutation(target));
+      const mutation = createTileMutation(target, "floor", 0);
+      tileMutations.push(mutation);
+      effectiveTileMutations.push(mutation);
     }
 
     const terrainResolution = resolvePassThroughTerrainEffect({
       direction: currentDirection,
-      playerId: context.actor.id,
+      playerId: options.actorId,
       position: currentPosition,
       remainingMovePoints,
       tile
@@ -339,9 +440,146 @@ function resolveGroundTraversal(
   };
 }
 
+// Leap resolution reuses landing rules while ignoring walls between start and destination.
+function resolveLeapLanding(
+  board: BoardDefinition,
+  startPosition: GridPosition,
+  direction: Direction,
+  maxDistance: number,
+  tileMutations: TileMutation[] = []
+): { landing: GridPosition | null; path: GridPosition[] } {
+
+  for (let distance = maxDistance; distance >= 1; distance -= 1) {
+    const landing = stepPosition(startPosition, direction, distance);
+
+    if (isLandablePosition(board, landing, tileMutations)) {
+      const path = Array.from({ length: distance }, (_, index) =>
+        stepPosition(startPosition, direction, index + 1)
+      );
+
+      return {
+        landing,
+        path
+      };
+    }
+  }
+
+  return {
+    landing: null,
+    path: []
+  };
+}
+
+// Push resolution is grounded traversal with a move budget equal to push strength.
+function resolvePushTarget(
+  context: ToolActionContext,
+  pushedPlayer: BoardPlayerState,
+  direction: Direction,
+  distance: number,
+  priorTileMutations: TileMutation[] = []
+): GroundTraversalResult {
+  return resolveGroundTraversal({
+    actorId: pushedPlayer.id,
+    board: context.board,
+    direction,
+    movePoints: distance,
+    position: pushedPlayer.position,
+    priorTileMutations
+  });
+}
+
+// Projectile tracing stops on the first solid tile or tile that contains any players.
+function traceProjectile(
+  context: ToolActionContext,
+  direction: Direction,
+  maxDistance: number,
+  maxBounces: number
+): ProjectileTraceResult {
+  let currentDirection = direction;
+  let currentPosition = context.actor.position;
+  let remainingBounces = maxBounces;
+  const path: GridPosition[] = [];
+
+  for (let step = 0; step < maxDistance; step += 1) {
+    const target = stepPosition(currentPosition, currentDirection);
+
+    if (!isWithinBoard(context.board, target)) {
+      return {
+        path,
+        collision: {
+          kind: "edge",
+          endPosition: currentPosition,
+          direction: currentDirection
+        }
+      };
+    }
+
+    const tile = getTile(context.board, target);
+
+    if (tile && isSolidTileType(tile.type)) {
+      if (remainingBounces > 0) {
+        remainingBounces -= 1;
+        currentDirection = getOppositeDirection(currentDirection);
+        currentPosition = target;
+        continue;
+      }
+
+      return {
+        path,
+        collision: {
+          kind: "solid",
+          position: target,
+          previousPosition: currentPosition,
+          direction: currentDirection,
+          tile
+        }
+      };
+    }
+
+    currentPosition = target;
+    path.push(target);
+
+    const hitPlayers = findPlayersAtPosition(context.players, target, []);
+
+    if (hitPlayers.length) {
+      console.log("Projectile hit player(s) at:", target);
+      return {
+        path,
+        collision: {
+          kind: "player",
+          position: target,
+          previousPosition: path[path.length - 2] ?? context.actor.position,
+          direction: currentDirection,
+          players: hitPlayers
+        }
+      };
+    }
+  }
+
+  return {
+    path,
+    collision: {
+      kind: "none",
+      endPosition: currentPosition,
+      direction: currentDirection
+    }
+  };
+}
+
+function collectExplosionPreviewTiles(
+  board: BoardDefinition,
+  center: GridPosition
+): GridPosition[] {
+  return dedupePositions([
+    center,
+    ...CARDINAL_DIRECTIONS.map((direction) => stepPosition(center, direction))
+  ]).filter((position) => isWithinBoard(board, position));
+}
+
+// Movement spends the tool's stored move points on the grounded traversal pipeline.
 function resolveMovementTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
-  const maxMovePoints = context.activeTool.movePoints ?? 0;
+  const movePoints = getToolParam(context.activeTool, "movePoints");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -352,7 +590,7 @@ function resolveMovementTool(context: ToolActionContext): ActionResolution {
     );
   }
 
-  if (maxMovePoints < 1) {
+  if (movePoints < 1) {
     return buildBlockedResolution(
       context.actor,
       context.tools,
@@ -361,9 +599,14 @@ function resolveMovementTool(context: ToolActionContext): ActionResolution {
     );
   }
 
-  const traversal = resolveGroundTraversal(context, direction, maxMovePoints);
+  const traversal = resolveGroundTraversal({
+    actorId: context.actor.id,
+    board: context.board,
+    direction,
+    movePoints,
+    position: context.actor.position
+  });
 
-  // Movement intentionally still resolves when it cannot leave the tile.
   return buildAppliedResolution(
     {
       ...context.actor,
@@ -375,12 +618,15 @@ function resolveMovementTool(context: ToolActionContext): ActionResolution {
     traversal.path,
     traversal.tileMutations,
     [],
-    traversal.triggeredTerrainEffects
+    traversal.triggeredTerrainEffects,
+    traversal.path
   );
 }
 
+// Jump checks multiple landings without triggering grounded pass-through terrain.
 function resolveJumpTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
+  const jumpDistance = getToolParam(context.activeTool, "jumpDistance");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -391,46 +637,45 @@ function resolveJumpTool(context: ToolActionContext): ActionResolution {
     );
   }
 
-  const directionalContext: DirectionalActionContext = {
-    board: context.board,
-    actor: context.actor,
+  const leap = resolveLeapLanding(
+    context.board,
+    context.actor.position,
     direction,
-    players: context.players
-  };
-  const path = [1, 2]
-    .map((distance) => stepPosition(context.actor.position, direction, distance))
-    .filter((position) => isWithinBoard(context.board, position));
+    jumpDistance
+  );
 
-  for (let distance = 2; distance >= 1; distance -= 1) {
-    const landing = stepPosition(context.actor.position, direction, distance);
-
-    if (!isLandableTile(directionalContext, landing, [context.actor.id])) {
-      continue;
-    }
-
-    return buildAppliedResolution(
-      {
-        ...context.actor,
-        position: landing
-      },
-      consumeActiveTool(context),
-      `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+  if (!leap.landing) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "No landing tile",
       context.toolDieSeed,
-      path
+      leap.path,
+      [],
+      leap.path
     );
   }
 
-  return buildBlockedResolution(
-    context.actor,
-    context.tools,
-    "No landing tile",
+  return buildAppliedResolution(
+    {
+      ...context.actor,
+      position: leap.landing
+    },
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
     context.toolDieSeed,
-    path
+    leap.path,
+    [],
+    [],
+    [],
+    leap.path
   );
 }
 
+// Hookshot either pulls a player or snaps the actor toward the first solid obstacle hit.
 function resolveHookshotTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
+  const hookLength = getToolParam(context.activeTool, "hookLength");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -443,79 +688,11 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
 
   const rayPath: GridPosition[] = [];
 
-  for (let distance = 1; distance <= 3; distance += 1) {
+  for (let distance = 1; distance <= hookLength; distance += 1) {
     const target = stepPosition(context.actor.position, direction, distance);
 
     if (!isWithinBoard(context.board, target)) {
       break;
-    }
-
-    rayPath.push(target);
-
-    const hitPlayer = context.players.find(
-      (player) =>
-        player.id !== context.actor.id &&
-        player.position.x === target.x &&
-        player.position.y === target.y
-    );
-
-    if (hitPlayer) {
-      const pullDirection = getOppositeDirection(direction);
-      let currentTarget = hitPlayer.position;
-      const occupiedIds = [context.actor.id, hitPlayer.id];
-
-      while (true) {
-        const nextTarget = stepPosition(currentTarget, pullDirection);
-
-        if (
-          nextTarget.x === context.actor.position.x &&
-          nextTarget.y === context.actor.position.y
-        ) {
-          break;
-        }
-
-        const directionalContext: DirectionalActionContext = {
-          board: context.board,
-          actor: context.actor,
-          direction,
-          players: context.players
-        };
-
-        if (!isLandableTile(directionalContext, nextTarget, occupiedIds)) {
-          break;
-        }
-
-        currentTarget = nextTarget;
-      }
-
-      if (
-        currentTarget.x === hitPlayer.position.x &&
-        currentTarget.y === hitPlayer.position.y
-      ) {
-        return buildBlockedResolution(
-          context.actor,
-          context.tools,
-          "Target cannot be pulled",
-          context.toolDieSeed,
-          rayPath
-        );
-      }
-
-      return buildAppliedResolution(
-        context.actor,
-        consumeActiveTool(context),
-        `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-        context.toolDieSeed,
-        rayPath,
-        [],
-        [
-          {
-            playerId: hitPlayer.id,
-            target: currentTarget,
-            reason: "hookshot"
-          }
-        ]
-      );
     }
 
     const tile = getTile(context.board, target);
@@ -527,6 +704,8 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
           context.tools,
           "No hookshot landing space",
           context.toolDieSeed,
+          rayPath,
+          [],
           rayPath
         );
       }
@@ -541,9 +720,75 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
         consumeActiveTool(context),
         `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
         context.toolDieSeed,
+        rayPath,
+        [],
+        [],
+        [],
         rayPath
       );
     }
+
+    rayPath.push(target);
+
+    const hitPlayers = findPlayersAtPosition(context.players, target, [context.actor.id]);
+
+    if (hitPlayers.length) {
+      const pullDirection = getOppositeDirection(direction);
+      const affectedPlayers = hitPlayers.flatMap((hitPlayer) => {
+        let currentTarget = hitPlayer.position;
+
+        while (true) {
+          const nextTarget = stepPosition(currentTarget, pullDirection);
+
+          if (positionsEqual(nextTarget, context.actor.position)) {
+            break;
+          }
+
+          if (!isLandablePosition(context.board, nextTarget)) {
+            break;
+          }
+
+          currentTarget = nextTarget;
+        }
+
+        if (positionsEqual(currentTarget, hitPlayer.position)) {
+          return [];
+        }
+
+        return [
+          {
+            playerId: hitPlayer.id,
+            target: currentTarget,
+            reason: "hookshot"
+          }
+        ];
+      });
+
+      if (!affectedPlayers.length) {
+        return buildBlockedResolution(
+          context.actor,
+          context.tools,
+          "Target cannot be pulled",
+          context.toolDieSeed,
+          rayPath,
+          [],
+          rayPath
+        );
+      }
+
+      return buildAppliedResolution(
+        context.actor,
+        consumeActiveTool(context),
+        `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+        context.toolDieSeed,
+        rayPath,
+        [],
+        affectedPlayers,
+        [],
+        rayPath
+      );
+    }
+
   }
 
   return buildBlockedResolution(
@@ -551,26 +796,23 @@ function resolveHookshotTool(context: ToolActionContext): ActionResolution {
     context.tools,
     "No hookshot target",
     context.toolDieSeed,
+    rayPath,
+    [],
     rayPath
   );
 }
 
-function resolvePivotTool(context: ToolActionContext): ActionResolution {
-  return buildAppliedResolution(
-    context.actor,
-    [...consumeActiveTool(context), createPivotMovementTool(context.activeTool)],
-    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
-    []
-  );
-}
-
+// Dash buffs every remaining Movement tool so execution order stays meaningful.
 function resolveDashTool(context: ToolActionContext): ActionResolution {
+  const dashBonus = getToolParam(context.activeTool, "dashBonus");
   const nextTools = consumeActiveTool(context).map((tool) =>
     tool.toolId === "movement"
       ? {
           ...tool,
-          movePoints: (tool.movePoints ?? 0) + 2
+          params: {
+            ...tool.params,
+            movePoints: getToolParam(tool, "movePoints") + dashBonus
+          }
         }
       : tool
   );
@@ -584,8 +826,9 @@ function resolveDashTool(context: ToolActionContext): ActionResolution {
   );
 }
 
+// Brake is a tile-target move that stops early on the actual reachable tile.
 function resolveBrakeTool(context: ToolActionContext): ActionResolution {
-  const maxRange = context.activeTool.range ?? 0;
+  const maxRange = getToolParam(context.activeTool, "brakeRange");
   const axisTarget = normalizeAxisTarget(context.actor.position, context.targetPosition);
 
   if (!axisTarget) {
@@ -608,10 +851,14 @@ function resolveBrakeTool(context: ToolActionContext): ActionResolution {
 
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
   const traversal = resolveGroundTraversal(
-    context,
-    axisTarget.direction,
-    requestedDistance,
-    requestedDistance
+    {
+      actorId: context.actor.id,
+      board: context.board,
+      direction: axisTarget.direction,
+      movePoints: requestedDistance,
+      maxSteps: requestedDistance,
+      position: context.actor.position
+    }
   );
 
   if (!traversal.path.length) {
@@ -619,7 +866,10 @@ function resolveBrakeTool(context: ToolActionContext): ActionResolution {
       context.actor,
       context.tools,
       traversal.stopReason,
-      context.toolDieSeed
+      context.toolDieSeed,
+      [],
+      [],
+      [axisTarget.snappedTarget]
     );
   }
 
@@ -634,7 +884,278 @@ function resolveBrakeTool(context: ToolActionContext): ActionResolution {
     traversal.path,
     traversal.tileMutations,
     [],
-    traversal.triggeredTerrainEffects
+    traversal.triggeredTerrainEffects,
+    traversal.path
+  );
+}
+
+// Wall building turns a nearby floor tile into a new earth wall.
+function resolveBuildWallTool(context: ToolActionContext): ActionResolution {
+  const targetPosition = context.targetPosition;
+  const wallDurability = getToolParam(context.activeTool, "wallDurability");
+
+  if (!targetPosition) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Build Wall needs a target tile",
+      context.toolDieSeed
+    );
+  }
+
+  const deltaX = Math.abs(targetPosition.x - context.actor.position.x);
+  const deltaY = Math.abs(targetPosition.y - context.actor.position.y);
+
+  if ((deltaX === 0 && deltaY === 0) || deltaX > 1 || deltaY > 1) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Build Wall must target one of the surrounding tiles",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  const tile = getTile(context.board, targetPosition);
+
+  if (!tile || tile.type !== "floor") {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Build Wall needs an empty floor tile",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  return buildAppliedResolution(
+    context.actor,
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    context.toolDieSeed,
+    [],
+    [createTileMutation(targetPosition, "earthWall", wallDurability)],
+    [],
+    [],
+    [targetPosition]
+  );
+}
+
+// Basketball uses a bouncing projectile and can reward extra charges after a player hit.
+function resolveBasketballTool(context: ToolActionContext): ActionResolution {
+  const direction = requireDirection(context);
+  const projectileRange = getToolParam(context.activeTool, "projectileRange");
+  const bounceCount = getToolParam(context.activeTool, "projectileBounceCount");
+  const pushDistance = getToolParam(context.activeTool, "projectilePushDistance");
+  let nextTools = consumeActiveTool(context);
+  const affectedPlayers: AffectedPlayerMove[] = [];
+  const tileMutations: TileMutation[] = [];
+  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
+
+  if (!direction) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Basketball needs a direction",
+      context.toolDieSeed
+    );
+  }
+
+  const trace = traceProjectile(context, direction, projectileRange, bounceCount);
+
+  if (trace.collision.kind === "player") {
+    for (const hitPlayer of trace.collision.players) {
+      const traversal = resolvePushTarget(
+        context,
+        hitPlayer,
+        trace.collision.direction,
+        pushDistance,
+        tileMutations
+      );
+
+      if (!traversal.path.length) {
+        continue;
+      }
+
+      affectedPlayers.push({
+        playerId: hitPlayer.id,
+        target: traversal.position,
+        reason: "basketball"
+      });
+      tileMutations.push(...traversal.tileMutations);
+      triggeredTerrainEffects.push(...traversal.triggeredTerrainEffects);
+    }
+  }
+
+  return buildAppliedResolution(
+    context.actor,
+    nextTools,
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    context.toolDieSeed,
+    trace.path,
+    tileMutations,
+    affectedPlayers,
+    triggeredTerrainEffects
+  );
+}
+
+// Rocket resolves a line trace, then applies an explosion-centered knockback pattern.
+function resolveRocketTool(context: ToolActionContext): ActionResolution {
+  const direction = requireDirection(context);
+  const projectileRange = getToolParam(context.activeTool, "projectileRange");
+  const blastLeapDistance = getToolParam(context.activeTool, "rocketBlastLeapDistance");
+  const splashPushDistance = getToolParam(context.activeTool, "rocketSplashPushDistance");
+
+  if (!direction) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Rocket needs a direction",
+      context.toolDieSeed
+    );
+  }
+
+  const trace = traceProjectile(context, direction, projectileRange, 0);
+
+  const explosionPosition =
+    trace.collision.kind === "player"
+      ? trace.collision.position
+      : trace.collision.kind === "solid"
+        ? trace.collision.previousPosition
+        : trace.path[trace.path.length - 1] ?? null;
+  
+  const centerLeapDirection =
+    trace.collision.kind === "player"
+      ? trace.collision.direction : getOppositeDirection(trace.collision.direction);
+
+  if (!explosionPosition) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "No rocket flight path",
+      context.toolDieSeed
+    );
+  }
+
+  const affectedPlayers: AffectedPlayerMove[] = [];
+  const tileMutations: TileMutation[] = [];
+  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
+  const centerPlayers =
+    trace.collision.kind === "player"
+      ? trace.collision.players
+      : findPlayersAtPosition(context.players, explosionPosition, []);
+
+  for (const hitPlayer of centerPlayers) {
+    const leap = resolveLeapLanding(
+      context.board,
+      hitPlayer.position,
+      centerLeapDirection,
+      blastLeapDistance,
+      tileMutations
+    );
+
+    if (!leap.landing) {
+      continue;
+    }
+
+    affectedPlayers.push({
+      playerId: hitPlayer.id,
+      target: leap.landing,
+      reason: "rocket_blast"
+    });
+  }
+
+  for (const splashDirection of CARDINAL_DIRECTIONS) {
+    const splashPosition = stepPosition(explosionPosition, splashDirection);
+    const splashPlayers = findPlayersAtPosition(
+      context.players,
+      splashPosition,
+      centerPlayers.map((player) => player.id)
+    );
+
+    for (const splashPlayer of splashPlayers) {
+      const traversal = resolvePushTarget(
+        context,
+        splashPlayer,
+        splashDirection,
+        splashPushDistance,
+        tileMutations
+      );
+
+      if (!traversal.path.length) {
+        continue;
+      }
+
+      affectedPlayers.push({
+        playerId: splashPlayer.id,
+        target: traversal.position,
+        reason: "rocket_splash"
+      });
+      tileMutations.push(...traversal.tileMutations);
+      triggeredTerrainEffects.push(...traversal.triggeredTerrainEffects);
+    }
+  }
+
+  return buildAppliedResolution(
+    context.actor,
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    context.toolDieSeed,
+    trace.path,
+    tileMutations,
+    affectedPlayers,
+    triggeredTerrainEffects,
+    collectExplosionPreviewTiles(context.board, explosionPosition)
+  );
+}
+
+// Teleport moves directly onto any valid landing tile on the board.
+function resolveTeleportTool(context: ToolActionContext): ActionResolution {
+  const targetPosition = context.targetPosition;
+
+  if (!targetPosition) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Teleport needs a target tile",
+      context.toolDieSeed
+    );
+  }
+
+  if (
+    !isLandablePosition(
+      context.board,
+      targetPosition
+    )
+  ) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Teleport target is not landable",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  return buildAppliedResolution(
+    {
+      ...context.actor,
+      position: targetPosition
+    },
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    context.toolDieSeed,
+    [targetPosition],
+    [],
+    [],
+    [],
+    [targetPosition]
   );
 }
 
@@ -642,11 +1163,15 @@ const TOOL_EXECUTORS: Record<ToolId, ToolExecutor> = {
   movement: resolveMovementTool,
   jump: resolveJumpTool,
   hookshot: resolveHookshotTool,
-  pivot: resolvePivotTool,
   dash: resolveDashTool,
-  brake: resolveBrakeTool
+  brake: resolveBrakeTool,
+  buildWall: resolveBuildWallTool,
+  basketball: resolveBasketballTool,
+  rocket: resolveRocketTool,
+  teleport: resolveTeleportTool
 };
 
+// Tool resolution is shared by the room and preview layer so both follow one ruleset.
 export function resolveToolAction(context: ToolActionContext): ActionResolution {
   const availability = getToolAvailability(context.activeTool, context.tools);
   const toolDefinition = getToolDefinition(context.activeTool.toolId);
@@ -678,7 +1203,5 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     );
   }
 
-  // Tool behavior stays centralized here so room authority and client preview
-  // can extend from the same registry instead of branching on tool ids in many places.
   return finalizeAppliedResolution(context, TOOL_EXECUTORS[context.activeTool.toolId](context));
 }

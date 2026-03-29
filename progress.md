@@ -195,5 +195,85 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
   - screenshots: `output/web-game/terrain-systems/pit-turn/turn1-after-brake.png`, `output/web-game/terrain-systems/pit-turn/turn2-after-pit.png`
 - Note: `npm run dev --workspace @watcher/server` currently crashes under the local Node 24 + decorator runtime path, so browser regression used `node packages/server/dist/index.js` after `npm.cmd run build`.
 - Note: installed `playwright` locally with `npm.cmd install --no-save --no-package-lock playwright` to run regression scripts without changing workspace package manifests.
+- Added another documentation/comment cleanup pass:
+  - extended brief English ASCII comments across the shared rules, room authority flow, and client interaction modules
+  - enabled middle-mouse camera rotation and wheel zoom inside the 3D board while keeping left-click gameplay interactions unchanged
+- Refactored the turn Tool model so every Tool instance is parameter-driven instead of relying on ad hoc fields:
+  - replaced per-tool `movePoints` / `range` branching with a shared `params` bag on `TurnToolSnapshot`
+  - added shared parameter metadata and helpers for reading, labeling, and rendering per-Tool values
+  - made rolled Tool faces configurable through `TOOL_DIE_FACES`, including both Tool type and base parameter values
+- Removed `Pivot` from the current prototype Tool set.
+- Added four new Tools on top of the parameterized action pipeline:
+  - `buildWall`
+  - `basketball`
+  - `rocket`
+  - `teleport` as a board-any debug Tool
+- Extended the shared resolver and client aim system so different Tool interactions stay on one extensible path:
+  - `direction` Tools can still preview through the shared resolver
+  - `tile` Tools now support `axis_line`, `adjacent_ring`, and `board_any` targeting strategies
+  - preview rendering can read `previewTiles` and `tileMutations` instead of inferring everything from movement paths
+- Added a debug Tool grant entry to the left sidebar:
+  - a dropdown lists every implemented debug-grantable Tool
+  - clicking the grant button appends that Tool to the current turn inventory without rerolling
+- Updated the client sidebar and floating ring UI to render Tool values from shared metadata:
+  - `Movement` still shows point values
+  - parameterized Tools can surface their relevant configured numbers without hardcoded UI branches
+- Updated server schema syncing so Tool params are serialized through `paramsJson`.
+- Fixed an event-log bug in the room authority layer:
+  - tile mutations are no longer all logged as `earth_wall_broken`
+  - only mutations that actually turn a tile back into `floor` emit the wall-break event
+- Updated architecture docs to describe the parameterized Tool model, configurable Tool-die faces, new targeting modes, and the debug Tool grant flow.
+- Verified `npm.cmd run typecheck` passes after the Tool-parameter refactor.
+- Verified `npm.cmd run build` passes after the Tool-parameter refactor.
+- Verified the shared skill Playwright client still captures the isolated prototype correctly:
+  - `output/web-game/tool-params-debug/smoke/state-0.json`
+  - `output/web-game/tool-params-debug/smoke/shot-0.png`
+- Verified single-player build and teleport scene interactions against an isolated client/server pair:
+  - `output/web-game/tool-params-isolated/build-teleport/build-wall-preview.png` shows adjacent wall placement preview in-scene
+  - `output/web-game/tool-params-isolated/build-teleport/after-build-wall.json` shows `(0,1)` becoming an `earthWall`
+  - `output/web-game/tool-params-isolated/build-teleport/teleport-preview.png` shows board-any teleport target preview
+  - `output/web-game/tool-params-isolated/build-teleport/after-teleport.json` shows the actor moving to `(6,0)`
+- Verified the basketball reward flow with two live clients:
+  - `output/web-game/tool-params-isolated/basketball/basketball-preview.png` shows directional aim without a landing-ring preview
+  - `output/web-game/tool-params-isolated/basketball/page1-after.json` shows the shooter at `(4,6)` receiving `basketball-8:basketball-reward` with `charges: 2`
+  - `output/web-game/tool-params-isolated/basketball/page2-after.json` shows the target snapshot mirrored on the second client
+- Verified chained Tool usage in one turn with hookshot setup into rocket resolution:
+  - `output/web-game/tool-params-isolated/rocket/hookshot-preview.png` shows the hookshot target preview under the enemy piece
+  - `output/web-game/tool-params-isolated/rocket/after-hookshot-page1.json` shows the target pulled from `(6,6)` to `(5,6)`
+  - `output/web-game/tool-params-isolated/rocket/rocket-preview.png` shows the rocket directional preview
+  - `output/web-game/tool-params-isolated/rocket/after-rocket-page2.json` shows the target moved back to `(6,6)` by the rocket blast resolution
+- Re-verified the wall-break event fix on a truly fresh server process:
+  - `output/web-game/tool-params-isolated/build-wall-log-fix-verified/state.json` shows successful `buildWall` usage without an `earth_wall_broken` event entry
+- Note: for isolated browser regression, the cleanest setup was:
+  - server on `ws://127.0.0.1:2568`
+  - client Vite dev server on `http://127.0.0.1:4175`
+  - killing the real listener by port was more reliable than stopping the wrapper `cmd.exe` process alone
 - TODO: decide whether non-actor players moved onto future reward tiles should be able to gain off-turn resources, because the current turn-scoped tool inventory intentionally keeps lucky rewards actor-only.
 - TODO: if we keep Colyseus schema decorators in native ESM, harden the server dev script for the local Node 24 runtime so `tsx watch` can boot without the current decorator crash.
+- Refactored shared ground traversal so pushed movement now follows the exact same path-resolution rules as normal ground translation:
+  - `resolvePushTarget()` now delegates into the same grounded traversal pipeline as `Movement` and `Brake`
+  - push resolution can trigger conveyor redirects, conveyor boosts, earth-wall durability changes, and other pass-through terrain effects
+- Removed player occupancy from movement landability:
+  - players no longer block tiles for movement, teleport, hookshot pulls, or projectile splash pushes
+  - stacked players are now legal and can share one board coordinate
+- Updated projectile collision helpers so a projectile can resolve against every player stacked on the same tile.
+- Replaced primitive piece rendering with `cube-pets` GLB models:
+  - copied `resources/kenney_cube-pets_1.0/Models/GLB format/*` into `packages/client/public/assets/cube-pets`
+  - added stable per-player model selection and normalization in `packages/client/src/game/components/PetPiece.tsx`
+  - stacked players render with vertical offsets instead of blocking or shuffling apart
+  - model yaw now follows the dominant axis of the latest observed movement delta
+- Strengthened rocket preview readability in the board scene:
+  - added a dedicated blast marker shape for `Rocket` preview tiles
+  - switched rocket blast preview to a brighter red accent so the area reads clearly during aiming
+- Verified `npm.cmd run typecheck` passes after the stacking / traversal / pet-model changes.
+- Verified `npm.cmd run build` passes from the canonical workspace path `E:\\Develop\\Watcher`.
+- Verified the shared Playwright skill smoke still works:
+  - `output/web-game/stacked-pets-smoke/shot-0.png`
+  - `output/web-game/stacked-pets-smoke/state-0.json`
+- Verified stack + preview regression against isolated local server/client:
+  - `output/web-game/stacked-pets-check-2/rocket-preview-left.png` shows the red `Rocket` blast preview tiles
+  - `output/web-game/stacked-pets-check-2/stacked-pets-spectator.png` shows two players stacked on `(4,3)` with cube-pet models
+  - `output/web-game/stacked-pets-check-2/stacked-state.json` mirrors both players sharing the same coordinate
+  - `output/web-game/stacked-pets-check-2/pet-facing-after-left-move-spectator.png` and `output/web-game/stacked-pets-check-2/after-left-move-state.json` cover post-move facing from a spectator view
+- Note: running the root build from the junction path `E:\\Watcher` can intermittently fail during the server `tsup --dts` step; rerunning from `E:\\Develop\\Watcher` succeeds consistently on this machine.
+- TODO: if we add more stack-sensitive tools, decide explicitly whether every stacked target should always be hit together or whether some future tools should stop at the first player in the pile.

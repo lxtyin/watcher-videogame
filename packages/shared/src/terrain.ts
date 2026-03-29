@@ -82,6 +82,7 @@ interface StopTerrainResolution {
 
 const LUCKY_TURN_FLAG: PlayerTurnFlag = "lucky_tile_claimed";
 
+// Lucky rewards derive stable ids from the source action so previews stay reproducible.
 function buildLuckyToolInstanceId(
   activeTool: TurnToolSnapshot,
   tileKey: string,
@@ -90,6 +91,7 @@ function buildLuckyToolInstanceId(
   return `${activeTool.instanceId}:lucky:${tileKey}:${grantedToolId}`;
 }
 
+// Tile mutations are folded in before stop effects so terrain sees the post-action tile state.
 function getTileAfterMutations(
   board: BoardDefinition,
   tileMutations: TileMutation[],
@@ -183,7 +185,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
 
       const toolRoll = rollToolDie(context.toolDieSeed);
       const rewardedTool = createRolledToolInstance(
-        buildLuckyToolInstanceId(context.activeTool, context.tile.key, toolRoll.value),
+        buildLuckyToolInstanceId(context.activeTool, context.tile.key, toolRoll.value.toolId),
         toolRoll.value
       );
 
@@ -205,6 +207,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
   }
 };
 
+// Pass-through terrain only runs for grounded traversal tools such as Movement and Brake.
 export function resolvePassThroughTerrainEffect(
   context: TerrainPassThroughContext
 ): TerrainPassThroughResult {
@@ -221,6 +224,7 @@ export function resolvePassThroughTerrainEffect(
   return terrainDefinition.onPassThrough(context);
 }
 
+// Stop terrain resolves after tool mechanics so hazards and rewards share one landing pass.
 export function applyStopTerrainEffects(
   context: StopTerrainResolutionContext
 ): StopTerrainResolution {
@@ -323,10 +327,12 @@ export function applyStopTerrainEffects(
   };
 }
 
+// The lucky flag marks that the current player already claimed this turn's reward tile.
 export function isLuckyTurnFlag(flag: PlayerTurnFlag): boolean {
   return flag === LUCKY_TURN_FLAG;
 }
 
+// Terrain events reuse normal tile keys so logs and visuals refer to the same cell id.
 export function getTerrainTileKey(position: GridPosition): string {
   return toTileKey(position);
 }

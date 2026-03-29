@@ -7,10 +7,33 @@ export type TileType =
   | "conveyor";
 export type TurnPhase = "roll" | "action";
 export type Direction = "up" | "down" | "left" | "right";
-export type ToolId = "movement" | "jump" | "hookshot" | "pivot" | "dash" | "brake";
-export type RolledToolId = Exclude<ToolId, "movement">;
+export type ToolId =
+  | "movement"
+  | "jump"
+  | "hookshot"
+  | "dash"
+  | "brake"
+  | "buildWall"
+  | "basketball"
+  | "rocket"
+  | "teleport";
+export type RolledToolId = Exclude<ToolId, "movement" | "teleport">;
 export type ToolTargetMode = "direction" | "tile" | "instant";
+export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
 export type PlayerTurnFlag = "lucky_tile_claimed";
+export type ToolParameterId =
+  | "movePoints"
+  | "jumpDistance"
+  | "hookLength"
+  | "dashBonus"
+  | "brakeRange"
+  | "projectileRange"
+  | "projectileBounceCount"
+  | "projectilePushDistance"
+  | "wallDurability"
+  | "rocketBlastLeapDistance"
+  | "rocketSplashPushDistance";
+export type ToolParameterValueMap = Partial<Record<ToolParameterId, number>>;
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -20,7 +43,8 @@ export type EventType =
   | "tool_used"
   | "turn_ended"
   | "terrain_triggered"
-  | "player_respawned";
+  | "player_respawned"
+  | "debug_granted";
 
 export interface GridPosition {
   x: number;
@@ -38,6 +62,11 @@ export interface BoardDefinition {
   width: number;
   height: number;
   tiles: TileDefinition[];
+}
+
+export interface ToolButtonValueDefinition {
+  paramId: ToolParameterId;
+  unit: "point" | "tile";
 }
 
 export interface PlayerSnapshot {
@@ -70,13 +99,22 @@ export interface TurnToolSnapshot {
   instanceId: string;
   toolId: ToolId;
   charges: number;
-  movePoints: number | null;
-  range: number | null;
+  params: ToolParameterValueMap;
 }
 
 export interface ToolCondition {
   kind: "tool_present";
   toolId: ToolId;
+}
+
+export interface ToolLoadoutDefinition {
+  toolId: ToolId;
+  charges?: number;
+  params?: ToolParameterValueMap;
+}
+
+export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
+  toolId: RolledToolId;
 }
 
 export interface ToolDefinition {
@@ -85,9 +123,14 @@ export interface ToolDefinition {
   description: string;
   disabledHint: string | null;
   targetMode: ToolTargetMode;
+  tileTargeting?: TileTargetingMode;
   conditions: ToolCondition[];
-  chargesPerRoll: number;
+  defaultCharges: number;
+  defaultParams: ToolParameterValueMap;
+  buttonValue?: ToolButtonValueDefinition;
   color: string;
+  rollable: boolean;
+  debugGrantable: boolean;
 }
 
 export interface GameSnapshot {
@@ -105,6 +148,10 @@ export interface UseToolCommandPayload {
   targetPosition?: GridPosition;
 }
 
+export interface GrantDebugToolPayload {
+  toolId: ToolId;
+}
+
 export interface MovementActor {
   id: string;
   position: GridPosition;
@@ -117,7 +164,6 @@ export interface MovementContext {
   actor: MovementActor;
   direction: Direction;
   movePoints: number;
-  occupiedPositions: GridPosition[];
 }
 
 export type MovementResolution =
@@ -219,6 +265,7 @@ export type ActionResolution =
       kind: "blocked";
       reason: string;
       path: GridPosition[];
+      previewTiles: GridPosition[];
       actor: ResolvedActorState;
       tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
@@ -230,6 +277,7 @@ export type ActionResolution =
       kind: "applied";
       summary: string;
       path: GridPosition[];
+      previewTiles: GridPosition[];
       actor: ResolvedActorState;
       tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
