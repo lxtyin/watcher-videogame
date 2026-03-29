@@ -95,6 +95,10 @@ export interface EventLogEntry {
   createdAt: number;
 }
 
+export type PresentationMotionStyle = "ground" | "arc";
+export type PresentationProjectileType = "basketball" | "rocket";
+export type PresentationEffectType = "rocket_explosion";
+
 export interface TurnToolSnapshot {
   instanceId: string;
   toolId: ToolId;
@@ -140,6 +144,7 @@ export interface GameSnapshot {
   players: PlayerSnapshot[];
   turnInfo: TurnInfoSnapshot;
   eventLog: EventLogEntry[];
+  latestPresentation: SequencedActionPresentation | null;
 }
 
 export interface UseToolCommandPayload {
@@ -260,6 +265,49 @@ export type TriggeredTerrainEffect =
       toDirection: Direction;
     };
 
+export interface ActionPresentationEventBase {
+  durationMs: number;
+  id: string;
+  startMs: number;
+}
+
+export interface PlayerMotionPresentationEvent extends ActionPresentationEventBase {
+  kind: "player_motion";
+  motionStyle: PresentationMotionStyle;
+  playerId: string;
+  positions: GridPosition[];
+}
+
+export interface ProjectilePresentationEvent extends ActionPresentationEventBase {
+  kind: "projectile";
+  ownerId: string;
+  positions: GridPosition[];
+  projectileType: PresentationProjectileType;
+}
+
+export interface EffectPresentationEvent extends ActionPresentationEventBase {
+  kind: "effect";
+  effectType: PresentationEffectType;
+  position: GridPosition;
+  tiles: GridPosition[];
+}
+
+export type ActionPresentationEvent =
+  | PlayerMotionPresentationEvent
+  | ProjectilePresentationEvent
+  | EffectPresentationEvent;
+
+export interface ActionPresentation {
+  actorId: string;
+  durationMs: number;
+  events: ActionPresentationEvent[];
+  toolId: ToolId;
+}
+
+export interface SequencedActionPresentation extends ActionPresentation {
+  sequence: number;
+}
+
 export type ActionResolution =
   | {
       kind: "blocked";
@@ -271,6 +319,7 @@ export type ActionResolution =
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
       triggeredTerrainEffects: TriggeredTerrainEffect[];
+      presentation: ActionPresentation | null;
       nextToolDieSeed: number;
     }
   | {
@@ -283,5 +332,6 @@ export type ActionResolution =
       affectedPlayers: AffectedPlayerMove[];
       tileMutations: TileMutation[];
       triggeredTerrainEffects: TriggeredTerrainEffect[];
+      presentation: ActionPresentation | null;
       nextToolDieSeed: number;
     };

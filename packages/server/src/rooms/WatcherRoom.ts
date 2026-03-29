@@ -1,5 +1,6 @@
 import { type Client, Room } from "colyseus";
 import {
+  type ActionPresentation,
   PLAYER_COLORS,
   PLAYER_SPAWNS,
   createDebugToolInstance,
@@ -40,6 +41,7 @@ export class WatcherRoom extends Room<WatcherState> {
   private moveDieSeed = 11;
   private toolDieSeed = 1;
   private nextToolInstanceSerial = 1;
+  private nextPresentationSequence = 1;
 
   // Room bootstrap wires the authoritative board state and all gameplay messages.
   override onCreate(): void {
@@ -140,6 +142,17 @@ export class WatcherRoom extends Room<WatcherState> {
       tileState.direction = tile.direction ?? "";
       this.state.board.set(tile.key, tileState);
     }
+  }
+
+  // Presentation payloads are serialized once so clients can replay the same semantic timeline.
+  private publishActionPresentation(presentation: ActionPresentation | null): void {
+    if (!presentation) {
+      return;
+    }
+
+    this.state.latestPresentationSequence = this.nextPresentationSequence;
+    this.nextPresentationSequence += 1;
+    this.state.latestPresentationJson = JSON.stringify(presentation);
   }
 
   // Turn-scoped resources are cleared in place so schema arrays stay stable for syncing.
@@ -310,6 +323,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.applyAffectedPlayerMoves(resolution.affectedPlayers);
     this.toolDieSeed = resolution.nextToolDieSeed;
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
+    this.publishActionPresentation(resolution.presentation);
 
     if (
       resolution.tileMutations.some(

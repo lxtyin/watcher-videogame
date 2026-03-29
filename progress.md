@@ -277,3 +277,15 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
   - `output/web-game/stacked-pets-check-2/pet-facing-after-left-move-spectator.png` and `output/web-game/stacked-pets-check-2/after-left-move-state.json` cover post-move facing from a spectator view
 - Note: running the root build from the junction path `E:\\Watcher` can intermittently fail during the server `tsup --dts` step; rerunning from `E:\\Develop\\Watcher` succeeds consistently on this machine.
 - TODO: if we add more stack-sensitive tools, decide explicitly whether every stacked target should always be hit together or whether some future tools should stop at the first player in the pile.
+- Fixed the animation handoff bug where a piece could briefly snap to its authoritative destination before the semantic motion playback started.
+  - `BoardScene.tsx` now keeps a per-player settled position cache that survives snapshot updates until the relevant motion actually begins
+  - pending motion origins are collected from both the active presentation and queued presentations, so delayed blast/pull motions also stay anchored correctly
+- Added text-friendly animation debug output for future regression checks:
+  - `window.render_game_to_text()` now includes `displayedPlayers`
+  - `BoardScene.tsx` publishes the current scene-facing displayed positions through `watcher_scene_debug`
+- Updated architecture docs to describe the `ActionPresentation` pipeline, the settled-position handoff, and the new text-only animation regression approach.
+- Verified `npm.cmd run typecheck` passes after the animation handoff fix.
+- Verified `npm.cmd run build --workspace @watcher/client` passes after the animation handoff fix.
+- Verified a text-only Playwright smoke check for the handoff fix:
+  - `output/web-game/animation-handoff-fix/state.json` shows `snapshot` already at `(7,4)` while `displayedPlayers[sessionId]` is still near the origin (`x ≈ 4.22`) during the active `movement` presentation
+- Note: the root `npm.cmd run build` still hits the existing server `tsup --dts` resolution problem for `@watcher/shared`; this turn did not change that server packaging issue.

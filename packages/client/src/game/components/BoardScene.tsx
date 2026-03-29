@@ -22,6 +22,11 @@ import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
 import {
+  collectPendingPlayerOrigins,
+  evaluateActionPresentation,
+  getActionPresentationElapsedMs
+} from "../animation/presentationPlayback";
+import {
   buildActionPreview,
   clampGridPositionToBoard,
   toGridPositionFromWorld,
@@ -114,6 +119,18 @@ function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
 
 function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: number, _boardHeight: number): SceneHudOffset {
   return { x: 0, y: 0 };
+}
+
+function toWorldPositionFromGrid(
+  x: number,
+  y: number,
+  boardWidth: number,
+  boardHeight: number
+): [number, number, number] {
+  const offsetX = boardWidth / 2 - 0.5;
+  const offsetZ = boardHeight / 2 - 0.5;
+
+  return [x - offsetX, 0, y - offsetZ];
 }
 
 // The aiming system projects screen coordinates onto the board plane before snapping.
@@ -433,6 +450,99 @@ function PreviewWallGhost({
   );
 }
 
+function TransientProjectile({
+  boardWidth,
+  boardHeight,
+  x,
+  y,
+  lift,
+  projectileType,
+  progress
+}: {
+  boardWidth: number;
+  boardHeight: number;
+  x: number;
+  y: number;
+  lift: number;
+  projectileType: "basketball" | "rocket";
+  progress: number;
+}) {
+  const [worldX, , worldZ] = toWorldPositionFromGrid(x, y, boardWidth, boardHeight);
+
+  if (projectileType === "rocket") {
+    return (
+      <group position={[worldX, 0.6 + lift, worldZ]} rotation={[0, -progress * Math.PI * 3.2, 0]}>
+        <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
+          <coneGeometry args={[0.14, 0.44, 12]} />
+          <meshStandardMaterial color="#ef6d53" emissive="#9f2a1b" emissiveIntensity={0.5} />
+        </mesh>
+        <mesh position={[-0.18, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <coneGeometry args={[0.08, 0.18, 10]} />
+          <meshBasicMaterial color="#ffd29b" transparent opacity={0.65} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <group position={[worldX, 0.46 + lift, worldZ]} rotation={[progress * Math.PI * 8, progress * Math.PI * 5, 0]}>
+      <mesh castShadow>
+        <sphereGeometry args={[0.17, 18, 18]} />
+        <meshStandardMaterial color="#f08b4c" emissive="#8c4217" emissiveIntensity={0.34} />
+      </mesh>
+    </group>
+  );
+}
+
+function RocketExplosionEffect({
+  boardWidth,
+  boardHeight,
+  progress,
+  position,
+  tiles
+}: {
+  boardWidth: number;
+  boardHeight: number;
+  progress: number;
+  position: GridPosition;
+  tiles: GridPosition[];
+}) {
+  const [worldX, , worldZ] = toWorldPosition(position, boardWidth, boardHeight);
+  const pulseScale = 0.5 + progress * 1.6;
+  const pulseOpacity = 1 - progress;
+
+  return (
+    <group>
+      {tiles.map((tile) => {
+        const [tileX, , tileZ] = toWorldPosition(tile, boardWidth, boardHeight);
+
+        return (
+          <group key={`rocket-effect-tile-${tile.x}-${tile.y}`} position={[tileX, -0.23, tileZ]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[1 + progress * 0.18, 1 + progress * 0.18, 1]}>
+              <planeGeometry args={[0.86, 0.86]} />
+              <meshBasicMaterial color="#ff6b57" toneMapped={false} transparent opacity={0.18 * pulseOpacity} />
+            </mesh>
+          </group>
+        );
+      })}
+      <group position={[worldX, 0, worldZ]}>
+        <mesh position={[0, -0.21, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[pulseScale, pulseScale, 1]}>
+          <ringGeometry args={[0.2, 0.34, 28]} />
+          <meshBasicMaterial color="#ffd8a8" toneMapped={false} transparent opacity={0.92 * pulseOpacity} />
+        </mesh>
+        <mesh position={[0, 0.08 + progress * 0.34, 0]} scale={[0.5 + progress * 0.45, 0.55 + progress * 0.75, 0.5 + progress * 0.45]}>
+          <sphereGeometry args={[0.28, 20, 20]} />
+          <meshBasicMaterial color="#ff8756" toneMapped={false} transparent opacity={0.35 * pulseOpacity} />
+        </mesh>
+        <mesh position={[0, 0.05 + progress * 0.18, 0]} scale={[0.26 + progress * 0.18, 0.18 + progress * 0.42, 0.26 + progress * 0.18]}>
+          <cylinderGeometry args={[0.22, 0.34, 0.26, 16]} />
+          <meshBasicMaterial color="#fff1cb" toneMapped={false} transparent opacity={0.56 * pulseOpacity} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 // The scene mirrors authoritative state while handling only local aiming and previews.
 export function BoardScene() {
   const camera = useThree((state) => state.camera);
@@ -448,10 +558,16 @@ export function BoardScene() {
   const performDirectionalAction = useGameStore((state) => state.performDirectionalAction);
   const performTileTargetAction = useGameStore((state) => state.performTileTargetAction);
   const simulationTimeMs = useGameStore((state) => state.simulationTimeMs);
+  const activeActionPresentation = useGameStore((state) => state.activeActionPresentation);
+  const activeActionPresentationStartedAtMs = useGameStore(
+    (state) => state.activeActionPresentationStartedAtMs
+  );
+  const actionPresentationQueue = useGameStore((state) => state.actionPresentationQueue);
   const [aimState, setAimState] = useState<AimState | null>(null);
   const aimStateRef = useRef<AimState | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
+  const settledPlayerPositionsRef = useRef<Record<string, GridPosition>>({});
   const dragPlane = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const dragRaycaster = useMemo(() => new Raycaster(), []);
   const dragPointer = useMemo(() => new Vector2(), []);
@@ -474,6 +590,36 @@ export function BoardScene() {
   const isAiming = Boolean(aimState);
   const canShowDirectionArrows = Boolean(myPlayer && isMyTurn && selectedDirectionalTool);
   const focusedDirection = aimState?.targetMode === "direction" ? aimState.direction : null;
+  const activePresentationElapsedMs = getActionPresentationElapsedMs(
+    activeActionPresentation,
+    activeActionPresentationStartedAtMs,
+    simulationTimeMs
+  );
+  const activePresentationPlayback = useMemo(
+    () => evaluateActionPresentation(activeActionPresentation, activePresentationElapsedMs),
+    [activeActionPresentation, activePresentationElapsedMs]
+  );
+  const pendingPlayerOrigins = useMemo(
+    () =>
+      collectPendingPlayerOrigins(
+        activeActionPresentation,
+        activePresentationElapsedMs,
+        actionPresentationQueue
+      ),
+    [actionPresentationQueue, activeActionPresentation, activePresentationElapsedMs]
+  );
+  const getDisplayedGridPosition = (player: PlayerSnapshot) => {
+    const activeMotion = activePresentationPlayback.playerMotions[player.id];
+
+    if (activeMotion) {
+      return {
+        x: activeMotion.position.x,
+        y: activeMotion.position.y
+      };
+    }
+
+    return pendingPlayerOrigins[player.id] ?? settledPlayerPositionsRef.current[player.id] ?? player.position;
+  };
   const playerStackLayout = useMemo(() => {
     const layout = new Map<string, PlayerStackLayout>();
 
@@ -484,7 +630,11 @@ export function BoardScene() {
     const groupedPlayers = new Map<string, PlayerSnapshot[]>();
 
     for (const player of snapshot.players) {
-      const key = toPositionKey(player.position);
+      const displayedPosition = getDisplayedGridPosition(player);
+      const key = toPositionKey({
+        x: Math.round(displayedPosition.x),
+        y: Math.round(displayedPosition.y)
+      });
       const currentGroup = groupedPlayers.get(key) ?? [];
       currentGroup.push(player);
       groupedPlayers.set(key, currentGroup);
@@ -509,7 +659,7 @@ export function BoardScene() {
     }
 
     return layout;
-  }, [sessionId, snapshot]);
+  }, [getDisplayedGridPosition, sessionId, snapshot]);
   const facingById = useMemo(() => {
     const nextFacingById = { ...facingByIdRef.current };
 
@@ -538,11 +688,36 @@ export function BoardScene() {
       return;
     }
 
+    const nextSettledPlayerPositions = { ...settledPlayerPositionsRef.current };
+
+    for (const player of snapshot.players) {
+      const hasAnimatedMotion = Boolean(activePresentationPlayback.playerMotions[player.id]);
+      const hasPendingMotion = Boolean(pendingPlayerOrigins[player.id]);
+
+      if (hasAnimatedMotion || hasPendingMotion) {
+        if (!(player.id in nextSettledPlayerPositions)) {
+          nextSettledPlayerPositions[player.id] =
+            previousPositionsRef.current[player.id] ?? player.position;
+        }
+
+        continue;
+      }
+
+      nextSettledPlayerPositions[player.id] = player.position;
+    }
+
+    settledPlayerPositionsRef.current = Object.fromEntries(
+      snapshot.players.flatMap((player) => {
+        const settledPosition = nextSettledPlayerPositions[player.id];
+
+        return settledPosition ? [[player.id, settledPosition] as const] : [];
+      })
+    );
     facingByIdRef.current = facingById;
     previousPositionsRef.current = Object.fromEntries(
       snapshot.players.map((player) => [player.id, player.position])
     );
-  }, [facingById, snapshot]);
+  }, [activePresentationPlayback.playerMotions, facingById, pendingPlayerOrigins, snapshot]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -789,6 +964,22 @@ export function BoardScene() {
       return;
     }
 
+    window.watcher_scene_debug = {
+      displayedPlayers: Object.fromEntries(
+        snapshot.players.map((player) => [player.id, getDisplayedGridPosition(player)])
+      )
+    };
+
+    return () => {
+      window.watcher_scene_debug = undefined;
+    };
+  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, snapshot]);
+
+  useEffect(() => {
+    if (!snapshot) {
+      return;
+    }
+
     window.project_grid_to_client = (x, y, elevation = 0) => {
       const [worldX, , worldZ] = toWorldPosition(
         { x, y },
@@ -815,6 +1006,7 @@ export function BoardScene() {
 
   const currentPlayer =
     snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
+  const currentPlayerDisplayedPosition = currentPlayer ? getDisplayedGridPosition(currentPlayer) : null;
 
   // Entering aim mode captures the tool id and starting pointer so drag intent can be derived later.
   const beginAim = (
@@ -904,21 +1096,37 @@ export function BoardScene() {
       ))}
 
       {snapshot.players.map((player, index) => {
-        const [x, , z] = toWorldPosition(player.position, snapshot.boardWidth, snapshot.boardHeight);
+        const activeMotion = activePresentationPlayback.playerMotions[player.id] ?? null;
+        const displayedGridPosition = activeMotion
+          ? {
+              x: activeMotion.position.x,
+              y: activeMotion.position.y
+            }
+          : pendingPlayerOrigins[player.id] ?? player.position;
+        const [x, , z] = toWorldPositionFromGrid(
+          displayedGridPosition.x,
+          displayedGridPosition.y,
+          snapshot.boardWidth,
+          snapshot.boardHeight
+        );
         const isActive = player.id === snapshot.turnInfo.currentPlayerId;
         const isMe = player.id === sessionId;
         const pointerProps = isMe ? { onPointerDown: handlePiecePointerDown } : {};
         const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
         const actionRingOffset = getActionRingOffset(
-          player.position.x,
-          player.position.y,
+          Math.round(displayedGridPosition.x),
+          Math.round(displayedGridPosition.y),
           snapshot.boardWidth,
           snapshot.boardHeight
         );
-        const bob = isActive && isMe ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
-        const pieceBaseY = PLAYER_BASE_Y + stackLayout.index * PLAYER_STACK_STEP_Y + bob;
+        const bob = activeMotion || (isActive && isMe) ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
+        const pieceBaseY =
+          PLAYER_BASE_Y +
+          stackLayout.index * PLAYER_STACK_STEP_Y +
+          bob +
+          (activeMotion?.position.lift ?? 0);
         const pieceTopY = pieceBaseY + 0.96;
-        const facingDirection = facingById[player.id] ?? "down";
+        const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
 
         return (
           <group key={player.id} position={[x, 0, z]}>
@@ -969,6 +1177,30 @@ export function BoardScene() {
           </group>
         );
       })}
+      {activePresentationPlayback.projectiles.map((projectile) => (
+        <TransientProjectile
+          key={projectile.eventId}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          x={projectile.position.x}
+          y={projectile.position.y}
+          lift={projectile.position.lift}
+          projectileType={projectile.projectileType}
+          progress={projectile.progress}
+        />
+      ))}
+      {activePresentationPlayback.effects.map((effect) =>
+        effect.effectType === "rocket_explosion" ? (
+          <RocketExplosionEffect
+            key={effect.eventId}
+            boardWidth={snapshot.boardWidth}
+            boardHeight={snapshot.boardHeight}
+            progress={effect.progress}
+            position={effect.position}
+            tiles={effect.tiles}
+          />
+        ) : null
+      )}
 
       {previewLandingPosition ? (
         <PreviewRing
@@ -995,9 +1227,27 @@ export function BoardScene() {
       {currentPlayer ? (
         <mesh
           position={[
-            toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)[0],
+            (
+              currentPlayerDisplayedPosition
+                ? toWorldPositionFromGrid(
+                    currentPlayerDisplayedPosition.x,
+                    currentPlayerDisplayedPosition.y,
+                    snapshot.boardWidth,
+                    snapshot.boardHeight
+                  )
+                : toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)
+            )[0],
             -0.38,
-            toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)[2]
+            (
+              currentPlayerDisplayedPosition
+                ? toWorldPositionFromGrid(
+                    currentPlayerDisplayedPosition.x,
+                    currentPlayerDisplayedPosition.y,
+                    snapshot.boardWidth,
+                    snapshot.boardHeight
+                  )
+                : toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)
+            )[2]
           ]}
           rotation={[-Math.PI / 2, 0, 0]}
         >

@@ -3,6 +3,7 @@ import type {
   GameSnapshot,
   PlayerTurnFlag,
   RolledToolId,
+  SequencedActionPresentation,
   ToolId,
   ToolParameterValueMap
 } from "@watcher/shared";
@@ -72,6 +73,8 @@ interface RoomStateShape {
   players: SchemaCollection<RoomPlayerState>;
   turnInfo: RoomTurnInfo;
   eventLog: Iterable<RoomEventLogEntry>;
+  latestPresentationSequence: number;
+  latestPresentationJson: string;
 }
 
 // Colyseus schema objects are flattened into plain data for React and Zustand consumption.
@@ -82,6 +85,20 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return JSON.parse(paramsJson) as ToolParameterValueMap;
     } catch {
       return {};
+    }
+  };
+  const parseLatestPresentation = (): SequencedActionPresentation | null => {
+    if (!roomState.latestPresentationSequence || !roomState.latestPresentationJson) {
+      return null;
+    }
+
+    try {
+      return {
+        ...(JSON.parse(roomState.latestPresentationJson) as Omit<SequencedActionPresentation, "sequence">),
+        sequence: roomState.latestPresentationSequence
+      };
+    } catch {
+      return null;
     }
   };
 
@@ -132,6 +149,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       type: entry.type,
       message: entry.message,
       createdAt: entry.createdAt
-    }))
+    })),
+    latestPresentation: parseLatestPresentation()
   };
 }

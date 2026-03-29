@@ -58,4 +58,6 @@ export class WatcherState extends Schema {
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type(TurnInfoState) turnInfo = new TurnInfoState();
   @type([EventLogEntryState]) eventLog = new ArraySchema<EventLogEntryState>();
+  @type("number") latestPresentationSequence = 0;
+  @type("string") latestPresentationJson = "";
 }

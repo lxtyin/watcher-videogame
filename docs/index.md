@@ -89,3 +89,14 @@
 
 - [AI开发指南](./AI开发指南.md)
   - 约束 AI 协作者的阅读顺序、文档维护方式和注释规范。
+
+## Animation Notes
+
+- 动作表现现在通过共享层的 `presentation` 时间线驱动
+  - 当前已覆盖 `player_motion`、`projectile`、`effect`
+  - `Rocket` 爆炸是第一种落地的 `effect` 原型
+- 客户端会把角色的“稳定落位”与权威快照位置分开维护
+  - 权威状态可以先更新到最终坐标
+  - 场景仍会先停留在上一稳定位置，再由 `presentation` 接管播放，避免先瞬移到终点再回播
+- 文本自动化现在可以直接读取 `window.render_game_to_text()` 中的 `displayedPlayers`
+  - 后续动画回归优先用文本断言“显示位置”和“权威位置”的交接是否正确

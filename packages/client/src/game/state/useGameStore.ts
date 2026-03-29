@@ -8,6 +8,7 @@ import {
   type Direction,
   type GameSnapshot,
   type GridPosition,
+  type SequencedActionPresentation,
   type ToolId
 } from "@watcher/shared";
 
@@ -25,6 +26,10 @@ interface GameStore {
   room: Room | null;
   client: ColyseusClient | null;
   snapshot: GameSnapshot | null;
+  actionPresentationQueue: SequencedActionPresentation[];
+  activeActionPresentation: SequencedActionPresentation | null;
+  activeActionPresentationStartedAtMs: number | null;
+  lastQueuedPresentationSequence: number;
   simulationTimeMs: number;
   manualTimeControl: boolean;
   selectedToolInstanceId: SelectedToolInstanceId;
@@ -46,6 +51,54 @@ interface GameStore {
   tickRealTime: (ms: number) => void;
 }
 
+interface PresentationPlaybackState {
+  actionPresentationQueue: SequencedActionPresentation[];
+  activeActionPresentation: SequencedActionPresentation | null;
+  activeActionPresentationStartedAtMs: number | null;
+  simulationTimeMs: number;
+}
+
+// Presentation playback advances automatically so the scene can stay purely render-focused.
+function pumpActionPresentationPlayback<T extends PresentationPlaybackState>(
+  state: T
+): Pick<
+  T,
+  "actionPresentationQueue" | "activeActionPresentation" | "activeActionPresentationStartedAtMs"
+> {
+  let activeActionPresentation = state.activeActionPresentation;
+  let activeActionPresentationStartedAtMs = state.activeActionPresentationStartedAtMs;
+  let actionPresentationQueue = state.actionPresentationQueue;
+
+  while (
+    activeActionPresentation &&
+    activeActionPresentationStartedAtMs !== null &&
+    state.simulationTimeMs - activeActionPresentationStartedAtMs >= activeActionPresentation.durationMs
+  ) {
+    activeActionPresentation = null;
+    activeActionPresentationStartedAtMs = null;
+
+    if (!actionPresentationQueue.length) {
+      break;
+    }
+
+    activeActionPresentation = actionPresentationQueue[0] ?? null;
+    activeActionPresentationStartedAtMs = state.simulationTimeMs;
+    actionPresentationQueue = actionPresentationQueue.slice(1);
+  }
+
+  if (!activeActionPresentation && actionPresentationQueue.length) {
+    activeActionPresentation = actionPresentationQueue[0] ?? null;
+    activeActionPresentationStartedAtMs = state.simulationTimeMs;
+    actionPresentationQueue = actionPresentationQueue.slice(1);
+  }
+
+  return {
+    actionPresentationQueue,
+    activeActionPresentation,
+    activeActionPresentationStartedAtMs
+  };
+}
+
 // The store keeps networking, UI selection, and lightweight simulation time in one place.
 export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: "idle",
@@ -55,6 +108,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   room: null,
   client: null,
   snapshot: null,
+  actionPresentationQueue: [],
+  activeActionPresentation: null,
+  activeActionPresentationStartedAtMs: null,
+  lastQueuedPresentationSequence: 0,
   simulationTimeMs: 0,
   manualTimeControl: false,
   selectedToolInstanceId: null,
@@ -82,6 +139,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       room: null,
       sessionId: null,
       snapshot: null,
+      actionPresentationQueue: [],
+      activeActionPresentation: null,
+      activeActionPresentationStartedAtMs: null,
+      lastQueuedPresentationSequence: 0,
       toolNotice: null,
       simulationTimeMs: 0,
       manualTimeControl: false,
@@ -90,7 +151,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
   setSnapshot: (snapshot) => {
-    set({ snapshot });
+    set((state) => {
+      let actionPresentationQueue = state.actionPresentationQueue;
+      let lastQueuedPresentationSequence = state.lastQueuedPresentationSequence;
+
+      if (!state.snapshot) {
+        if (snapshot.latestPresentation) {
+          lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
+        }
+
+        return {
+          snapshot,
+          lastQueuedPresentationSequence
+        };
+      }
+
+      if (
+        snapshot.latestPresentation &&
+        snapshot.latestPresentation.sequence > lastQueuedPresentationSequence
+      ) {
+        actionPresentationQueue = [...actionPresentationQueue, snapshot.latestPresentation];
+        lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
+      }
+
+      return {
+        snapshot,
+        lastQueuedPresentationSequence,
+        ...pumpActionPresentationPlayback({
+          actionPresentationQueue,
+          activeActionPresentation: state.activeActionPresentation,
+          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+          simulationTimeMs: state.simulationTimeMs
+        })
+      };
+    });
   },
   setSelectedToolInstanceId: (selectedToolInstanceId) => {
     set({ selectedToolInstanceId });
@@ -192,11 +286,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   // Automation can take over time progression for deterministic screenshot and state capture.
   advanceTime: (ms) => {
-    set((state) => ({
-      simulationTimeMs: state.simulationTimeMs + ms,
-      // Automated tests take over the clock once they call window.advanceTime.
-      manualTimeControl: true
-    }));
+    set((state) => {
+      const simulationTimeMs = state.simulationTimeMs + ms;
+
+      return {
+        simulationTimeMs,
+        // Automated tests take over the clock once they call window.advanceTime.
+        manualTimeControl: true,
+        ...pumpActionPresentationPlayback({
+          actionPresentationQueue: state.actionPresentationQueue,
+          activeActionPresentation: state.activeActionPresentation,
+          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+          simulationTimeMs
+        })
+      };
+    });
   },
   // Real-time ticking pauses automatically once automation starts controlling the clock.
   tickRealTime: (ms) => {
@@ -204,8 +308,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    set((state) => ({
-      simulationTimeMs: state.simulationTimeMs + ms
-    }));
+    set((state) => {
+      const simulationTimeMs = state.simulationTimeMs + ms;
+
+      return {
+        simulationTimeMs,
+        ...pumpActionPresentationPlayback({
+          actionPresentationQueue: state.actionPresentationQueue,
+          activeActionPresentation: state.activeActionPresentation,
+          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+          simulationTimeMs
+        })
+      };
+    });
   }
 }));
