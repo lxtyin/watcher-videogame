@@ -370,3 +370,32 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
   - `npm.cmd run typecheck --workspace @watcher/shared`
   - `npm.cmd run typecheck --workspace @watcher/server`
   - `npm.cmd run typecheck --workspace @watcher/client`
+
+## 2026-03-31
+
+- Refactored client scene assets to slim down `BoardScene.tsx` and separate procedural visuals from scene control logic.
+- Added dedicated asset modules under `packages/client/src/game/assets/`:
+  - `board/` for tile visuals and terrain decorations
+  - `previews/` for landing rings, blast tiles, and wall ghosts
+  - `summons/` for wallet and summon visual dispatch
+  - `presentation/` for projectile/effect visuals and their registries
+  - `player/` for player halo and turn marker visuals
+  - `shared/` for common board placement helpers
+- Updated `BoardScene.tsx` so it now imports asset components instead of embedding large inline geometry blocks for:
+  - board tiles
+  - summon visuals
+  - projectile playback
+  - effect playback
+  - preview overlays
+  - player halo / current-turn marker
+- Updated docs to describe the new client asset split:
+  - `docs/arch/前后端联机原型.md`
+  - `docs/arch/内容注册与资源组织.md`
+- Verified `npm.cmd run typecheck --workspace @watcher/client` passes after the asset split.
+- Verified `npm.cmd run build --workspace @watcher/client` passes after the asset split.
+- Verified `npm.cmd run typecheck` still passes after the client asset refactor.
+- Verified `npm.cmd run build` still passes after the client asset refactor.
+- Verified a lightweight text-only browser sanity check against built server + `vite preview`:
+  - artifact directory: `output/web-game/client-asset-split-text`
+  - `state-0.json` confirms the room connects, two players appear on the board, and `render_game_to_text()` still reports `displayedPlayers`, board tiles, turn info, and event log correctly
+  - temporary local server and preview processes were shut down after the check

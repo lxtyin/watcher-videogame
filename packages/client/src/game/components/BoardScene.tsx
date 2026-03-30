@@ -7,15 +7,22 @@ import {
   getToolDefinition,
   isAimTool,
   isDirectionalTool,
-  isTileTargetTool,
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
-  type TileDefinition,
   type ToolId,
   type ToolTargetMode,
   type TurnToolSnapshot
 } from "@watcher/shared";
+import { BoardTileVisual, type TilePreviewVariant } from "../assets/board/BoardTileVisual";
+import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
+import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
+import { EffectVisual } from "../assets/presentation/EffectVisual";
+import { ProjectileVisual } from "../assets/presentation/ProjectileVisual";
+import { PreviewRingAsset } from "../assets/previews/PreviewRingAsset";
+import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset";
+import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
+import { SummonVisual } from "../assets/summons/SummonVisual";
 import { getActionUiConfig } from "../content/actionUi";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
@@ -140,18 +147,6 @@ function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: nu
   return { x: 0, y: 0 };
 }
 
-function toWorldPositionFromGrid(
-  x: number,
-  y: number,
-  boardWidth: number,
-  boardHeight: number
-): [number, number, number] {
-  const offsetX = boardWidth / 2 - 0.5;
-  const offsetZ = boardHeight / 2 - 0.5;
-
-  return [x - offsetX, 0, y - offsetZ];
-}
-
 // The aiming system projects screen coordinates onto the board plane before snapping.
 function projectClientToGround(
   clientX: number,
@@ -249,356 +244,6 @@ function getTileAimTarget(
   }
 
   return deltaX || deltaY ? snappedPointer : null;
-}
-
-// Conveyor tiles render their direction directly on the board surface.
-function ConveyorArrow({ direction, color = "#6db0c6" }: { direction: Direction; color?: string }) {
-  return (
-    <group rotation={[0, DIRECTION_ROTATION_Y[direction], 0]}>
-      <mesh position={[0, -0.2, -0.3]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
-        <coneGeometry args={[0.27, 0.2, 6]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
-        <coneGeometry args={[0.27, 0.2, 6]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <mesh position={[0, -0.2, 0.3]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
-        <coneGeometry args={[0.27, 0.2, 6]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-    </group>
-  );
-}
-
-// Lucky blocks use a bright placeholder shape until final art arrives.
-function LuckyBlock() {
-  return (
-    <group position={[0, 0.08, 0]}>
-      <mesh position={[0, -0.1, 0]} castShadow>
-        <boxGeometry args={[0.48, 0.34, 0.48]} />
-        <meshStandardMaterial color="#f1cc59" emissive="#8a6d10" emissiveIntensity={0.34} />
-      </mesh>
-      <mesh position={[0, -0.07, 0]}>
-        <boxGeometry args={[0.5, 0.3, 0.15]} />
-        <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
-      </mesh>
-      <mesh position={[0, -0.07, 0]}>
-        <boxGeometry args={[0.15, 0.3, 0.5]} />
-        <meshStandardMaterial color="#fff5c9" emissive="#b7931d" emissiveIntensity={0.4} />
-      </mesh>
-      {/* <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.18, 0.28, 28]} />
-        <meshBasicMaterial color="#ffe596" transparent opacity={0.72} />
-      </mesh> */}
-    </group>
-  );
-}
-
-// Pit tiles sink below the floor so the hazard reads clearly from the camera angle.
-function PitDecoration() {
-  return (
-    <group position={[0, -0.22, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.24, 0.42, 36]} />
-        <meshBasicMaterial color="#5b4b46" transparent opacity={0.88} />
-      </mesh>
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.22, 32]} />
-        <meshBasicMaterial color="#171418" />
-      </mesh>
-      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.34, 0.46, 36]} />
-        <meshBasicMaterial color="#9a7162" transparent opacity={0.42} />
-      </mesh>
-    </group>
-  );
-}
-
-// Rocket previews need a stronger marker so the full blast radius reads at a glance.
-function BlastPreviewMarker({ color }: { color: string }) {
-  return (
-    <group>
-
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[1.1, 1.1]} />
-        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.34} />
-      </mesh>
-
-      {/* <mesh position={[0, 0.016, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
-        <ringGeometry args={[0.34, 0.47, 4]} />
-        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.94} />
-      </mesh> */}
-      {/* <mesh position={[0, 0.028, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.16, 0.31, 28]} />
-        <meshBasicMaterial color="#fff3ed" toneMapped={false} transparent opacity={0.78} />
-      </mesh> */}
-      {/* <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.08, 18]} />
-        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.92} />
-      </mesh> */}
-    </group>
-  );
-}
-
-// Each tile mesh derives its placeholder style from the shared tile definition.
-function Tile({
-  tile,
-  boardWidth,
-  boardHeight,
-  previewActive,
-  previewColor,
-  previewVariant
-}: {
-  tile: TileDefinition;
-  boardWidth: number;
-  boardHeight: number;
-  previewActive: boolean;
-  previewColor: string;
-  previewVariant: PreviewVariant;
-}) {
-  const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
-  const height =
-    tile.type === "wall"
-      ? 1.15
-      : tile.type === "earthWall"
-        ? 0.7 : 0.22;
-  const color =
-    tile.type === "wall"
-      ? "#455062"
-      : tile.type === "earthWall"
-        ? "#bc7441"
-        : tile.type === "pit"
-          ? "#8b705f"
-          : tile.type === "lucky"
-            ? "#d6bf70"
-            : tile.type === "conveyor"
-              ? "#b8c7cd"
-              : "#d5c6a1";
-
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position={[0, height / 2 - 0.5, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.96, height, 0.96]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      {tile.type === "pit" ? <PitDecoration /> : null}
-      {tile.type === "lucky" ? <LuckyBlock /> : null}
-      {tile.type === "conveyor" && tile.direction ? <ConveyorArrow direction={tile.direction} /> : null}
-      {previewActive ? (
-        <group position={[0, -0.26, 0]}>
-          {previewVariant === "blast" ? (
-            <BlastPreviewMarker color={previewColor} />
-          ) : (
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[0.82, 0.82]} />
-              <meshBasicMaterial color={previewColor} transparent opacity={0.58} />
-            </mesh>
-          )}
-        </group>
-      ) : null}
-    </group>
-  );
-}
-
-// Preview rings mark projected landings and target hits in world space.
-function PreviewRing({
-  boardWidth,
-  boardHeight,
-  color,
-  opacity,
-  position,
-  radius
-}: {
-  boardWidth: number;
-  boardHeight: number;
-  color: string;
-  opacity: number;
-  position: GridPosition;
-  radius: number;
-}) {
-  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
-
-  return (
-    <group position={[x, -0.27, z]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius - 0.08, radius, 40]} />
-        <meshBasicMaterial color={color} transparent opacity={opacity} />
-      </mesh>
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[radius - 0.12, 28]} />
-        <meshBasicMaterial color={color} transparent opacity={opacity * 0.26} />
-      </mesh>
-      <mesh position={[0, 0.14, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[radius - 0.12, 0.028, 12, 36]} />
-        <meshBasicMaterial color={color} transparent opacity={opacity * 0.84} />
-      </mesh>
-      <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.08, 20]} />
-        <meshBasicMaterial color={color} transparent opacity={opacity * 0.48} />
-      </mesh>
-    </group>
-  );
-}
-
-// Wall ghosts show where a build action will place a new earth wall.
-function PreviewWallGhost({
-  boardWidth,
-  boardHeight,
-  position,
-  color
-}: {
-  boardWidth: number;
-  boardHeight: number;
-  position: GridPosition;
-  color: string;
-}) {
-  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
-
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position={[0, -0.15, 0]} castShadow>
-        <boxGeometry args={[0.9, 0.7, 0.9]} />
-        <meshStandardMaterial color={color} transparent opacity={0.45} />
-      </mesh>
-      <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.2, 0.34, 28]} />
-        <meshBasicMaterial color={color} transparent opacity={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-// Summons use their own world mesh layer so future deployables can share the same path.
-function WalletSummon({
-  boardWidth,
-  boardHeight,
-  color,
-  opacity = 1,
-  position
-}: {
-  boardWidth: number;
-  boardHeight: number;
-  color: string;
-  opacity?: number;
-  position: GridPosition;
-}) {
-  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
-  const transparent = opacity < 1;
-
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.22, 0.32, 28]} />
-        <meshBasicMaterial color={color} transparent={transparent} opacity={opacity * 0.82} />
-      </mesh>
-      <mesh position={[0, -0.03, 0]} castShadow>
-        <boxGeometry args={[0.34, 0.2, 0.24]} />
-        <meshStandardMaterial color="#ffe188" transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0, 0.08, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <torusGeometry args={[0.11, 0.03, 12, 22]} />
-        <meshStandardMaterial color="#f6e8bd" transparent={transparent} opacity={opacity * 0.9} />
-      </mesh>
-      <mesh position={[0, 0.02, 0.13]}>
-        <boxGeometry args={[0.1, 0.08, 0.04]} />
-        <meshStandardMaterial color="#f8edcb" transparent={transparent} opacity={opacity * 0.92} />
-      </mesh>
-    </group>
-  );
-}
-
-function TransientProjectile({
-  boardWidth,
-  boardHeight,
-  x,
-  y,
-  lift,
-  projectileType,
-  progress
-}: {
-  boardWidth: number;
-  boardHeight: number;
-  x: number;
-  y: number;
-  lift: number;
-  projectileType: "basketball" | "rocket";
-  progress: number;
-}) {
-  const [worldX, , worldZ] = toWorldPositionFromGrid(x, y, boardWidth, boardHeight);
-
-  if (projectileType === "rocket") {
-    return (
-      <group position={[worldX, 0.6 + lift, worldZ]} rotation={[0, -progress * Math.PI * 3.2, 0]}>
-        <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
-          <coneGeometry args={[0.14, 0.44, 12]} />
-          <meshStandardMaterial color="#ef6d53" emissive="#9f2a1b" emissiveIntensity={0.5} />
-        </mesh>
-        <mesh position={[-0.18, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <coneGeometry args={[0.08, 0.18, 10]} />
-          <meshBasicMaterial color="#ffd29b" transparent opacity={0.65} />
-        </mesh>
-      </group>
-    );
-  }
-
-  return (
-    <group position={[worldX, 0.46 + lift, worldZ]} rotation={[progress * Math.PI * 8, progress * Math.PI * 5, 0]}>
-      <mesh castShadow>
-        <sphereGeometry args={[0.17, 18, 18]} />
-        <meshStandardMaterial color="#f08b4c" emissive="#8c4217" emissiveIntensity={0.34} />
-      </mesh>
-    </group>
-  );
-}
-
-function RocketExplosionEffect({
-  boardWidth,
-  boardHeight,
-  progress,
-  position,
-  tiles
-}: {
-  boardWidth: number;
-  boardHeight: number;
-  progress: number;
-  position: GridPosition;
-  tiles: GridPosition[];
-}) {
-  const [worldX, , worldZ] = toWorldPosition(position, boardWidth, boardHeight);
-  const pulseScale = 0.5 + progress * 1.6;
-  const pulseOpacity = 1 - progress;
-
-  return (
-    <group>
-      {tiles.map((tile) => {
-        const [tileX, , tileZ] = toWorldPosition(tile, boardWidth, boardHeight);
-
-        return (
-          <group key={`rocket-effect-tile-${tile.x}-${tile.y}`} position={[tileX, -0.23, tileZ]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[1 + progress * 0.18, 1 + progress * 0.18, 1]}>
-              <planeGeometry args={[0.86, 0.86]} />
-              <meshBasicMaterial color="#ff6b57" toneMapped={false} transparent opacity={0.18 * pulseOpacity} />
-            </mesh>
-          </group>
-        );
-      })}
-      <group position={[worldX, 0, worldZ]}>
-        <mesh position={[0, -0.21, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[pulseScale, pulseScale, 1]}>
-          <ringGeometry args={[0.2, 0.34, 28]} />
-          <meshBasicMaterial color="#ffd8a8" toneMapped={false} transparent opacity={0.92 * pulseOpacity} />
-        </mesh>
-        <mesh position={[0, 0.08 + progress * 0.34, 0]} scale={[0.5 + progress * 0.45, 0.55 + progress * 0.75, 0.5 + progress * 0.45]}>
-          <sphereGeometry args={[0.28, 20, 20]} />
-          <meshBasicMaterial color="#ff8756" toneMapped={false} transparent opacity={0.35 * pulseOpacity} />
-        </mesh>
-        <mesh position={[0, 0.05 + progress * 0.18, 0]} scale={[0.26 + progress * 0.18, 0.18 + progress * 0.42, 0.26 + progress * 0.18]}>
-          <cylinderGeometry args={[0.22, 0.34, 0.26, 16]} />
-          <meshBasicMaterial color="#fff1cb" toneMapped={false} transparent opacity={0.56 * pulseOpacity} />
-        </mesh>
-      </group>
-    </group>
-  );
 }
 
 // The scene mirrors authoritative state while handling only local aiming and previews.
@@ -1029,7 +674,7 @@ export function BoardScene() {
       : aimState
         ? getActionUiConfig(aimState.toolId).accent
         : "#6abf69";
-  const previewVariant: PreviewVariant = aimState?.toolId === "rocket" ? "blast" : "tile";
+  const previewVariant: TilePreviewVariant = aimState?.toolId === "rocket" ? "blast" : "tile";
   const previewLandingPosition =
     myPlayer &&
     previewResolution?.kind === "applied" &&
@@ -1199,7 +844,7 @@ export function BoardScene() {
       </mesh>
 
       {snapshot.tiles.map((tile) => (
-        <Tile
+        <BoardTileVisual
           key={tile.key}
           tile={tile}
           boardWidth={snapshot.boardWidth}
@@ -1210,7 +855,7 @@ export function BoardScene() {
         />
       ))}
       {previewWallPositions.map((position) => (
-        <PreviewWallGhost
+        <PreviewWallGhostAsset
           key={`preview-wall-${position.x}-${position.y}`}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
@@ -1222,24 +867,29 @@ export function BoardScene() {
         const ownerColor =
           snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
 
-        return summon.summonId === "wallet" ? (
-          <WalletSummon
+        return (
+          <SummonVisual
             key={summon.instanceId}
+            summon={summon}
             boardWidth={snapshot.boardWidth}
             boardHeight={snapshot.boardHeight}
             color={ownerColor}
-            position={summon.position}
           />
-        ) : null;
+        );
       })}
       {previewWalletPositions.map((position, index) => (
-        <WalletSummon
+        <SummonVisual
           key={`preview-wallet-${position.x}-${position.y}-${index}`}
+          summon={{
+            instanceId: `preview-wallet-${position.x}-${position.y}-${index}`,
+            ownerId: sessionId ?? "preview",
+            position,
+            summonId: "wallet"
+          }}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           color={previewColor}
           opacity={0.45}
-          position={position}
         />
       ))}
 
@@ -1316,26 +966,7 @@ export function BoardScene() {
                 position={[0, 0.02, 0]}
               />
             ) : null}
-            {isActive ? (
-              <mesh position={[0, -0.285, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.46, 0.62, 44]} />
-                <meshBasicMaterial
-                  color={activeRingColor}
-                  transparent
-                  opacity={0.5}
-                  toneMapped={false}
-                />
-              </mesh>
-            ) : null}
-            <mesh position={[0, -0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.35, 0.46, 40]} />
-              <meshBasicMaterial
-                color={player.color}
-                transparent
-                opacity={isActive ? 0.96 : 0.8}
-                toneMapped={false}
-              />
-            </mesh>
+            <PlayerHaloAsset activeColor={activeRingColor} color={player.color} isActive={isActive} />
             {isMe ? (
               <mesh position={[0, pieceBaseY + 0.44, 0]} scale={[1.4, 1.7, 1.4]} {...pointerProps}>
                 <sphereGeometry args={[0.34, 20, 20]} />
@@ -1351,32 +982,24 @@ export function BoardScene() {
         );
       })}
       {activePresentationPlayback.projectiles.map((projectile) => (
-        <TransientProjectile
+        <ProjectileVisual
           key={projectile.eventId}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
-          x={projectile.position.x}
-          y={projectile.position.y}
-          lift={projectile.position.lift}
-          projectileType={projectile.projectileType}
-          progress={projectile.progress}
+          projectile={projectile}
         />
       ))}
-      {activePresentationPlayback.effects.map((effect) =>
-        effect.effectType === "rocket_explosion" ? (
-          <RocketExplosionEffect
-            key={effect.eventId}
-            boardWidth={snapshot.boardWidth}
-            boardHeight={snapshot.boardHeight}
-            progress={effect.progress}
-            position={effect.position}
-            tiles={effect.tiles}
-          />
-        ) : null
-      )}
+      {activePresentationPlayback.effects.map((effect) => (
+        <EffectVisual
+          key={effect.eventId}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          effect={effect}
+        />
+      ))}
 
       {previewLandingPosition ? (
-        <PreviewRing
+        <PreviewRingAsset
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           color={previewColor}
@@ -1386,7 +1009,7 @@ export function BoardScene() {
         />
       ) : null}
       {previewHookedPlayerPositions.map((position, index) => (
-        <PreviewRing
+        <PreviewRingAsset
           key={`hookshot-preview-${position.x}-${position.y}-${index}`}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
@@ -1398,8 +1021,8 @@ export function BoardScene() {
       ))}
 
       {currentPlayer ? (
-        <mesh
-          position={[
+        <CurrentTurnMarkerAsset
+          x={
             (
               currentPlayerDisplayedPosition
                 ? toWorldPositionFromGrid(
@@ -1409,8 +1032,9 @@ export function BoardScene() {
                     snapshot.boardHeight
                   )
                 : toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)
-            )[0],
-            -0.38,
+            )[0]
+          }
+          z={
             (
               currentPlayerDisplayedPosition
                 ? toWorldPositionFromGrid(
@@ -1421,15 +1045,9 @@ export function BoardScene() {
                   )
                 : toWorldPosition(currentPlayer.position, snapshot.boardWidth, snapshot.boardHeight)
             )[2]
-          ]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <circleGeometry args={[0.18, 24]} />
-          <meshBasicMaterial
-            color={mixSceneColor(currentPlayer.color, "#fff4ce", 0.42)}
-            toneMapped={false}
-          />
-        </mesh>
+          }
+          color={mixSceneColor(currentPlayer.color, "#fff4ce", 0.42)}
+        />
       ) : null}
     </>
   );
