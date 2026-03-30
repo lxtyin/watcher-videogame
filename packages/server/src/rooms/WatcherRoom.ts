@@ -1,8 +1,12 @@
 import { type Client, Room } from "colyseus";
 import {
   type ActionPresentation,
+  applyCharacterToolTransforms,
+  createToolInstance,
   PLAYER_COLORS,
   PLAYER_SPAWNS,
+  getCharacterDefinition,
+  getCharacterIds,
   createDebugToolInstance,
   createDefaultBoardDefinition,
   createMovementToolInstance,
@@ -14,13 +18,19 @@ import {
   rollToolDie,
   type AffectedPlayerMove,
   type BoardPlayerState,
+  type BoardSummonState,
+  type CharacterId,
   type Direction,
   type EventType,
   type GrantDebugToolPayload,
   type PlayerTurnFlag,
+  type SetCharacterCommandPayload,
+  type SummonMutation,
   type TileMutation,
   type TileType,
   type ToolId,
+  type ToolLoadoutDefinition,
+  type TriggeredSummonEffect,
   type TriggeredTerrainEffect,
   type TurnToolSnapshot,
   type UseToolCommandPayload
@@ -28,6 +38,7 @@ import {
 import {
   EventLogEntryState,
   PlayerState,
+  SummonState,
   TileState,
   TurnToolState,
   WatcherState
@@ -35,6 +46,15 @@ import {
 
 interface JoinOptions {
   requestedPlayerName?: string;
+}
+
+function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
+  const usedColors = new Set(Array.from(players).map((player) => player.color));
+  const availableColors = PLAYER_COLORS.filter((color) => !usedColors.has(color));
+  const palette = availableColors.length ? availableColors : PLAYER_COLORS;
+  const randomIndex = Math.floor(Math.random() * palette.length);
+
+  return palette[randomIndex] ?? "#ec6f5a";
 }
 
 export class WatcherRoom extends Room<WatcherState> {
@@ -69,17 +89,23 @@ export class WatcherRoom extends Room<WatcherState> {
     this.onMessage("grantDebugTool", (client, payload: GrantDebugToolPayload) => {
       this.handleGrantDebugTool(client, payload);
     });
+
+    this.onMessage("setCharacter", (client, payload: SetCharacterCommandPayload) => {
+      this.handleSetCharacter(client, payload);
+    });
   }
 
   // Joining players receive a spawn, empty turn resources, and possibly the first turn.
   override onJoin(client: Client, options: JoinOptions): void {
     const spawnIndex = this.state.players.size % PLAYER_SPAWNS.length;
+    const characterIds = getCharacterIds();
     const spawn = PLAYER_SPAWNS[spawnIndex] ?? PLAYER_SPAWNS[0]!;
     const player = new PlayerState();
 
     player.id = client.sessionId;
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
-    player.color = PLAYER_COLORS[spawnIndex] ?? PLAYER_COLORS[0] ?? "#ec6f5a";
+    player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
+    player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.x = spawn.x;
     player.y = spawn.y;
     player.spawnX = spawn.x;
@@ -153,6 +179,29 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.latestPresentationSequence = this.nextPresentationSequence;
     this.nextPresentationSequence += 1;
     this.state.latestPresentationJson = JSON.stringify(presentation);
+  }
+
+  private createLoadoutTool(loadout: ToolLoadoutDefinition): TurnToolSnapshot {
+    return createToolInstance(this.createToolInstanceId(loadout.toolId), loadout.toolId, {
+      ...(loadout.charges !== undefined ? { charges: loadout.charges } : {}),
+      ...(loadout.params ? { params: loadout.params } : {}),
+      ...(loadout.source ? { source: loadout.source } : {})
+    });
+  }
+
+  // Character loadouts are added at roll time, while passive transforms are reused on every inventory write.
+  private buildTurnStartTools(characterId: CharacterId, baseTools: TurnToolSnapshot[]): TurnToolSnapshot[] {
+    const definition = getCharacterDefinition(characterId);
+
+    return applyCharacterToolTransforms(characterId, [
+      ...baseTools,
+      ...definition.turnStartGrants.map((loadout) => this.createLoadoutTool(loadout)),
+      ...definition.activeSkillLoadout.map((loadout) => this.createLoadoutTool(loadout))
+    ]);
+  }
+
+  private normalizePlayerTools(player: PlayerState, tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
+    return applyCharacterToolTransforms(player.characterId, tools);
   }
 
   // Turn-scoped resources are cleared in place so schema arrays stay stable for syncing.
@@ -241,10 +290,13 @@ export class WatcherRoom extends Room<WatcherState> {
     this.toolDieSeed = toolRoll.nextSeed;
 
     this.clearPlayerTurnResources(player);
-    this.applyToolInventory(player, [
-      createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll.value),
-      createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
-    ]);
+    this.applyToolInventory(
+      player,
+      this.buildTurnStartTools(player.characterId, [
+        createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll.value),
+        createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
+      ])
+    );
 
     this.state.turnInfo.phase = "action";
     this.state.turnInfo.moveRoll = moveRoll.value;
@@ -294,6 +346,7 @@ export class WatcherRoom extends Room<WatcherState> {
       board: this.createBoardDefinition(),
       actor: {
         id: player.id,
+        characterId: player.characterId,
         position: { x: player.x, y: player.y },
         spawnPosition: { x: player.spawnX, y: player.spawnY },
         turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
@@ -301,6 +354,7 @@ export class WatcherRoom extends Room<WatcherState> {
       activeTool,
       toolDieSeed: this.toolDieSeed,
       tools,
+      summons: this.createBoardSummons(),
       direction: payload.direction ?? "up",
       ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
       players: this.createBoardPlayers()
@@ -320,6 +374,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     this.applyToolInventory(player, resolution.tools);
     this.applyTileMutations(resolution.tileMutations);
+    this.applySummonMutations(resolution.summonMutations);
     this.applyAffectedPlayerMoves(resolution.affectedPlayers);
     this.toolDieSeed = resolution.nextToolDieSeed;
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
@@ -334,16 +389,26 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     this.pushTerrainEvents(player.id, resolution.triggeredTerrainEffects);
+    this.pushSummonEvents(resolution.triggeredSummonEffects);
 
     if (activeTool.toolId === "movement") {
       this.pushEvent(
         "piece_moved",
         `${player.name} used Movement ${payload.direction} to (${player.x}, ${player.y}).`
       );
+    } else {
+      this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
+    }
+
+    if (!resolution.endsTurn) {
       return;
     }
 
-    this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
+    this.pushEvent("turn_ended", `${player.name} ended the turn.`);
+    this.clearPlayerTurnResources(player);
+
+    const nextPlayerId = this.getNextPlayerId(player.id);
+    this.beginTurnFor(nextPlayerId, true);
   }
 
   // Ending a turn clears transient resources and advances authority to the next player.
@@ -364,6 +429,31 @@ export class WatcherRoom extends Room<WatcherState> {
 
     const nextPlayerId = this.getNextPlayerId(player.id);
     this.beginTurnFor(nextPlayerId, true);
+  }
+
+  // Character switching is treated as a turn-setup choice so passive/loadout semantics stay deterministic.
+  private handleSetCharacter(client: Client, payload: SetCharacterCommandPayload): void {
+    const player = this.ensureActivePlayer(client);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.state.turnInfo.phase !== "roll") {
+      this.pushEvent("move_blocked", `${player.name} can only switch character before rolling.`);
+      return;
+    }
+
+    if (!getCharacterIds().includes(payload.characterId)) {
+      this.pushEvent("move_blocked", `${player.name} tried to switch to an unknown character.`);
+      return;
+    }
+
+    player.characterId = payload.characterId;
+    this.pushEvent(
+      "character_switched",
+      `${player.name} switched to ${getCharacterDefinition(payload.characterId).label}.`
+    );
   }
 
   // Debug grants append a chosen tool to the current turn without touching the dice flow.
@@ -416,22 +506,26 @@ export class WatcherRoom extends Room<WatcherState> {
       instanceId: tool.instanceId,
       toolId: tool.toolId as ToolId,
       charges: tool.charges,
-      params: parseToolParams(tool.paramsJson)
+      params: parseToolParams(tool.paramsJson),
+      source: tool.source === "character_skill" ? "character_skill" : "turn"
     }));
   }
 
   // Shared tool snapshots are written back into schema state after each authoritative action.
   private applyToolInventory(player: PlayerState, tools: TurnToolSnapshot[]): void {
+    const normalizedTools = this.normalizePlayerTools(player, tools);
+
     while (player.tools.length > 0) {
       player.tools.pop();
     }
 
-    for (const tool of tools) {
+    for (const tool of normalizedTools) {
       const toolState = new TurnToolState();
       toolState.instanceId = tool.instanceId;
       toolState.toolId = tool.toolId;
       toolState.charges = tool.charges;
       toolState.paramsJson = JSON.stringify(tool.params);
+      toolState.source = tool.source;
       player.tools.push(toolState);
     }
   }
@@ -467,6 +561,7 @@ export class WatcherRoom extends Room<WatcherState> {
   private createBoardPlayers(): BoardPlayerState[] {
     return Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
       id: entry.id,
+      characterId: entry.characterId,
       position: {
         x: entry.x,
         y: entry.y
@@ -476,6 +571,18 @@ export class WatcherRoom extends Room<WatcherState> {
         y: entry.spawnY
       },
       turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
+    }));
+  }
+
+  private createBoardSummons(): BoardSummonState[] {
+    return Array.from(this.state.summons.values() as Iterable<SummonState>).map((entry) => ({
+      instanceId: entry.instanceId,
+      summonId: entry.summonId as BoardSummonState["summonId"],
+      ownerId: entry.ownerId,
+      position: {
+        x: entry.x,
+        y: entry.y
+      }
     }));
   }
 
@@ -492,6 +599,23 @@ export class WatcherRoom extends Room<WatcherState> {
       tile.type = mutation.nextType;
       tile.durability = mutation.nextDurability;
       tile.direction = "";
+    }
+  }
+
+  private applySummonMutations(summonMutations: SummonMutation[]): void {
+    for (const mutation of summonMutations) {
+      if (mutation.kind === "remove") {
+        this.state.summons.delete(mutation.instanceId);
+        continue;
+      }
+
+      const summonState = this.state.summons.get(mutation.instanceId) ?? new SummonState();
+      summonState.instanceId = mutation.instanceId;
+      summonState.summonId = mutation.summonId;
+      summonState.ownerId = mutation.ownerId;
+      summonState.x = mutation.position.x;
+      summonState.y = mutation.position.y;
+      this.state.summons.set(mutation.instanceId, summonState);
     }
   }
 
@@ -553,6 +677,25 @@ export class WatcherRoom extends Room<WatcherState> {
           `${actor.name} was redirected from ${terrainEffect.fromDirection} to ${terrainEffect.toDirection}.`
         );
       }
+    }
+  }
+
+  private pushSummonEvents(triggeredSummonEffects: TriggeredSummonEffect[]): void {
+    for (const summonEffect of triggeredSummonEffects) {
+      if (summonEffect.kind !== "wallet_pickup") {
+        continue;
+      }
+
+      const player = this.state.players.get(summonEffect.playerId);
+
+      if (!player) {
+        continue;
+      }
+
+      this.pushEvent(
+        "summon_triggered",
+        `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
+      );
     }
   }
 

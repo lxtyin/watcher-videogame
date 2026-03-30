@@ -11,7 +11,10 @@ import type {
   TurnToolSnapshot
 } from "./types";
 
-const TOOL_PARAMETER_LABELS: Record<ToolParameterId, { label: string; unit: "point" | "tile" | "count" }> = {
+const TOOL_PARAMETER_LABELS: Record<
+  ToolParameterId,
+  { label: string; unit: "point" | "tile" | "count" }
+> = {
   movePoints: { label: "移动点数", unit: "point" },
   jumpDistance: { label: "飞跃距离", unit: "tile" },
   hookLength: { label: "钩锁长度", unit: "tile" },
@@ -21,6 +24,7 @@ const TOOL_PARAMETER_LABELS: Record<ToolParameterId, { label: string; unit: "poi
   projectileBounceCount: { label: "反弹次数", unit: "count" },
   projectilePushDistance: { label: "推动距离", unit: "tile" },
   wallDurability: { label: "墙体耐久", unit: "count" },
+  targetRange: { label: "施放范围", unit: "tile" },
   rocketBlastLeapDistance: { label: "炸飞距离", unit: "tile" },
   rocketSplashPushDistance: { label: "爆风推力", unit: "tile" }
 };
@@ -55,7 +59,7 @@ export const TOOL_DIE_FACES: readonly ToolDieFaceDefinition[] = [
     params: {
       projectileRange: 999,
       projectileBounceCount: 1,
-      projectilePushDistance: 1,
+      projectilePushDistance: 1
     }
   },
   {
@@ -72,9 +76,11 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
   movement: {
     id: "movement",
     label: "移动",
-    description: "沿一个方向移动，最多消耗该工具携带的点数。",
+    description: "朝一个方向移动，最多消耗该工具携带的点数。",
     disabledHint: "这个移动工具已经没有可用点数了。",
+    source: "turn",
     targetMode: "direction",
+    passThroughEffectMode: "ground",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -86,14 +92,17 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#6abf69",
     rollable: false,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   jump: {
     id: "jump",
     label: "飞跃",
-    description: "朝一个方向飞跃，可跨过中间墙体，落脚点不能是墙体。",
+    description: "朝一个方向飞跃，可以跨过中间障碍，但落点不能是墙体。",
     disabledHint: "当前还不能使用这个飞跃工具。",
+    source: "turn",
     targetMode: "direction",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -101,14 +110,17 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#85c772",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   hookshot: {
     id: "hookshot",
     label: "钩锁",
-    description: "朝前方发射钩锁，命中墙体会把自己拉近，命中玩家会把对方拉近。",
+    description: "朝前方发射钩锁，命中墙体时拉近自己，命中玩家时拉近对方。",
     disabledHint: "当前还不能使用这个钩锁工具。",
+    source: "turn",
     targetMode: "direction",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -116,14 +128,17 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#6ca7d9",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   dash: {
     id: "dash",
     label: "冲刺",
     description: "让当前回合工具列表中的所有移动工具额外获得指定点数。",
-    disabledHint: "需要 <移动> 才可以使用。",
+    disabledHint: "需要有<移动>时才可以使用。",
+    source: "turn",
     targetMode: "instant",
+    passThroughEffectMode: "none",
     conditions: [{ kind: "tool_present", toolId: "movement" }],
     defaultCharges: 1,
     defaultParams: {
@@ -131,15 +146,18 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#f0ad4e",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   brake: {
     id: "brake",
     label: "制动",
-    description: "沿一个轴向移动至多指定格数，并停在高亮出的目标格。",
+    description: "沿一个轴向移动至多指定格数，并停在实际可达的目标格。",
     disabledHint: "这个制动工具已经没有可用距离了。",
+    source: "turn",
     targetMode: "tile",
     tileTargeting: "axis_line",
+    passThroughEffectMode: "ground",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -151,15 +169,18 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#53a6b9",
     rollable: false,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   buildWall: {
     id: "buildWall",
     label: "砌墙",
-    description: "在周围八格选择一格空地，搭建一个指定耐久的土墙。",
+    description: "在周围八格中选择一个空地，生成一面指定耐久的土墙。",
     disabledHint: "这个位置不能砌墙。",
+    source: "turn",
     targetMode: "tile",
     tileTargeting: "adjacent_ring",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -167,31 +188,37 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#be7d4d",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   basketball: {
     id: "basketball",
     label: "篮球",
-    description: "朝一个方向投出篮球，击中墙会反弹，击中玩家会推动并返还新的篮球。",
+    description: "朝一个方向投出篮球，遇墙会反弹，命中玩家会推动并返还新的篮球。",
     disabledHint: "当前还不能使用这个篮球工具。",
+    source: "turn",
     targetMode: "direction",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
       projectileRange: 999,
       projectileBounceCount: 1,
-      projectilePushDistance: 1,
+      projectilePushDistance: 1
     },
     color: "#d9824c",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   rocket: {
     id: "rocket",
     label: "火箭",
-    description: "朝一个方向发射火箭，爆炸会炸飞中心目标并把周围玩家推出去。",
+    description: "朝一个方向发射火箭，在碰撞点爆炸并击飞周围目标。",
     disabledHint: "当前还不能使用这个火箭工具。",
+    source: "turn",
     targetMode: "direction",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -201,21 +228,44 @@ export const TOOL_DEFINITIONS: Record<ToolId, ToolDefinition> = {
     },
     color: "#dc5f56",
     rollable: true,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
   },
   teleport: {
     id: "teleport",
     label: "瞬移",
     description: "选择全场任意一个可落脚地块，直接瞬移到目标位置。",
     disabledHint: "当前还不能瞬移到这个位置。",
+    source: "turn",
     targetMode: "tile",
     tileTargeting: "board_any",
+    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {},
     color: "#7b8bff",
     rollable: false,
-    debugGrantable: true
+    debugGrantable: true,
+    endsTurnOnUse: false
+  },
+  deployWallet: {
+    id: "deployWallet",
+    label: "放置钱包",
+    description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。",
+    disabledHint: "当前无法在这个位置放置钱包。",
+    source: "character_skill",
+    targetMode: "tile",
+    tileTargeting: "board_any",
+    passThroughEffectMode: "none",
+    conditions: [],
+    defaultCharges: 1,
+    defaultParams: {
+      targetRange: 2
+    },
+    color: "#8d7a3d",
+    rollable: false,
+    debugGrantable: false,
+    endsTurnOnUse: true
   }
 };
 
@@ -249,6 +299,10 @@ export function isAimTool(toolId: ToolId): boolean {
   return TOOL_DEFINITIONS[toolId].targetMode !== "instant";
 }
 
+export function isCharacterSkillTool(tool: TurnToolSnapshot): boolean {
+  return tool.source === "character_skill";
+}
+
 // Tool instances are built from one helper so rolls, debug grants, and spawned tools stay consistent.
 export function createToolInstance(
   instanceId: string,
@@ -261,7 +315,8 @@ export function createToolInstance(
     instanceId,
     toolId,
     charges: overrides.charges ?? definition.defaultCharges,
-    params: mergeToolParams(toolId, overrides.params)
+    params: mergeToolParams(toolId, overrides.params),
+    source: overrides.source ?? definition.source
   };
 }
 
@@ -351,7 +406,7 @@ function satisfiesCondition(
         ? { usable: true, reason: null }
         : {
             usable: false,
-            reason: `需要保留${TOOL_DEFINITIONS[condition.toolId].label}`
+            reason: `需要保留 ${TOOL_DEFINITIONS[condition.toolId].label}`
           };
     }
   }

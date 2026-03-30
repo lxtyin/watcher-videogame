@@ -1,6 +1,6 @@
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Plane, Raycaster, Vector2, Vector3 } from "three";
+import { Camera, Color, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
   findToolInstance,
   getToolAvailability,
@@ -68,6 +68,7 @@ type PreviewVariant = "tile" | "blast";
 const AIM_DRAG_THRESHOLD_PX = 14;
 const PLAYER_STACK_STEP_Y = 0.88;
 const PLAYER_BASE_Y = -0.28;
+const STACK_REPOSITION_MS = 260;
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
   right: -Math.PI / 2,
@@ -77,6 +78,24 @@ const DIRECTION_ROTATION_Y: Record<Direction, number> = {
 
 function toPositionKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
+}
+
+function mixSceneColor(base: string, target: string, ratio: number): string {
+  return new Color(base).lerp(new Color(target), ratio).getStyle();
+}
+
+function getAnimatedStackIndex(
+  fromIndex: number,
+  toIndex: number,
+  elapsedMs: number
+): number {
+  if (elapsedMs <= 0 || fromIndex === toIndex) {
+    return fromIndex === toIndex ? toIndex : fromIndex;
+  }
+
+  const progress = Math.min(1, elapsedMs / STACK_REPOSITION_MS);
+
+  return fromIndex + (toIndex - fromIndex) * progress;
 }
 
 // Facing falls back to the dominant net movement axis when a player changes cells.
@@ -450,6 +469,45 @@ function PreviewWallGhost({
   );
 }
 
+// Summons use their own world mesh layer so future deployables can share the same path.
+function WalletSummon({
+  boardWidth,
+  boardHeight,
+  color,
+  opacity = 1,
+  position
+}: {
+  boardWidth: number;
+  boardHeight: number;
+  color: string;
+  opacity?: number;
+  position: GridPosition;
+}) {
+  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
+  const transparent = opacity < 1;
+
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.22, 0.32, 28]} />
+        <meshBasicMaterial color={color} transparent={transparent} opacity={opacity * 0.82} />
+      </mesh>
+      <mesh position={[0, -0.03, 0]} castShadow>
+        <boxGeometry args={[0.34, 0.2, 0.24]} />
+        <meshStandardMaterial color="#ffe188" transparent={transparent} opacity={opacity} />
+      </mesh>
+      <mesh position={[0, 0.08, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <torusGeometry args={[0.11, 0.03, 12, 22]} />
+        <meshStandardMaterial color="#f6e8bd" transparent={transparent} opacity={opacity * 0.9} />
+      </mesh>
+      <mesh position={[0, 0.02, 0.13]}>
+        <boxGeometry args={[0.1, 0.08, 0.04]} />
+        <meshStandardMaterial color="#f8edcb" transparent={transparent} opacity={opacity * 0.92} />
+      </mesh>
+    </group>
+  );
+}
+
 function TransientProjectile({
   boardWidth,
   boardHeight,
@@ -568,6 +626,9 @@ export function BoardScene() {
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
   const settledPlayerPositionsRef = useRef<Record<string, GridPosition>>({});
+  const stackAnimationByIdRef = useRef<
+    Record<string, { fromIndex: number; startedAtMs: number; toIndex: number }>
+  >({});
   const dragPlane = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const dragRaycaster = useMemo(() => new Raycaster(), []);
   const dragPointer = useMemo(() => new Vector2(), []);
@@ -641,14 +702,7 @@ export function BoardScene() {
     }
 
     for (const [, players] of groupedPlayers) {
-      const orderedPlayers = [...players].sort((left, right) => {
-        const leftScore =
-          Number(left.id === snapshot.turnInfo.currentPlayerId) + Number(left.id === sessionId);
-        const rightScore =
-          Number(right.id === snapshot.turnInfo.currentPlayerId) + Number(right.id === sessionId);
-
-        return leftScore - rightScore;
-      });
+      const orderedPlayers = [...players].reverse();
 
       orderedPlayers.forEach((player, index) => {
         layout.set(player.id, {
@@ -659,7 +713,7 @@ export function BoardScene() {
     }
 
     return layout;
-  }, [getDisplayedGridPosition, sessionId, snapshot]);
+  }, [getDisplayedGridPosition, snapshot]);
   const facingById = useMemo(() => {
     const nextFacingById = { ...facingByIdRef.current };
 
@@ -682,6 +736,49 @@ export function BoardScene() {
   useEffect(() => {
     aimStateRef.current = aimState;
   }, [aimState]);
+
+  useEffect(() => {
+    if (!snapshot) {
+      stackAnimationByIdRef.current = {};
+      return;
+    }
+
+    const nextAnimations: Record<
+      string,
+      { fromIndex: number; startedAtMs: number; toIndex: number }
+    > = {};
+
+    for (const player of snapshot.players) {
+      const nextIndex = playerStackLayout.get(player.id)?.index ?? 0;
+      const previousAnimation = stackAnimationByIdRef.current[player.id];
+
+      if (!previousAnimation) {
+        nextAnimations[player.id] = {
+          fromIndex: nextIndex,
+          toIndex: nextIndex,
+          startedAtMs: simulationTimeMs
+        };
+        continue;
+      }
+
+      if (previousAnimation.toIndex === nextIndex) {
+        nextAnimations[player.id] = previousAnimation;
+        continue;
+      }
+
+      nextAnimations[player.id] = {
+        fromIndex: getAnimatedStackIndex(
+          previousAnimation.fromIndex,
+          previousAnimation.toIndex,
+          simulationTimeMs - previousAnimation.startedAtMs
+        ),
+        toIndex: nextIndex,
+        startedAtMs: simulationTimeMs
+      };
+    }
+
+    stackAnimationByIdRef.current = nextAnimations;
+  }, [playerStackLayout, simulationTimeMs, snapshot]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -958,6 +1055,12 @@ export function BoardScene() {
           .filter((mutation) => mutation.nextType === "earthWall")
           .map((mutation) => mutation.position)
       : [];
+  const previewWalletPositions =
+    previewResolution?.kind === "applied"
+      ? previewResolution.summonMutations.flatMap((mutation) =>
+          mutation.kind === "upsert" && mutation.summonId === "wallet" ? [mutation.position] : []
+        )
+      : [];
 
   useEffect(() => {
     if (!snapshot) {
@@ -966,14 +1069,35 @@ export function BoardScene() {
 
     window.watcher_scene_debug = {
       displayedPlayers: Object.fromEntries(
-        snapshot.players.map((player) => [player.id, getDisplayedGridPosition(player)])
+        snapshot.players.map((player) => {
+          const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
+          const stackAnimation = stackAnimationByIdRef.current[player.id];
+          const animatedStackIndex = stackAnimation
+            ? getAnimatedStackIndex(
+                stackAnimation.fromIndex,
+                stackAnimation.toIndex,
+                simulationTimeMs - stackAnimation.startedAtMs
+              )
+            : stackLayout.index;
+
+          return [
+            player.id,
+            {
+              ...getDisplayedGridPosition(player),
+              color: player.color,
+              isActive: player.id === snapshot.turnInfo.currentPlayerId,
+              stackIndex: animatedStackIndex,
+              stackY: PLAYER_BASE_Y + animatedStackIndex * PLAYER_STACK_STEP_Y
+            }
+          ];
+        })
       )
     };
 
     return () => {
       window.watcher_scene_debug = undefined;
     };
-  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, snapshot]);
+  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, playerStackLayout, simulationTimeMs, snapshot]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -1094,6 +1218,30 @@ export function BoardScene() {
           color={previewColor}
         />
       ))}
+      {snapshot.summons.map((summon) => {
+        const ownerColor =
+          snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
+
+        return summon.summonId === "wallet" ? (
+          <WalletSummon
+            key={summon.instanceId}
+            boardWidth={snapshot.boardWidth}
+            boardHeight={snapshot.boardHeight}
+            color={ownerColor}
+            position={summon.position}
+          />
+        ) : null;
+      })}
+      {previewWalletPositions.map((position, index) => (
+        <WalletSummon
+          key={`preview-wallet-${position.x}-${position.y}-${index}`}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          color={previewColor}
+          opacity={0.45}
+          position={position}
+        />
+      ))}
 
       {snapshot.players.map((player, index) => {
         const activeMotion = activePresentationPlayback.playerMotions[player.id] ?? null;
@@ -1113,6 +1261,14 @@ export function BoardScene() {
         const isMe = player.id === sessionId;
         const pointerProps = isMe ? { onPointerDown: handlePiecePointerDown } : {};
         const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
+        const stackAnimation = stackAnimationByIdRef.current[player.id];
+        const animatedStackIndex = stackAnimation
+          ? getAnimatedStackIndex(
+              stackAnimation.fromIndex,
+              stackAnimation.toIndex,
+              simulationTimeMs - stackAnimation.startedAtMs
+            )
+          : stackLayout.index;
         const actionRingOffset = getActionRingOffset(
           Math.round(displayedGridPosition.x),
           Math.round(displayedGridPosition.y),
@@ -1122,11 +1278,12 @@ export function BoardScene() {
         const bob = activeMotion || (isActive && isMe) ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
         const pieceBaseY =
           PLAYER_BASE_Y +
-          stackLayout.index * PLAYER_STACK_STEP_Y +
+          animatedStackIndex * PLAYER_STACK_STEP_Y +
           bob +
           (activeMotion?.position.lift ?? 0);
         const pieceTopY = pieceBaseY + 0.96;
         const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
+        const activeRingColor = mixSceneColor(player.color, "#fff4ce", 0.5);
 
         return (
           <group key={player.id} position={[x, 0, z]}>
@@ -1159,9 +1316,25 @@ export function BoardScene() {
                 position={[0, 0.02, 0]}
               />
             ) : null}
+            {isActive ? (
+              <mesh position={[0, -0.285, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.46, 0.62, 44]} />
+                <meshBasicMaterial
+                  color={activeRingColor}
+                  transparent
+                  opacity={0.5}
+                  toneMapped={false}
+                />
+              </mesh>
+            ) : null}
             <mesh position={[0, -0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.35, 0.46, 40]} />
-              <meshBasicMaterial color={isActive ? "#1f8f6a" : player.color} />
+              <meshBasicMaterial
+                color={player.color}
+                transparent
+                opacity={isActive ? 0.96 : 0.8}
+                toneMapped={false}
+              />
             </mesh>
             {isMe ? (
               <mesh position={[0, pieceBaseY + 0.44, 0]} scale={[1.4, 1.7, 1.4]} {...pointerProps}>
@@ -1252,7 +1425,10 @@ export function BoardScene() {
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <circleGeometry args={[0.18, 24]} />
-          <meshBasicMaterial color="#10223b" />
+          <meshBasicMaterial
+            color={mixSceneColor(currentPlayer.color, "#fff4ce", 0.42)}
+            toneMapped={false}
+          />
         </mesh>
       ) : null}
     </>

@@ -9,13 +9,15 @@ import type {
 
 // The layout is intentionally tiny so the first prototype stays easy to inspect.
 const LAYOUT = [
+  "#########",
   "#.>l#...#",
   "#.v.#...#",
   "#.pe#e..#",
   "#..^....#",
   "#..e....#",
   "#...##..#",
-  "#....<..#"
+  "#....<..#",
+  "#########"
 ] as const;
 
 interface LayoutSymbolDefinition {

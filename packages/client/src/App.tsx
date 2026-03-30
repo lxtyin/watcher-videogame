@@ -1,12 +1,16 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import {
   TOOL_DEFINITIONS,
+  getCharacterDefinition,
+  getNextCharacterId,
   describeToolButtonLabel,
   describeToolParameters,
   findToolInstance,
   getDebugGrantableToolIds,
   getToolDisabledMessage,
   getToolAvailability,
+  isAimTool,
+  isCharacterSkillTool,
   isDirectionalTool,
   isTileTargetTool,
   type Direction,
@@ -275,6 +279,7 @@ export default function App() {
   const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
+  const setCharacter = useGameStore((state) => state.setCharacter);
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useInstantTool = useGameStore((state) => state.useInstantTool);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
@@ -288,14 +293,50 @@ export default function App() {
   const selectedToolParameters = selectedTool ? describeToolParameters(selectedTool) : [];
   const selectedToolAvailability =
     selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
+  const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
+  const nextCharacterId = me ? getNextCharacterId(me.characterId) : "late";
+  const nextRoleDefinition = getCharacterDefinition(nextCharacterId);
+  const roleTools = me?.tools.filter((tool) => isCharacterSkillTool(tool)) ?? [];
+  const regularTools = me?.tools.filter((tool) => !isCharacterSkillTool(tool)) ?? [];
+  const otherPlayers =
+    snapshot?.players.filter((player) => player.id !== sessionId) ?? [];
   const instantToolReady =
     selectedTool &&
     selectedToolDefinition &&
-    !isDirectionalTool(selectedTool.toolId) &&
+    !isAimTool(selectedTool.toolId) &&
     selectedToolAvailability?.usable;
   const usableToolCount = me?.tools.filter((tool) => getToolAvailability(tool, me.tools).usable).length ?? 0;
 
   const interactionHint = describeInteractionHint(isMyTurn, activePhase, selectedTool, me?.tools ?? []);
+  const handleRoleSkillClick = (tool: TurnToolSnapshot) => {
+    const availability = getToolAvailability(tool, me?.tools ?? []);
+    setSelectedToolInstanceId(tool.instanceId);
+
+    if (!availability.usable) {
+      showToolNotice(
+        getToolDisabledMessage(tool, me?.tools ?? []) ?? `${TOOL_DEFINITIONS[tool.toolId].label}当前不可用。`
+      );
+      return;
+    }
+
+    if (isAimTool(tool.toolId)) {
+      return;
+    }
+
+    useInstantTool(tool.instanceId);
+  };
+  const handleSidebarToolClick = (tool: TurnToolSnapshot) => {
+    const tools = me?.tools ?? [];
+    const availability = getToolAvailability(tool, tools);
+
+    setSelectedToolInstanceId(tool.instanceId);
+
+    if (!availability.usable) {
+      showToolNotice(
+        getToolDisabledMessage(tool, tools) ?? `${TOOL_DEFINITIONS[tool.toolId].label}当前不可用。`
+      );
+    }
+  };
 
   useEffect(() => {
     if (!toolNotice) {
@@ -331,14 +372,91 @@ export default function App() {
         <section className="info-grid">
           <div className="info-card">
             <p className="info-label">玩家</p>
-            <strong>{me?.name ?? "连接中..."}</strong>
+            <div className="player-name-line">
+              <span
+                className="player-swatch"
+                style={{ "--player-accent": me?.color ?? "#c9b182" } as CSSProperties}
+              />
+              <strong>{me?.name ?? "连接中..."}</strong>
+            </div>
             <span>{me ? `(${me.position.x}, ${me.position.y})` : "--"}</span>
           </div>
           <div className="info-card">
             <p className="info-label">当前回合</p>
-            <strong>{activePlayer?.name ?? "--"}</strong>
+            <div className="player-name-line">
+              <span
+                className="player-swatch"
+                style={{ "--player-accent": activePlayer?.color ?? "#c9b182" } as CSSProperties}
+              />
+              <strong>{activePlayer?.name ?? "--"}</strong>
+            </div>
             <span>{snapshot && activePhase ? TURN_PHASE_LABELS[activePhase] : "--"}</span>
           </div>
+        </section>
+
+        <section className="character-card">
+          <div className="character-card__header">
+            <div>
+              <p className="section-title">角色</p>
+              <strong>{roleDefinition?.label ?? "--"}</strong>
+            </div>
+            <button
+              type="button"
+              data-testid="switch-character-button"
+              onClick={() => setCharacter(nextCharacterId)}
+              disabled={!isMyTurn || activePhase !== "roll" || !me}
+            >
+              切换为{nextRoleDefinition.label}
+            </button>
+          </div>
+          <p className="character-summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
+          {roleDefinition?.passiveDescriptions.length ? (
+            <div className="character-passive-list">
+              {roleDefinition.passiveDescriptions.map((description, index) => (
+                <p key={`${roleDefinition.id}-passive-${index}`} className="hint-copy">
+                  被动：{description}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="hint-copy">这个角色当前没有额外被动说明。</p>
+          )}
+          <div className="role-skill-header">
+            <p className="section-title">主动技能</p>
+            <span>{roleTools.length ? `${roleTools.length} 个` : "暂无"}</span>
+          </div>
+          {roleTools.length ? (
+            <div className="tool-grid role-skill-grid">
+              {roleTools.map((tool, index) => {
+                const availability = getToolAvailability(tool, me?.tools ?? []);
+
+                return (
+                  <button
+                    key={tool.instanceId}
+                    type="button"
+                    data-testid={`role-skill-button-${tool.toolId}-${index}`}
+                    className={
+                      [
+                        "tool-button",
+                        selectedToolInstanceId === tool.instanceId ? "selected" : "",
+                        !availability.usable ? "disabled" : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                    }
+                    aria-disabled={!availability.usable}
+                    onClick={() => handleRoleSkillClick(tool)}
+                  >
+                    {describeToolButton(tool)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="hint-copy">这个角色当前没有可点击的主动技能。</p>
+          )}
+          <p className="hint-copy">主动技能会出现在这里，也会同步显示在场景中的头顶弧环。</p>
+          <p className="hint-copy">切换角色只允许在掷骰前进行，这样本回合工具列表会保持稳定。</p>
         </section>
 
         <section className="controls-card">
@@ -414,41 +532,40 @@ export default function App() {
         </section>
 
         <section className="tool-card">
-          <p className="section-title">工具列表</p>
-          <div className="tool-grid">
-            {me?.tools.map((tool, index) => {
-              const availability = getToolAvailability(tool, me.tools);
-
-              return (
-                <button
-                  key={tool.instanceId}
-                  type="button"
-                  data-testid={`tool-button-${tool.toolId}-${index}`}
-                  className={
-                    [
-                      "tool-button",
-                      selectedToolInstanceId === tool.instanceId ? "selected" : "",
-                      !availability.usable ? "disabled" : ""
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  }
-                  aria-disabled={!availability.usable}
-                  onClick={() => {
-                    setSelectedToolInstanceId(tool.instanceId);
-
-                    if (!availability.usable) {
-                      showToolNotice(
-                        getToolDisabledMessage(tool, me.tools) ?? `${TOOL_DEFINITIONS[tool.toolId].label}当前不可用。`
-                      );
-                    }
-                  }}
-                >
-                  {describeToolButton(tool)}
-                </button>
-              );
-            })}
+          <div className="role-skill-header">
+            <p className="section-title">回合工具</p>
+            <span>{regularTools.length ? `${regularTools.length} 个` : "暂无"}</span>
           </div>
+          {regularTools.length ? (
+            <div className="tool-grid">
+              {regularTools.map((tool, index) => {
+                const availability = getToolAvailability(tool, me?.tools ?? []);
+
+                return (
+                  <button
+                    key={tool.instanceId}
+                    type="button"
+                    data-testid={`tool-button-${tool.toolId}-${index}`}
+                    className={
+                      [
+                        "tool-button",
+                        selectedToolInstanceId === tool.instanceId ? "selected" : "",
+                        !availability.usable ? "disabled" : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                    }
+                    aria-disabled={!availability.usable}
+                    onClick={() => handleSidebarToolClick(tool)}
+                  >
+                    {describeToolButton(tool)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="hint-copy">这个回合目前没有普通工具，可能只剩角色技能或已经全部用完。</p>
+          )}
           {selectedToolDefinition && selectedTool ? (
             <div className="tool-detail" style={{ "--tool-accent": selectedToolDefinition.color } as CSSProperties}>
               <strong>{describeToolButton(selectedTool)}</strong>
@@ -476,6 +593,72 @@ export default function App() {
           <p className="hint-copy">灰色工具仍会显示在列表里，点击后会提示当前为什么不能用。</p>
         </section>
 
+        <section className="player-observer-section">
+          <div className="role-skill-header">
+            <p className="section-title">其他玩家</p>
+            <span>{otherPlayers.length ? `${otherPlayers.length} 名` : "暂无"}</span>
+          </div>
+          {otherPlayers.length ? (
+            <div className="player-observer-list">
+              {otherPlayers.map((player) => {
+                const isObservedActive = snapshot?.turnInfo.currentPlayerId === player.id;
+                const playerRole = getCharacterDefinition(player.characterId);
+
+                return (
+                  <div
+                    key={player.id}
+                    className={[
+                      "player-observer-card",
+                      isObservedActive ? "active" : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <div className="player-observer-header">
+                      <div>
+                        <div className="player-name-line">
+                          <span
+                            className="player-swatch"
+                            style={{ "--player-accent": player.color } as CSSProperties}
+                          />
+                          <strong>{player.name}</strong>
+                        </div>
+                        <p className="hint-copy">{playerRole.label}</p>
+                      </div>
+                      <span>{`(${player.position.x}, ${player.position.y})`}</span>
+                    </div>
+                    {player.tools.length ? (
+                      <div className="player-tool-chip-grid">
+                        {player.tools.map((tool) => {
+                          const availability = getToolAvailability(tool, player.tools);
+
+                          return (
+                            <span
+                              key={tool.instanceId}
+                              className={[
+                                "player-tool-chip",
+                                availability.usable ? "" : "disabled"
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                            >
+                              {describeToolButton(tool)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="hint-copy">这个回合当前没有工具。</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="hint-copy">房间里暂时还没有其他玩家。</p>
+          )}
+        </section>
+
         <section className="legend-card">
           <p className="section-title">棋盘图例</p>
           <div className="legend-row">
@@ -501,6 +684,10 @@ export default function App() {
           <div className="legend-row">
             <span className="legend-swatch conveyor" />
             加速带，移动经过时会加速或转向
+          </div>
+          <div className="legend-row">
+            <span className="legend-swatch wallet" />
+            钱包，领导经过自己放置的钱包时会拾取并获得一个工具骰子
           </div>
           <div className="legend-row">
             <span className="legend-swatch active" />

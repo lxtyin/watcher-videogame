@@ -1,9 +1,11 @@
 import type {
+  CharacterId,
   Direction,
   GameSnapshot,
   PlayerTurnFlag,
   RolledToolId,
   SequencedActionPresentation,
+  SummonId,
   ToolId,
   ToolParameterValueMap
 } from "@watcher/shared";
@@ -25,6 +27,7 @@ interface RoomPlayerState {
   id: string;
   name: string;
   color: string;
+  characterId: CharacterId;
   x: number;
   y: number;
   spawnX: number;
@@ -38,6 +41,15 @@ interface RoomTurnToolState {
   toolId: ToolId;
   charges: number;
   paramsJson: string;
+  source: "turn" | "character_skill";
+}
+
+interface RoomSummonState {
+  instanceId: string;
+  summonId: SummonId;
+  ownerId: string;
+  x: number;
+  y: number;
 }
 
 interface RoomTurnInfo {
@@ -61,7 +73,9 @@ interface RoomEventLogEntry {
     | "turn_ended"
     | "terrain_triggered"
     | "player_respawned"
-    | "debug_granted";
+    | "debug_granted"
+    | "character_switched"
+    | "summon_triggered";
   message: string;
   createdAt: number;
 }
@@ -70,6 +84,7 @@ interface RoomStateShape {
   boardWidth: number;
   boardHeight: number;
   board: SchemaCollection<RoomTileState>;
+  summons: SchemaCollection<RoomSummonState>;
   players: SchemaCollection<RoomPlayerState>;
   turnInfo: RoomTurnInfo;
   eventLog: Iterable<RoomEventLogEntry>;
@@ -113,10 +128,20 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       durability: tile.durability,
       direction: tile.direction === "" ? null : tile.direction
     })),
+    summons: Array.from(roomState.summons.values()).map((summon) => ({
+      instanceId: summon.instanceId,
+      summonId: summon.summonId,
+      ownerId: summon.ownerId,
+      position: {
+        x: summon.x,
+        y: summon.y
+      }
+    })),
     players: Array.from(roomState.players.values()).map((player) => ({
       id: player.id,
       name: player.name,
       color: player.color,
+      characterId: player.characterId,
       position: {
         x: player.x,
         y: player.y
@@ -130,7 +155,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         instanceId: tool.instanceId,
         toolId: tool.toolId,
         charges: tool.charges,
-        params: parseToolParams(tool.paramsJson)
+        params: parseToolParams(tool.paramsJson),
+        source: tool.source === "character_skill" ? "character_skill" : "turn"
       }))
     })),
     turnInfo: {

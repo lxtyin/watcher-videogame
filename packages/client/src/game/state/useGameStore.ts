@@ -5,6 +5,7 @@ import {
   getToolAvailability,
   isDirectionalTool,
   isTileTargetTool,
+  type CharacterId,
   type Direction,
   type GameSnapshot,
   type GridPosition,
@@ -43,6 +44,7 @@ interface GameStore {
   showToolNotice: (message: string) => void;
   rollDice: () => void;
   endTurn: () => void;
+  setCharacter: (characterId: CharacterId) => void;
   grantDebugTool: (toolId: ToolId) => void;
   useInstantTool: (toolInstanceId?: string | null) => void;
   performDirectionalAction: (direction: Direction, toolInstanceId?: string | null) => void;
@@ -214,6 +216,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     room.send("endTurn");
+  },
+  setCharacter: (characterId) => {
+    const room = get().room;
+
+    if (!room) {
+      return;
+    }
+
+    room.send("setCharacter", { characterId });
   },
   grantDebugTool: (toolId) => {
     const room = get().room;

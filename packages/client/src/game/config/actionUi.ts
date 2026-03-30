@@ -72,6 +72,11 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: TOOL_DEFINITIONS.teleport.color,
     detail: "按住选格"
   },
+  deployWallet: {
+    token: "包",
+    accent: TOOL_DEFINITIONS.deployWallet.color,
+    detail: "按住选格"
+  },
   end: {
     token: "结",
     accent: "#607087",

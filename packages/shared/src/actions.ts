@@ -1,4 +1,9 @@
 import { getTile, isWithinBoard, toTileKey } from "./board";
+import {
+  applyPassThroughSummonEffects,
+  createSummonUpsertMutation,
+  hasSummonAtPosition
+} from "./summons";
 import { applyStopTerrainEffects, resolvePassThroughTerrainEffect } from "./terrain";
 import {
   consumeToolInstance,
@@ -22,7 +27,9 @@ import type {
   TileType,
   ToolActionContext,
   ToolId,
+  SummonMutation,
   TriggeredTerrainEffect,
+  TriggeredSummonEffect,
   TurnToolSnapshot
 } from "./types";
 
@@ -123,8 +130,11 @@ function buildBlockedResolution(
     tools,
     affectedPlayers: [],
     tileMutations: [],
+    summonMutations: [],
     triggeredTerrainEffects,
+    triggeredSummonEffects: [],
     presentation: null,
+    endsTurn: false,
     nextToolDieSeed
   };
 }
@@ -140,7 +150,10 @@ function buildAppliedResolution(
   affectedPlayers: AffectedPlayerMove[] = [],
   triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
   previewTiles: GridPosition[] = [],
-  presentation: ActionPresentation | null = null
+  presentation: ActionPresentation | null = null,
+  summonMutations: SummonMutation[] = [],
+  triggeredSummonEffects: TriggeredSummonEffect[] = [],
+  endsTurn = false
 ): ActionResolution {
   return {
     kind: "applied",
@@ -154,8 +167,11 @@ function buildAppliedResolution(
     tools,
     affectedPlayers,
     tileMutations,
+    summonMutations,
     triggeredTerrainEffects,
+    triggeredSummonEffects,
     presentation,
+    endsTurn,
     nextToolDieSeed
   };
 }
@@ -278,6 +294,45 @@ function finalizeAppliedResolution(
       ...stopResolution.triggeredTerrainEffects
     ],
     nextToolDieSeed: stopResolution.nextToolDieSeed
+  };
+}
+
+function applyPassThroughBoardEffects(
+  context: ToolActionContext,
+  resolution: ActionResolution
+): ActionResolution {
+  if (resolution.kind === "blocked") {
+    return resolution;
+  }
+
+  if (
+    !resolution.path.length ||
+    getToolDefinition(context.activeTool.toolId).passThroughEffectMode !== "ground"
+  ) {
+    return resolution;
+  }
+
+  const summonResolution = applyPassThroughSummonEffects({
+    actor: context.actor,
+    path: resolution.path,
+    summons: context.summons,
+    toolDieSeed: resolution.nextToolDieSeed,
+    tools: resolution.tools
+  });
+
+  if (!summonResolution.summonMutations.length && !summonResolution.triggeredSummonEffects.length) {
+    return resolution;
+  }
+
+  return {
+    ...resolution,
+    tools: summonResolution.tools,
+    summonMutations: [...resolution.summonMutations, ...summonResolution.summonMutations],
+    triggeredSummonEffects: [
+      ...resolution.triggeredSummonEffects,
+      ...summonResolution.triggeredSummonEffects
+    ],
+    nextToolDieSeed: summonResolution.nextToolDieSeed
   };
 }
 
@@ -420,6 +475,10 @@ function createTileMutation(
 
 function buildDerivedToolInstanceId(activeTool: TurnToolSnapshot, suffix: string): string {
   return `${activeTool.instanceId}:${suffix}`;
+}
+
+function buildSummonInstanceId(activeTool: TurnToolSnapshot, summonId: string): string {
+  return `${activeTool.instanceId}:${summonId}`;
 }
 
 // Tool consumption stays centralized so executors do not rewrite inventory logic.
@@ -1116,6 +1175,83 @@ function resolveBuildWallTool(context: ToolActionContext): ActionResolution {
   );
 }
 
+// Wallet deployment is implemented as a role-owned tool so it reuses the normal aim pipeline.
+function resolveDeployWalletTool(context: ToolActionContext): ActionResolution {
+  const targetPosition = context.targetPosition;
+  const targetRange = getToolParam(context.activeTool, "targetRange");
+
+  if (!targetPosition) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Deploy Wallet needs a target tile",
+      context.toolDieSeed
+    );
+  }
+
+  if (
+    Math.abs(targetPosition.x - context.actor.position.x) > targetRange ||
+    Math.abs(targetPosition.y - context.actor.position.y) > targetRange
+  ) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Target tile is outside the deployment range",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  if (!isLandablePosition(context.board, targetPosition)) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Deploy Wallet needs a landable tile",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  if (hasSummonAtPosition(context.summons, targetPosition)) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      "Target tile already contains a summon",
+      context.toolDieSeed,
+      [],
+      [],
+      [targetPosition]
+    );
+  }
+
+  return buildAppliedResolution(
+    context.actor,
+    consumeActiveTool(context),
+    `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+    context.toolDieSeed,
+    [],
+    [],
+    [],
+    [],
+    [targetPosition],
+    null,
+    [
+      createSummonUpsertMutation(
+        buildSummonInstanceId(context.activeTool, "wallet"),
+        "wallet",
+        context.actor.id,
+        targetPosition
+      )
+    ],
+    [],
+    true
+  );
+}
+
 // Basketball uses a bouncing projectile and can reward extra charges after a player hit.
 function resolveBasketballTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
@@ -1403,6 +1539,7 @@ const TOOL_EXECUTORS: Record<ToolId, ToolExecutor> = {
   dash: resolveDashTool,
   brake: resolveBrakeTool,
   buildWall: resolveBuildWallTool,
+  deployWallet: resolveDeployWalletTool,
   basketball: resolveBasketballTool,
   rocket: resolveRocketTool,
   teleport: resolveTeleportTool
@@ -1440,5 +1577,17 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     );
   }
 
-  return finalizeAppliedResolution(context, TOOL_EXECUTORS[context.activeTool.toolId](context));
+  const executedResolution = TOOL_EXECUTORS[context.activeTool.toolId](context);
+  const definitionAdjustedResolution =
+    executedResolution.kind === "applied" && toolDefinition.endsTurnOnUse
+      ? {
+          ...executedResolution,
+          endsTurn: executedResolution.endsTurn || toolDefinition.endsTurnOnUse
+        }
+      : executedResolution;
+
+  return finalizeAppliedResolution(
+    context,
+    applyPassThroughBoardEffects(context, definitionAdjustedResolution)
+  );
 }

@@ -2,6 +2,7 @@ import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
+  type CharacterId,
   type RolledToolId,
   type ToolId
 } from "@watcher/shared";
@@ -21,18 +22,28 @@ export class TurnToolState extends Schema {
   @type("string") toolId: ToolId | "" = "";
   @type("number") charges = 0;
   @type("string") paramsJson = "{}";
+  @type("string") source = "turn";
 }
 
 export class PlayerState extends Schema {
   @type("string") id = "";
   @type("string") name = "";
   @type("string") color = "";
+  @type("string") characterId: CharacterId = "late";
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") spawnX = 0;
   @type("number") spawnY = 0;
   @type(["string"]) turnFlags = new ArraySchema<string>();
   @type([TurnToolState]) tools = new ArraySchema<TurnToolState>();
+}
+
+export class SummonState extends Schema {
+  @type("string") instanceId = "";
+  @type("string") summonId = "";
+  @type("string") ownerId = "";
+  @type("number") x = 0;
+  @type("number") y = 0;
 }
 
 export class TurnInfoState extends Schema {
@@ -55,6 +66,7 @@ export class WatcherState extends Schema {
   @type("number") boardWidth = BOARD_WIDTH;
   @type("number") boardHeight = BOARD_HEIGHT;
   @type({ map: TileState }) board = new MapSchema<TileState>();
+  @type({ map: SummonState }) summons = new MapSchema<SummonState>();
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type(TurnInfoState) turnInfo = new TurnInfoState();
   @type([EventLogEntryState]) eventLog = new ArraySchema<EventLogEntryState>();
