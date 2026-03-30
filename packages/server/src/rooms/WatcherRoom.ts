@@ -13,36 +13,34 @@ import {
   createRolledToolInstance,
   findToolInstance,
   getToolDefinition,
+  type PlayerTurnFlag,
   resolveToolAction,
   rollMovementDie,
   rollToolDie,
-  type AffectedPlayerMove,
-  type BoardPlayerState,
-  type BoardSummonState,
   type CharacterId,
-  type Direction,
-  type EventType,
   type GrantDebugToolPayload,
-  type PlayerTurnFlag,
   type SetCharacterCommandPayload,
-  type SummonMutation,
-  type TileMutation,
-  type TileType,
   type ToolId,
   type ToolLoadoutDefinition,
-  type TriggeredSummonEffect,
-  type TriggeredTerrainEffect,
   type TurnToolSnapshot,
   type UseToolCommandPayload
 } from "@watcher/shared";
+import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
+import { pushRoomEvent, pushSummonEvents, pushTerrainEvents } from "./roomEventLog";
 import {
-  EventLogEntryState,
-  PlayerState,
-  SummonState,
-  TileState,
-  TurnToolState,
-  WatcherState
-} from "../schema/WatcherState";
+  createBoardDefinitionFromState,
+  createBoardPlayersFromState,
+  createBoardSummonsFromState,
+  createPlayerToolsFromState
+} from "./roomStateMappers";
+import {
+  applyAffectedPlayerMoves,
+  applyPlayerTurnFlags,
+  applySummonMutations,
+  applyTileMutations,
+  applyToolInventory,
+  clearPlayerTurnResources
+} from "./roomStateMutations";
 
 interface JoinOptions {
   requestedPlayerName?: string;
@@ -111,7 +109,7 @@ export class WatcherRoom extends Room<WatcherState> {
     player.spawnX = spawn.x;
     player.spawnY = spawn.y;
 
-    this.clearPlayerTurnResources(player);
+    clearPlayerTurnResources(player);
     this.state.players.set(client.sessionId, player);
 
     if (!this.state.turnInfo.currentPlayerId) {
@@ -204,17 +202,6 @@ export class WatcherRoom extends Room<WatcherState> {
     return applyCharacterToolTransforms(player.characterId, tools);
   }
 
-  // Turn-scoped resources are cleared in place so schema arrays stay stable for syncing.
-  private clearPlayerTurnResources(player: PlayerState): void {
-    while (player.tools.length > 0) {
-      player.tools.pop();
-    }
-
-    while (player.turnFlags.length > 0) {
-      player.turnFlags.pop();
-    }
-  }
-
   // Starting a turn resets dice results and tool inventory for the chosen player.
   private beginTurnFor(playerId: string, shouldAdvanceTurnNumber: boolean): void {
     const player = this.state.players.get(playerId);
@@ -223,7 +210,7 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    this.clearPlayerTurnResources(player);
+    clearPlayerTurnResources(player);
     this.state.turnInfo.currentPlayerId = playerId;
     this.state.turnInfo.phase = "roll";
     this.state.turnInfo.moveRoll = 0;
@@ -289,13 +276,14 @@ export class WatcherRoom extends Room<WatcherState> {
     const toolRoll = rollToolDie(this.toolDieSeed);
     this.toolDieSeed = toolRoll.nextSeed;
 
-    this.clearPlayerTurnResources(player);
-    this.applyToolInventory(
+    clearPlayerTurnResources(player);
+    applyToolInventory(
       player,
       this.buildTurnStartTools(player.characterId, [
         createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll.value),
         createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
-      ])
+      ]),
+      (tools) => this.normalizePlayerTools(player, tools)
     );
 
     this.state.turnInfo.phase = "action";
@@ -322,7 +310,7 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    const tools = this.createPlayerTools(player);
+    const tools = createPlayerToolsFromState(player);
     const activeTool = findToolInstance(tools, payload.toolInstanceId);
 
     if (!activeTool) {
@@ -343,7 +331,7 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     const resolution = resolveToolAction({
-      board: this.createBoardDefinition(),
+      board: createBoardDefinitionFromState(this.state),
       actor: {
         id: player.id,
         characterId: player.characterId,
@@ -354,10 +342,10 @@ export class WatcherRoom extends Room<WatcherState> {
       activeTool,
       toolDieSeed: this.toolDieSeed,
       tools,
-      summons: this.createBoardSummons(),
+      summons: createBoardSummonsFromState(this.state),
       direction: payload.direction ?? "up",
       ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
-      players: this.createBoardPlayers()
+      players: createBoardPlayersFromState(this.state)
     });
 
     if (resolution.kind === "blocked") {
@@ -370,12 +358,12 @@ export class WatcherRoom extends Room<WatcherState> {
 
     player.x = resolution.actor.position.x;
     player.y = resolution.actor.position.y;
-    this.applyPlayerTurnFlags(player, resolution.actor.turnFlags);
+    applyPlayerTurnFlags(player, resolution.actor.turnFlags);
 
-    this.applyToolInventory(player, resolution.tools);
-    this.applyTileMutations(resolution.tileMutations);
-    this.applySummonMutations(resolution.summonMutations);
-    this.applyAffectedPlayerMoves(resolution.affectedPlayers);
+    applyToolInventory(player, resolution.tools, (tools) => this.normalizePlayerTools(player, tools));
+    applyTileMutations(this.state, resolution.tileMutations);
+    applySummonMutations(this.state, resolution.summonMutations);
+    applyAffectedPlayerMoves(this.state, resolution.affectedPlayers, applyPlayerTurnFlags);
     this.toolDieSeed = resolution.nextToolDieSeed;
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
     this.publishActionPresentation(resolution.presentation);
@@ -388,8 +376,8 @@ export class WatcherRoom extends Room<WatcherState> {
       this.pushEvent("earth_wall_broken", `${player.name} broke an earth wall while moving.`);
     }
 
-    this.pushTerrainEvents(player.id, resolution.triggeredTerrainEffects);
-    this.pushSummonEvents(resolution.triggeredSummonEffects);
+    pushTerrainEvents(this.state, player.id, resolution.triggeredTerrainEffects);
+    pushSummonEvents(this.state, resolution.triggeredSummonEffects);
 
     if (activeTool.toolId === "movement") {
       this.pushEvent(
@@ -405,7 +393,7 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     this.pushEvent("turn_ended", `${player.name} ended the turn.`);
-    this.clearPlayerTurnResources(player);
+    clearPlayerTurnResources(player);
 
     const nextPlayerId = this.getNextPlayerId(player.id);
     this.beginTurnFor(nextPlayerId, true);
@@ -425,7 +413,7 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     this.pushEvent("turn_ended", `${player.name} ended the turn.`);
-    this.clearPlayerTurnResources(player);
+    clearPlayerTurnResources(player);
 
     const nextPlayerId = this.getNextPlayerId(player.id);
     this.beginTurnFor(nextPlayerId, true);
@@ -481,7 +469,11 @@ export class WatcherRoom extends Room<WatcherState> {
         ? createMovementToolInstance(this.createToolInstanceId("movement"), 4)
         : createDebugToolInstance(this.createToolInstanceId(payload.toolId), payload.toolId);
 
-    this.applyToolInventory(player, [...this.createPlayerTools(player), grantedTool]);
+    applyToolInventory(
+      player,
+      [...createPlayerToolsFromState(player), grantedTool],
+      (tools) => this.normalizePlayerTools(player, tools)
+    );
     this.pushEvent("debug_granted", `${player.name} debug gained ${definition.label}.`);
   }
 
@@ -492,226 +484,8 @@ export class WatcherRoom extends Room<WatcherState> {
     return `${toolId}-${serial}`;
   }
 
-  // Schema tool state is converted into plain snapshots before shared resolution.
-  private createPlayerTools(player: PlayerState): TurnToolSnapshot[] {
-    const parseToolParams = (paramsJson: string) => {
-      try {
-        return JSON.parse(paramsJson);
-      } catch {
-        return {};
-      }
-    };
-
-    return Array.from(player.tools as Iterable<TurnToolState>).map((tool) => ({
-      instanceId: tool.instanceId,
-      toolId: tool.toolId as ToolId,
-      charges: tool.charges,
-      params: parseToolParams(tool.paramsJson),
-      source: tool.source === "character_skill" ? "character_skill" : "turn"
-    }));
-  }
-
-  // Shared tool snapshots are written back into schema state after each authoritative action.
-  private applyToolInventory(player: PlayerState, tools: TurnToolSnapshot[]): void {
-    const normalizedTools = this.normalizePlayerTools(player, tools);
-
-    while (player.tools.length > 0) {
-      player.tools.pop();
-    }
-
-    for (const tool of normalizedTools) {
-      const toolState = new TurnToolState();
-      toolState.instanceId = tool.instanceId;
-      toolState.toolId = tool.toolId;
-      toolState.charges = tool.charges;
-      toolState.paramsJson = JSON.stringify(tool.params);
-      toolState.source = tool.source;
-      player.tools.push(toolState);
-    }
-  }
-
-  // Turn flags are synced explicitly so terrain side effects stay deterministic across turns.
-  private applyPlayerTurnFlags(player: PlayerState, turnFlags: string[]): void {
-    while (player.turnFlags.length > 0) {
-      player.turnFlags.pop();
-    }
-
-    for (const turnFlag of turnFlags) {
-      player.turnFlags.push(turnFlag);
-    }
-  }
-
-  // Board schema is materialized into the shared board shape right before rule resolution.
-  private createBoardDefinition() {
-    return {
-      width: this.state.boardWidth,
-      height: this.state.boardHeight,
-      tiles: Array.from(this.state.board.values() as Iterable<TileState>).map((tile) => ({
-        key: tile.key,
-        x: tile.x,
-        y: tile.y,
-        type: tile.type as TileType,
-        durability: tile.durability,
-        direction: tile.direction === "" ? null : (tile.direction as Direction)
-      }))
-    };
-  }
-
-  // Player schema state is mirrored into shared snapshots for collision and terrain logic.
-  private createBoardPlayers(): BoardPlayerState[] {
-    return Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
-      id: entry.id,
-      characterId: entry.characterId,
-      position: {
-        x: entry.x,
-        y: entry.y
-      },
-      spawnPosition: {
-        x: entry.spawnX,
-        y: entry.spawnY
-      },
-      turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
-    }));
-  }
-
-  private createBoardSummons(): BoardSummonState[] {
-    return Array.from(this.state.summons.values() as Iterable<SummonState>).map((entry) => ({
-      instanceId: entry.instanceId,
-      summonId: entry.summonId as BoardSummonState["summonId"],
-      ownerId: entry.ownerId,
-      position: {
-        x: entry.x,
-        y: entry.y
-      }
-    }));
-  }
-
-  // Tile mutations persist permanent board changes such as broken earth walls.
-  private applyTileMutations(tileMutations: TileMutation[]): void {
-    for (const mutation of tileMutations) {
-      const tile = this.state.board.get(mutation.key);
-
-      if (!tile) {
-        continue;
-      }
-
-      // A broken earth wall becomes a permanent floor tile for the whole room.
-      tile.type = mutation.nextType;
-      tile.durability = mutation.nextDurability;
-      tile.direction = "";
-    }
-  }
-
-  private applySummonMutations(summonMutations: SummonMutation[]): void {
-    for (const mutation of summonMutations) {
-      if (mutation.kind === "remove") {
-        this.state.summons.delete(mutation.instanceId);
-        continue;
-      }
-
-      const summonState = this.state.summons.get(mutation.instanceId) ?? new SummonState();
-      summonState.instanceId = mutation.instanceId;
-      summonState.summonId = mutation.summonId;
-      summonState.ownerId = mutation.ownerId;
-      summonState.x = mutation.position.x;
-      summonState.y = mutation.position.y;
-      this.state.summons.set(mutation.instanceId, summonState);
-    }
-  }
-
-  // Secondary player movement applies shared effects such as hookshot pulls and pit respawns.
-  private applyAffectedPlayerMoves(affectedPlayers: AffectedPlayerMove[]): void {
-    for (const affectedPlayer of affectedPlayers) {
-      const player = this.state.players.get(affectedPlayer.playerId);
-
-      if (!player) {
-        continue;
-      }
-
-      player.x = affectedPlayer.target.x;
-      player.y = affectedPlayer.target.y;
-
-      if (affectedPlayer.turnFlags) {
-        this.applyPlayerTurnFlags(player, affectedPlayer.turnFlags);
-      }
-    }
-  }
-
-  // Terrain effect logs are derived from shared effect payloads instead of custom room logic.
-  private pushTerrainEvents(actorId: string, triggeredTerrainEffects: TriggeredTerrainEffect[]): void {
-    for (const terrainEffect of triggeredTerrainEffects) {
-      const affectedPlayer = this.state.players.get(terrainEffect.playerId);
-      const actor = this.state.players.get(actorId);
-
-      if (!affectedPlayer) {
-        continue;
-      }
-
-      if (terrainEffect.kind === "pit") {
-        this.pushEvent(
-          "player_respawned",
-          `${affectedPlayer.name} fell into a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
-        );
-        continue;
-      }
-
-      if (terrainEffect.kind === "lucky") {
-        this.pushEvent(
-          "terrain_triggered",
-          `${affectedPlayer.name} landed on a lucky block and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
-        );
-        continue;
-      }
-
-      if (terrainEffect.kind === "conveyor_boost" && actor) {
-        this.pushEvent(
-          "terrain_triggered",
-          `${actor.name} rode a conveyor for +${terrainEffect.bonusMovePoints} move points.`
-        );
-        continue;
-      }
-
-      if (terrainEffect.kind === "conveyor_turn" && actor) {
-        this.pushEvent(
-          "terrain_triggered",
-          `${actor.name} was redirected from ${terrainEffect.fromDirection} to ${terrainEffect.toDirection}.`
-        );
-      }
-    }
-  }
-
-  private pushSummonEvents(triggeredSummonEffects: TriggeredSummonEffect[]): void {
-    for (const summonEffect of triggeredSummonEffects) {
-      if (summonEffect.kind !== "wallet_pickup") {
-        continue;
-      }
-
-      const player = this.state.players.get(summonEffect.playerId);
-
-      if (!player) {
-        continue;
-      }
-
-      this.pushEvent(
-        "summon_triggered",
-        `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
-      );
-    }
-  }
-
   // Event logging keeps the synced room feed short so state patches stay lightweight.
-  private pushEvent(type: EventType, message: string): void {
-    const entry = new EventLogEntryState();
-    entry.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    entry.type = type;
-    entry.message = message;
-    entry.createdAt = Date.now();
-
-    this.state.eventLog.push(entry);
-
-    // Keep the log short so the synced room payload stays lightweight.
-    while (this.state.eventLog.length > 10) {
-      this.state.eventLog.shift();
-    }
+  private pushEvent(type: Parameters<typeof pushRoomEvent>[1], message: string): void {
+    pushRoomEvent(this.state, type, message);
   }
 }

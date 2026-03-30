@@ -3,6 +3,7 @@ export * from "./board";
 export * from "./characters";
 export * from "./constants";
 export * from "./dice";
+export * from "./effects";
 export * from "./summons";
 export * from "./terrain";
 export * from "./tools";

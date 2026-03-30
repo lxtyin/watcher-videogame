@@ -343,3 +343,30 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
   - `output/web-game/detail-polish-text/observer-panel.json` records the observer-side DOM counts for read-only Tool chips
   - `output/web-game/detail-polish-text/state-stack-rise.json` captures the older player mid-rise while the newer player remains on the base layer
   - `output/web-game/detail-polish-text/state-stack-settled.json` captures the final stacked layout with the older player above the newer player
+
+- Refactored the content model so ids now derive from single-source registries in `packages/shared/src/content/`.
+  - added registries for tools, characters, summons, effects, and the default board layout
+  - changed `types.ts` to derive `ToolId`, `CharacterId`, `SummonId`, and `PresentationEffectType` from those registries
+- Split the shared rule engine into focused modules under `packages/shared/src/rules/`.
+  - `spatial.ts` now owns traversal and path math
+  - `toolExecutors.ts` owns per-Tool direct effects
+  - `actionResolution.ts` owns shared post-processing
+  - `actionPresentation.ts` owns semantic presentation event construction
+  - `actions.ts` now stays as the public facade
+- Slimmed the server authority layer by moving room helpers out of `WatcherRoom.ts`.
+  - added `roomStateMappers.ts`, `roomStateMutations.ts`, and `roomEventLog.ts`
+  - updated `WatcherRoom.ts` to focus on message handling and turn orchestration
+- Reorganized client-side content and asset manifests.
+  - moved scene action UI metadata into `packages/client/src/game/content/actionUi.ts`
+  - moved pet model manifest data into `packages/client/src/game/content/pets.ts`
+  - removed the old `game/config` copies so runtime components read from one source
+- Added architecture documentation for the new structure.
+  - updated `docs/index.md`
+  - updated `docs/arch/架构总览.md`
+  - updated `docs/arch/共享规则层.md`
+  - updated `docs/arch/前后端联机原型.md`
+  - added `docs/arch/内容注册与资源组织.md`
+- Verified the refactor compiles cleanly:
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`

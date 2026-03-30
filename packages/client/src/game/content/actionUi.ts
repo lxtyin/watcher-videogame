@@ -16,6 +16,7 @@ interface ActionUiConfig {
   token: string;
 }
 
+// Scene action chips live in a content registry so future tools only need one UI entry.
 const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   roll: {
     token: "掷",
@@ -78,7 +79,7 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     detail: "按住选格"
   },
   end: {
-    token: "结",
+    token: "终",
     accent: "#607087",
     detail: "结束回合"
   }

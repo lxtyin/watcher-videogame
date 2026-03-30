@@ -127,3 +127,27 @@
   - 角色切换按钮只允许在 `roll` 阶段使用
   - 主动技能和普通 Tool 走同一套可用性、选中与执行链路
 - 场景内现在会渲染钱包召唤物与钱包放置预览
+
+## 2026-03-30 Architecture Refactor
+
+本轮在不改玩法行为的前提下，重点整理了扩展结构：
+
+- Shared 内容注册表收束到 `packages/shared/src/content/`
+  - Tool、角色、召唤物、表现事件和默认地图都从这里定义
+  - `types.ts` 中的核心 id 类型改为从注册表推导
+- Shared 规则执行拆成 `rules/`
+  - `spatial.ts` 负责路径与空间计算
+  - `toolExecutors.ts` 负责各 Tool 的直接效果
+  - `actionResolution.ts` 负责通用后处理
+  - `actionPresentation.ts` 负责语义化表现时间线
+  - `actions.ts` 保留统一公开入口
+- Server 房间拆成“编排 + helper”
+  - `WatcherRoom.ts` 主要保留 turn flow 和消息入口
+  - schema 映射、状态回写、事件日志分别放进独立 helper
+- Client 内容配置收束到 `packages/client/src/game/content/`
+  - 弧形按钮 UI 元数据与 pet 模型 manifest 不再散落在场景组件中
+
+可配内容与资源组织详见：
+
+- [内容注册与资源组织](./arch/内容注册与资源组织.md)
+  - 说明 Shared 内容注册、Client 资源 manifest、Server 房间 helper 的职责边界

@@ -1,44 +1,28 @@
-export type TileType =
-  | "floor"
-  | "wall"
-  | "earthWall"
-  | "pit"
-  | "lucky"
-  | "conveyor";
-export type TurnPhase = "roll" | "action";
-export type Direction = "up" | "down" | "left" | "right";
-export type CharacterId = "late" | "ehh" | "leader";
-export type SummonId = "wallet";
-export type ToolId =
-  | "movement"
-  | "jump"
-  | "hookshot"
-  | "dash"
-  | "brake"
-  | "buildWall"
-  | "basketball"
-  | "rocket"
-  | "teleport"
-  | "deployWallet";
-export type RolledToolId = Exclude<ToolId, "movement" | "teleport" | "deployWallet">;
-export type ToolSource = "turn" | "character_skill";
-export type ToolTargetMode = "direction" | "tile" | "instant";
-export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
+import type {
+  Direction as ContentDirection,
+  TileTargetingMode as ContentTileTargetingMode,
+  TileType as ContentTileType,
+  ToolButtonValueContentDefinition,
+  ToolParameterId as ContentToolParameterId,
+  ToolParameterValueMap as ContentToolParameterValueMap,
+  ToolSource as ContentToolSource,
+  ToolTargetMode as ContentToolTargetMode,
+  TurnPhase as ContentTurnPhase
+} from "./content/schema";
+
+export type TileType = ContentTileType;
+export type TurnPhase = ContentTurnPhase;
+export type Direction = ContentDirection;
+export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
+export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
+export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
+export type RolledToolId = typeof import("./content/tools").TOOL_DIE_FACES[number]["toolId"];
+export type ToolSource = ContentToolSource;
+export type ToolTargetMode = ContentToolTargetMode;
+export type TileTargetingMode = ContentTileTargetingMode;
 export type PlayerTurnFlag = "lucky_tile_claimed";
-export type ToolParameterId =
-  | "movePoints"
-  | "jumpDistance"
-  | "hookLength"
-  | "dashBonus"
-  | "brakeRange"
-  | "projectileRange"
-  | "projectileBounceCount"
-  | "projectilePushDistance"
-  | "wallDurability"
-  | "targetRange"
-  | "rocketBlastLeapDistance"
-  | "rocketSplashPushDistance";
-export type ToolParameterValueMap = Partial<Record<ToolParameterId, number>>;
+export type ToolParameterId = ContentToolParameterId;
+export type ToolParameterValueMap = ContentToolParameterValueMap;
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -59,67 +43,64 @@ export interface GridPosition {
 }
 
 export interface TileDefinition extends GridPosition {
+  direction: Direction | null;
+  durability: number;
   key: string;
   type: TileType;
-  durability: number;
-  direction: Direction | null;
 }
 
 export interface BoardDefinition {
-  width: number;
   height: number;
   tiles: TileDefinition[];
+  width: number;
 }
 
-export interface ToolButtonValueDefinition {
-  paramId: ToolParameterId;
-  unit: "point" | "tile";
-}
+export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinition {}
 
 export interface PlayerSnapshot {
+  characterId: CharacterId;
+  color: string;
   id: string;
   name: string;
-  color: string;
-  characterId: CharacterId;
   position: GridPosition;
   spawnPosition: GridPosition;
-  turnFlags: PlayerTurnFlag[];
   tools: TurnToolSnapshot[];
+  turnFlags: PlayerTurnFlag[];
 }
 
 export interface SummonSnapshot {
   instanceId: string;
-  summonId: SummonId;
   ownerId: string;
   position: GridPosition;
+  summonId: SummonId;
 }
 
 export interface TurnInfoSnapshot {
   currentPlayerId: string;
-  phase: TurnPhase;
-  turnNumber: number;
-  moveRoll: number;
   lastRolledToolId: RolledToolId | null;
+  moveRoll: number;
+  phase: TurnPhase;
   toolDieSeed: number;
+  turnNumber: number;
 }
 
 export interface EventLogEntry {
-  id: string;
-  type: EventType;
-  message: string;
   createdAt: number;
+  id: string;
+  message: string;
+  type: EventType;
 }
 
 export type PresentationMotionStyle = "ground" | "arc";
 export type PresentationProjectileType = "basketball" | "rocket";
-export type PresentationEffectType = "rocket_explosion";
+export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
 
 export interface TurnToolSnapshot {
-  instanceId: string;
-  toolId: ToolId;
   charges: number;
+  instanceId: string;
   params: ToolParameterValueMap;
   source: ToolSource;
+  toolId: ToolId;
 }
 
 export interface ToolCondition {
@@ -128,10 +109,10 @@ export interface ToolCondition {
 }
 
 export interface ToolLoadoutDefinition {
-  toolId: ToolId;
   charges?: number;
   params?: ToolParameterValueMap;
   source?: ToolSource;
+  toolId: ToolId;
 }
 
 export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
@@ -139,39 +120,39 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 }
 
 export interface ToolDefinition {
-  id: ToolId;
-  label: string;
+  buttonValue?: ToolButtonValueDefinition;
+  color: string;
+  conditions: ToolCondition[];
+  debugGrantable: boolean;
+  defaultCharges: number;
+  defaultParams: ToolParameterValueMap;
   description: string;
   disabledHint: string | null;
+  endsTurnOnUse: boolean;
+  id: ToolId;
+  label: string;
+  passThroughEffectMode: "ground" | "none";
+  rollable: boolean;
   source: ToolSource;
   targetMode: ToolTargetMode;
   tileTargeting?: TileTargetingMode;
-  passThroughEffectMode: "ground" | "none";
-  conditions: ToolCondition[];
-  defaultCharges: number;
-  defaultParams: ToolParameterValueMap;
-  buttonValue?: ToolButtonValueDefinition;
-  color: string;
-  rollable: boolean;
-  debugGrantable: boolean;
-  endsTurnOnUse: boolean;
 }
 
 export interface GameSnapshot {
-  boardWidth: number;
   boardHeight: number;
-  tiles: TileDefinition[];
-  summons: SummonSnapshot[];
-  players: PlayerSnapshot[];
-  turnInfo: TurnInfoSnapshot;
+  boardWidth: number;
   eventLog: EventLogEntry[];
   latestPresentation: SequencedActionPresentation | null;
+  players: PlayerSnapshot[];
+  summons: SummonSnapshot[];
+  tiles: TileDefinition[];
+  turnInfo: TurnInfoSnapshot;
 }
 
 export interface UseToolCommandPayload {
-  toolInstanceId: string;
   direction?: Direction;
   targetPosition?: GridPosition;
+  toolInstanceId: string;
 }
 
 export interface GrantDebugToolPayload {
@@ -183,16 +164,16 @@ export interface SetCharacterCommandPayload {
 }
 
 export interface MovementActor {
-  id: string;
   characterId: CharacterId;
+  id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
   turnFlags: PlayerTurnFlag[];
 }
 
 export interface MovementContext {
-  board: BoardDefinition;
   actor: MovementActor;
+  board: BoardDefinition;
   direction: Direction;
   movePoints: number;
 }
@@ -204,15 +185,15 @@ export type MovementResolution =
       target: GridPosition;
     }
   | {
-      kind: "moved";
-      target: GridPosition;
-      moveCost: number;
       destroyedTileKey?: string;
+      kind: "moved";
+      moveCost: number;
+      target: GridPosition;
     };
 
 export interface BoardPlayerState {
-  id: string;
   characterId: CharacterId;
+  id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
   turnFlags: PlayerTurnFlag[];
@@ -220,28 +201,28 @@ export interface BoardPlayerState {
 
 export interface BoardSummonState {
   instanceId: string;
-  summonId: SummonId;
   ownerId: string;
   position: GridPosition;
+  summonId: SummonId;
 }
 
 export interface TileMutation {
   key: string;
-  position: GridPosition;
-  nextType: TileType;
   nextDurability: number;
+  nextType: TileType;
+  position: GridPosition;
 }
 
 export interface AffectedPlayerMove {
   playerId: string;
-  target: GridPosition;
   reason: string;
+  target: GridPosition;
   turnFlags?: PlayerTurnFlag[];
 }
 
 export interface ActionContextBase {
-  board: BoardDefinition;
   actor: MovementActor;
+  board: BoardDefinition;
   players: BoardPlayerState[];
 }
 
@@ -251,11 +232,11 @@ export interface DirectionalActionContext extends ActionContextBase {
 
 export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
-  tools: TurnToolSnapshot[];
-  toolDieSeed: number;
-  summons: BoardSummonState[];
   direction?: Direction;
+  summons: BoardSummonState[];
   targetPosition?: GridPosition;
+  toolDieSeed: number;
+  tools: TurnToolSnapshot[];
 }
 
 export interface ResolvedActorState {
@@ -264,63 +245,63 @@ export interface ResolvedActorState {
 }
 
 export interface ToolAvailability {
-  usable: boolean;
   reason: string | null;
+  usable: boolean;
 }
 
 export type TriggeredTerrainEffect =
   | {
       kind: "pit";
       playerId: string;
-      tileKey: string;
       position: GridPosition;
       respawnPosition: GridPosition;
+      tileKey: string;
     }
   | {
+      grantedTool: TurnToolSnapshot;
       kind: "lucky";
       playerId: string;
-      tileKey: string;
       position: GridPosition;
-      grantedTool: TurnToolSnapshot;
+      tileKey: string;
     }
   | {
+      bonusMovePoints: number;
+      direction: Direction;
       kind: "conveyor_boost";
       playerId: string;
-      tileKey: string;
       position: GridPosition;
-      direction: Direction;
-      bonusMovePoints: number;
+      tileKey: string;
     }
   | {
+      fromDirection: Direction;
       kind: "conveyor_turn";
       playerId: string;
-      tileKey: string;
       position: GridPosition;
-      fromDirection: Direction;
+      tileKey: string;
       toDirection: Direction;
     };
 
 export type TriggeredSummonEffect = {
+  grantedTool: TurnToolSnapshot;
   kind: "wallet_pickup";
   ownerId: string;
   playerId: string;
   position: GridPosition;
   summonId: SummonId;
   summonInstanceId: string;
-  grantedTool: TurnToolSnapshot;
 };
 
 export type SummonMutation =
   | {
-      kind: "upsert";
       instanceId: string;
+      kind: "upsert";
       ownerId: string;
       position: GridPosition;
       summonId: SummonId;
     }
   | {
-      kind: "remove";
       instanceId: string;
+      kind: "remove";
     };
 
 export interface ActionPresentationEventBase {
@@ -344,8 +325,8 @@ export interface ProjectilePresentationEvent extends ActionPresentationEventBase
 }
 
 export interface EffectPresentationEvent extends ActionPresentationEventBase {
-  kind: "effect";
   effectType: PresentationEffectType;
+  kind: "effect";
   position: GridPosition;
   tiles: GridPosition[];
 }
@@ -368,34 +349,34 @@ export interface SequencedActionPresentation extends ActionPresentation {
 
 export type ActionResolution =
   | {
-      kind: "blocked";
-      reason: string;
-      path: GridPosition[];
-      previewTiles: GridPosition[];
       actor: ResolvedActorState;
-      tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
-      tileMutations: TileMutation[];
-      summonMutations: SummonMutation[];
-      triggeredTerrainEffects: TriggeredTerrainEffect[];
-      triggeredSummonEffects: TriggeredSummonEffect[];
-      presentation: ActionPresentation | null;
       endsTurn: boolean;
+      kind: "blocked";
       nextToolDieSeed: number;
+      path: GridPosition[];
+      presentation: ActionPresentation | null;
+      previewTiles: GridPosition[];
+      reason: string;
+      summonMutations: SummonMutation[];
+      tileMutations: TileMutation[];
+      tools: TurnToolSnapshot[];
+      triggeredSummonEffects: TriggeredSummonEffect[];
+      triggeredTerrainEffects: TriggeredTerrainEffect[];
     }
   | {
-      kind: "applied";
-      summary: string;
-      path: GridPosition[];
-      previewTiles: GridPosition[];
       actor: ResolvedActorState;
-      tools: TurnToolSnapshot[];
       affectedPlayers: AffectedPlayerMove[];
-      tileMutations: TileMutation[];
-      summonMutations: SummonMutation[];
-      triggeredTerrainEffects: TriggeredTerrainEffect[];
-      triggeredSummonEffects: TriggeredSummonEffect[];
-      presentation: ActionPresentation | null;
       endsTurn: boolean;
+      kind: "applied";
       nextToolDieSeed: number;
+      path: GridPosition[];
+      presentation: ActionPresentation | null;
+      previewTiles: GridPosition[];
+      summary: string;
+      summonMutations: SummonMutation[];
+      tileMutations: TileMutation[];
+      tools: TurnToolSnapshot[];
+      triggeredSummonEffects: TriggeredSummonEffect[];
+      triggeredTerrainEffects: TriggeredTerrainEffect[];
     };

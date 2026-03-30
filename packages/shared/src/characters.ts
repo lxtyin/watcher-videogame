@@ -1,3 +1,4 @@
+import { CHARACTER_REGISTRY } from "./content/characters";
 import { TOOL_DEFINITIONS } from "./tools";
 import type {
   CharacterId,
@@ -26,46 +27,32 @@ export interface CharacterDefinition {
   turnStartGrants: ToolLoadoutDefinition[];
 }
 
-export const CHARACTER_DEFINITIONS: Record<CharacterId, CharacterDefinition> = {
-  late: {
-    id: "late",
-    label: "罗素的关门弟子",
-    summary: "你的所有<移动>变为<制动>。",
-    passiveDescriptions: ["你的所有<移动>变为<制动>。"],
-    turnStartGrants: [],
-    activeSkillLoadout: [],
-    toolTransforms: [
+function materializeCharacterDefinitions(): Record<CharacterId, CharacterDefinition> {
+  return Object.fromEntries(
+    Object.entries(CHARACTER_REGISTRY).map(([characterId, definition]) => [
+      characterId,
       {
-        fromToolId: "movement",
-        toToolId: "brake",
-        paramMappings: [
-          {
-            fromParamId: "movePoints",
-            toParamId: "brakeRange"
-          }
-        ]
+        id: characterId as CharacterId,
+        ...definition,
+        activeSkillLoadout: definition.activeSkillLoadout.map((loadout) => ({
+          ...loadout,
+          toolId: loadout.toolId as ToolId
+        })),
+        turnStartGrants: definition.turnStartGrants.map((loadout) => ({
+          ...loadout,
+          toolId: loadout.toolId as ToolId
+        })),
+        toolTransforms: definition.toolTransforms.map((transform) => ({
+          ...transform,
+          fromToolId: transform.fromToolId as ToolId,
+          toToolId: transform.toToolId as ToolId
+        }))
       }
-    ]
-  },
-  ehh: {
-    id: "ehh",
-    label: "鹅哈哈",
-    summary: "每回合额外获得一颗<篮球>。",
-    passiveDescriptions: ["每回合额外获得一颗<篮球>。"],
-    turnStartGrants: [{ toolId: "basketball" }],
-    activeSkillLoadout: [],
-    toolTransforms: []
-  },
-  leader: {
-    id: "leader",
-    label: "领导",
-    summary: "可部署钱包，自己经过时拾取并获得一个工具骰子。",
-    passiveDescriptions: [],
-    turnStartGrants: [],
-    activeSkillLoadout: [{ toolId: "deployWallet" }],
-    toolTransforms: []
-  }
-};
+    ])
+  ) as unknown as Record<CharacterId, CharacterDefinition>;
+}
+
+export const CHARACTER_DEFINITIONS = materializeCharacterDefinitions();
 
 function transformTool(
   tool: TurnToolSnapshot,

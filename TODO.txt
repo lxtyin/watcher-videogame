@@ -8,11 +8,10 @@
 - Player堆叠时，让后来的玩家出现在下面，同时其他玩家有一个上升的动画
 
 
-很好，我们已经完成了Watcher所需要的核心系统，在进一步填充内容之前，我们先进行一次大规模的code review：
+很好，我们已经完成了Watcher所需要的核心系统，在进一步填充内容之前，请你以专业软件架构师的角度进行一次大规模的code review：
 - 请思考，当前架构中耦合度最高的几个地方是哪里，如何优化？
-- 核心逻辑中是否预留了足够的钩子以便未来角色通过监听这些事件来触发被动？
-- 对于用户来说，添加一个新的角色/工具可能要涉及哪些文件的修改？
-
+- 游戏资产（工具、角色，前端的模型、特效等）目前存放的位置是否合理？对用户来说是否容易拓展和修改？
+- 从软件设计的角度，还有哪些可以优化的地方？
 
 
 
@@ -29,3 +28,36 @@
  - 推到lucky上不会结算？
 
 - 在下一步开发之前，我们先进行一次code review，思考现在的几个核心系统中有哪些耦合的，妥协的设计点？未来如果要扩展工具/地形/动画
+
+
+
+
+【AI重构建议】
+
+这次我没有看到会立刻阻塞继续填内容的致命 correctness bug；主要风险集中在扩展路径上的高耦合、内容组织分散，以及缺少保护这些抽象边界的测试。
+
+Findings
+
+High 新增一个 Tool / Character / Summon / Effect 仍然需要跨多层同步改动，真正的“可扩展”还没有做到单点注册。ToolId / CharacterId / SummonId / PresentationEffectType 先在 types.ts 手写，再分别落到 tools.ts、actions.ts、characters.ts、actionUi.ts，前端场景里还要继续写特判，比如 BoardScene.tsx 和 BoardScene.tsx。建议把“ID 类型”改成从注册表推导，而不是手写 union；再把每个 Tool 拆成 definition + executor + preview/presentation hooks + client ui metadata 的插件对象，做到“新增内容时只注册，不到处改 switch/if”。
+
+High 规则层和房间层都已经出现“God module”迹象，后续内容越多，修改成本会呈指数上升。actions.ts 同时负责路径遍历、工具结算、地形后处理、召唤物、presentation 事件；各 Tool executor 也都堆在同一文件里，如 actions.ts 和 actions.ts。服务端 WatcherRoom.ts 既做 turn orchestration，又做 schema 映射、事件日志、debug grant、角色切换、presentation 发布。建议把 shared 拆成 rules/tools/*、rules/motion/*、rules/terrain/*、rules/finalize/*，把 server 拆成 TurnService、RoomStateMapper、EventLogPublisher，房间类只保留消息入口和生命周期。
+
+Medium 客户端主交互层也有同样的问题，BoardScene.tsx 同时承担了输入、预览、动画接管、地形渲染、召唤物渲染、特效渲染、debug bridge；App.tsx 同时承担连接初始化、自动化桥接、角色栏、工具栏、旁观信息、debug UI。这样做在原型期很快，但后面加更多地形、召唤物、特效、角色主动技能时，前端会变成最难改的地方。建议至少拆成 scene/entities、scene/previews、scene/effects、scene/interaction、hud/sidebar、debug/automation 六层。
+
+Medium 资产和内容配置目前“能跑”，但对未来内容作者并不友好。地图是 board.ts 里的字符阵列，宠物模型列表是 petModels.ts 的硬编码数组，Tool UI 又在 actionUi.ts 单独维护，原始美术资源还留在 resources/，运行时资源则复制到 packages/client/public/assets/。这对程序员可接受，但对“策划/美术自行扩展”并不顺滑。建议新增顶层 content/ 目录，把 boards/、tools/、characters/、summons/、effects/、assets/manifest 放进去，再用一个小的生成脚本产出 typed registry。
+
+Medium 现在缺少保护“共享规则 = 服务端权威 = 客户端预览”这条核心设计的 contract tests。根目录和 shared 包都只有 build/typecheck，没有 test 脚本，见 package.json 和 packages/shared/package.json。而当前预览链路又依赖 boardMath.ts 手动重建上下文，再调用同一个 resolveToolAction。建议尽快补三类测试：resolveToolAction golden cases、preview == authority 对照测试、content registry schema validation。
+
+Open Questions
+
+我这次 review 的前提是假设你希望继续保持“TS 代码即内容”的开发方式；如果你准备让策划/美术直接改配置，那就应该更激进地往 content/manifest + codegen 迁移。
+我也默认你接下来还会持续增加 Tool、角色、召唤物和 effect 类型；如果内容总量始终很小，当前结构还能再撑一阵，但会越来越难重构。
+Recommended Order
+
+先做“单一注册源”：defineTools / defineCharacters / defineSummons / defineEffects，让 ID 类型从注册表自动推导。
+再拆 shared/server 两个 God module：先拆 actions.ts，再拆 WatcherRoom.ts。
+最后做内容与资产整理：建立 content/ 和 asset manifest，把地图、模型列表、Tool UI 元数据从散落文件中收束起来。
+如果你愿意，我下一步可以直接按这个 review 给你落一版“第一阶段重构方案”，先把 Tool 注册和内容目录抽出来。
+
+
+

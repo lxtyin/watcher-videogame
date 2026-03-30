@@ -11,7 +11,7 @@ import {
   type TurnToolSnapshot
 } from "@watcher/shared";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { getActionUiConfig } from "../config/actionUi";
+import { getActionUiConfig } from "../content/actionUi";
 import type { SelectedToolInstanceId } from "../state/useGameStore";
 
 interface SceneActionRingProps {

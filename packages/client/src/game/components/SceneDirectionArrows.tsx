@@ -1,6 +1,6 @@
 import type { Direction, ToolId } from "@watcher/shared";
 import { Color } from "three";
-import { getActionUiConfig, getDirectionalActionVariant } from "../config/actionUi";
+import { getActionUiConfig, getDirectionalActionVariant } from "../content/actionUi";
 
 interface SceneDirectionArrowsProps {
   actionId: ToolId;

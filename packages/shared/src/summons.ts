@@ -1,3 +1,4 @@
+import { SUMMON_REGISTRY } from "./content/summons";
 import { rollToolDie } from "./dice";
 import { createRolledToolInstance } from "./tools";
 import type {
@@ -23,6 +24,27 @@ interface PassThroughSummonResolution {
   summonMutations: SummonMutation[];
   tools: TurnToolSnapshot[];
   triggeredSummonEffects: TriggeredSummonEffect[];
+}
+
+export interface SummonDefinition {
+  description: string;
+  id: SummonId;
+  label: string;
+  triggerMode: "pass_through";
+}
+
+export const SUMMON_DEFINITIONS: Record<SummonId, SummonDefinition> = Object.fromEntries(
+  Object.entries(SUMMON_REGISTRY).map(([summonId, definition]) => [
+    summonId,
+    {
+      id: summonId as SummonId,
+      ...definition
+    }
+  ])
+) as Record<SummonId, SummonDefinition>;
+
+export function getSummonDefinition(summonId: SummonId): SummonDefinition {
+  return SUMMON_DEFINITIONS[summonId];
 }
 
 function positionsEqual(left: GridPosition, right: GridPosition): boolean {

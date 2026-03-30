@@ -16,7 +16,7 @@ import {
   type ToolTargetMode,
   type TurnToolSnapshot
 } from "@watcher/shared";
-import { getActionUiConfig } from "../config/actionUi";
+import { getActionUiConfig } from "../content/actionUi";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";

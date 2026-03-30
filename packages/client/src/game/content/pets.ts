@@ -1,3 +1,9 @@
+interface PetModelAssetDefinition {
+  id: string;
+  publicPath: string;
+  sourcePath: string;
+}
+
 const PET_MODEL_NAMES = [
   "animal-beaver",
   "animal-bee",
@@ -25,9 +31,14 @@ const PET_MODEL_NAMES = [
   "animal-tiger"
 ] as const;
 
-export const PET_MODEL_PATHS = PET_MODEL_NAMES.map(
-  (modelName) => `/assets/cube-pets/${modelName}.glb`
-);
+// Runtime asset paths stay together with their source references for future swaps or imports.
+export const PET_MODEL_ASSETS: PetModelAssetDefinition[] = PET_MODEL_NAMES.map((modelName) => ({
+  id: modelName,
+  publicPath: `/assets/cube-pets/${modelName}.glb`,
+  sourcePath: `resources/kenney_cube-pets_1.0/Models/GLB format/${modelName}.glb`
+}));
+
+export const PET_MODEL_PATHS = PET_MODEL_ASSETS.map((asset) => asset.publicPath);
 
 // Cube-pet models face the opposite way from the board's cardinal helper arrows.
 export const PET_MODEL_FORWARD_OFFSET_Y = Math.PI;

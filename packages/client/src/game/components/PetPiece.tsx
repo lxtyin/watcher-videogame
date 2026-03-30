@@ -1,7 +1,7 @@
 import { Clone, useGLTF } from "@react-three/drei";
 import { useEffect, useMemo } from "react";
 import { Box3, Mesh, Vector3 } from "three";
-import { PET_MODEL_FORWARD_OFFSET_Y, PET_MODEL_PATHS, getPetModelPath } from "../config/petModels";
+import { PET_MODEL_FORWARD_OFFSET_Y, PET_MODEL_PATHS, getPetModelPath } from "../content/pets";
 
 interface PetPieceProps {
   playerId: string;
