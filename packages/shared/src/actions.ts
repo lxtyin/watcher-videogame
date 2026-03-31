@@ -1,6 +1,7 @@
 import { getToolAvailability, getToolDefinition } from "./tools";
 import type { ActionResolution, ToolActionContext } from "./types";
 import {
+  attachStateTransitionPresentation,
   applyPassThroughBoardEffects,
   buildBlockedResolution,
   finalizeAppliedResolution
@@ -55,8 +56,11 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
         }
       : executedResolution;
 
-  return finalizeAppliedResolution(
+  return attachStateTransitionPresentation(
     context,
-    applyPassThroughBoardEffects(context, definitionAdjustedResolution)
+    finalizeAppliedResolution(
+      context,
+      applyPassThroughBoardEffects(context, definitionAdjustedResolution)
+    )
   );
 }

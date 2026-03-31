@@ -126,6 +126,22 @@
 - 客户端左栏现在区分为“角色信息 / 主动技能 / 回合工具”
   - 角色切换按钮只允许在 `roll` 阶段使用
   - 主动技能和普通 Tool 走同一套可用性、选中与执行链路
+
+## 2026-03-31 Presentation Follow-up
+
+- Shared presentation now includes `state_transition` events in addition to `player_motion`, `projectile`, and `effect`.
+  - `state_transition` is used for board and summon state changes that should become visible only at a semantic moment.
+  - Current examples:
+    - earth wall breaks when the mover actually reaches the wall cell
+    - wallet disappears when the mover actually passes through the wallet cell
+- The client now derives `displayedTiles` and `displayedSummons` from the authoritative snapshot plus pending presentation events.
+  - This lets the server stay authoritative immediately while the scene still shows the pre-hit / pre-pickup state until the matching animation moment.
+- Player rendering now uses one displayed-position source for render, stacking, and text automation.
+  - This closes the old handoff bug where a piece could snap back visually after motion playback.
+- Stack order is now tracked by cell entry order.
+  - later arrivals stay on the bottom layer
+  - existing players animate upward
+  - text output now exposes stack serial/index so future regressions can be caught without screenshots
 - 场景内现在会渲染钱包召唤物与钱包放置预览
 
 ## 2026-03-30 Architecture Refactor
@@ -151,3 +167,18 @@
 
 - [内容注册与资源组织](./arch/内容注册与资源组织.md)
   - 说明 Shared 内容注册、Client 资源 manifest、Server 房间 helper 的职责边界
+## 2026-03-31 Client Refactor Follow-up
+
+This round focused on closing the highest-coupling paths identified by the architecture review:
+
+- `BoardScene.tsx` now reads one shared displayed-position map for rendering, stack layout, and debug text output.
+- Client aiming math and preview derivation now live under `packages/client/src/game/interaction/`.
+- Shared Tool execution is grouped under `packages/shared/src/rules/executors/` instead of growing one monolithic executor file.
+- The client shell is now split so `App.tsx` only wires global hooks and layout, while sidebar HUD rendering lives in `packages/client/src/game/components/HudSidebar.tsx`.
+- Store-side room command guards and presentation playback helpers now live in dedicated modules under `packages/client/src/game/state/`.
+
+This keeps the next expansion path closer to:
+
+1. Register content in `shared/content`.
+2. Implement or extend rules in focused executor / interaction modules.
+3. Attach client-facing visuals or HUD metadata without reopening large entry files.

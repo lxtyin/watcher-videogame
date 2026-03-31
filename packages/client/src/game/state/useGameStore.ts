@@ -1,28 +1,36 @@
 import { create } from "zustand";
 import type { Client as ColyseusClient, Room } from "colyseus.js";
-import {
-  findToolInstance,
-  getToolAvailability,
-  isDirectionalTool,
-  isTileTargetTool,
-  type CharacterId,
-  type Direction,
-  type GameSnapshot,
-  type GridPosition,
-  type SequencedActionPresentation,
-  type ToolId
+import type {
+  CharacterId,
+  Direction,
+  GameSnapshot,
+  GridPosition,
+  SequencedActionPresentation,
+  ToolId
 } from "@watcher/shared";
+import { pumpActionPresentationPlayback } from "./presentationPlayback";
+import {
+  sendDirectionalToolIfUsable,
+  sendEndTurn,
+  sendGrantDebugTool,
+  sendInstantToolIfUsable,
+  sendRollDice,
+  sendSetCharacter,
+  sendTileTargetToolIfUsable
+} from "./roomCommands";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 export type SelectedToolInstanceId = string | null;
 
+interface ToolNotice {
+  id: number;
+  message: string;
+}
+
 interface GameStore {
   connectionStatus: ConnectionStatus;
   lastError: string | null;
-  toolNotice: {
-    id: number;
-    message: string;
-  } | null;
+  toolNotice: ToolNotice | null;
   sessionId: string | null;
   room: Room | null;
   client: ColyseusClient | null;
@@ -53,55 +61,20 @@ interface GameStore {
   tickRealTime: (ms: number) => void;
 }
 
-interface PresentationPlaybackState {
-  actionPresentationQueue: SequencedActionPresentation[];
-  activeActionPresentation: SequencedActionPresentation | null;
-  activeActionPresentationStartedAtMs: number | null;
-  simulationTimeMs: number;
-}
-
-// Presentation playback advances automatically so the scene can stay purely render-focused.
-function pumpActionPresentationPlayback<T extends PresentationPlaybackState>(
-  state: T
-): Pick<
-  T,
+function advancePresentationClock(state: Pick<
+  GameStore,
+  | "actionPresentationQueue"
+  | "activeActionPresentation"
+  | "activeActionPresentationStartedAtMs"
+  | "simulationTimeMs"
+>): Pick<
+  GameStore,
   "actionPresentationQueue" | "activeActionPresentation" | "activeActionPresentationStartedAtMs"
 > {
-  let activeActionPresentation = state.activeActionPresentation;
-  let activeActionPresentationStartedAtMs = state.activeActionPresentationStartedAtMs;
-  let actionPresentationQueue = state.actionPresentationQueue;
-
-  while (
-    activeActionPresentation &&
-    activeActionPresentationStartedAtMs !== null &&
-    state.simulationTimeMs - activeActionPresentationStartedAtMs >= activeActionPresentation.durationMs
-  ) {
-    activeActionPresentation = null;
-    activeActionPresentationStartedAtMs = null;
-
-    if (!actionPresentationQueue.length) {
-      break;
-    }
-
-    activeActionPresentation = actionPresentationQueue[0] ?? null;
-    activeActionPresentationStartedAtMs = state.simulationTimeMs;
-    actionPresentationQueue = actionPresentationQueue.slice(1);
-  }
-
-  if (!activeActionPresentation && actionPresentationQueue.length) {
-    activeActionPresentation = actionPresentationQueue[0] ?? null;
-    activeActionPresentationStartedAtMs = state.simulationTimeMs;
-    actionPresentationQueue = actionPresentationQueue.slice(1);
-  }
-
-  return {
-    actionPresentationQueue,
-    activeActionPresentation,
-    activeActionPresentationStartedAtMs
-  };
+  return pumpActionPresentationPlayback(state);
 }
 
-// The store keeps networking, UI selection, and lightweight simulation time in one place.
+// The store owns shared session state, while focused helpers handle playback and room-command policy.
 export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: "idle",
   lastError: null,
@@ -179,7 +152,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return {
         snapshot,
         lastQueuedPresentationSequence,
-        ...pumpActionPresentationPlayback({
+        ...advancePresentationClock({
           actionPresentationQueue,
           activeActionPresentation: state.activeActionPresentation,
           activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
@@ -200,111 +173,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
   rollDice: () => {
-    const room = get().room;
-
-    if (!room) {
-      return;
-    }
-
-    room.send("rollDice");
+    sendRollDice(get().room);
   },
   endTurn: () => {
-    const room = get().room;
-
-    if (!room) {
-      return;
-    }
-
-    room.send("endTurn");
+    sendEndTurn(get().room);
   },
   setCharacter: (characterId) => {
-    const room = get().room;
-
-    if (!room) {
-      return;
-    }
-
-    room.send("setCharacter", { characterId });
+    sendSetCharacter(get().room, characterId);
   },
   grantDebugTool: (toolId) => {
-    const room = get().room;
-
-    if (!room) {
-      return;
-    }
-
-    room.send("grantDebugTool", { toolId });
+    sendGrantDebugTool(get().room, toolId);
   },
-  // Instant tools execute immediately once the local selection passes shared availability checks.
-  useInstantTool: (toolId) => {
-    const room = get().room;
-    const snapshot = get().snapshot;
-    const sessionId = get().sessionId;
-    const selectedToolInstanceId = toolId ?? get().selectedToolInstanceId;
+  useInstantTool: (toolInstanceId) => {
+    const state = get();
 
-    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
-      return;
-    }
-
-    const me = snapshot.players.find((player) => player.id === sessionId);
-    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
-
-    if (!selectedTool || isDirectionalTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
-      return;
-    }
-
-    room.send("useTool", { toolInstanceId: selectedToolInstanceId });
+    sendInstantToolIfUsable(
+      state.room,
+      state.snapshot,
+      state.sessionId,
+      toolInstanceId ?? state.selectedToolInstanceId
+    );
   },
-  // Directional actions validate the local selection before sending intent to the room.
   performDirectionalAction: (direction, toolInstanceId) => {
-    const room = get().room;
-    const snapshot = get().snapshot;
-    const sessionId = get().sessionId;
-    const selectedToolInstanceId = toolInstanceId ?? get().selectedToolInstanceId;
+    const state = get();
 
-    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
-      return;
-    }
-
-    const me = snapshot.players.find((player) => player.id === sessionId);
-    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
-
-    if (!selectedTool || !isDirectionalTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
-      return;
-    }
-
-    room.send("useTool", { toolInstanceId: selectedToolInstanceId, direction });
+    sendDirectionalToolIfUsable(
+      state.room,
+      state.snapshot,
+      state.sessionId,
+      toolInstanceId ?? state.selectedToolInstanceId,
+      direction
+    );
   },
-  // Tile-target actions share the same local guard path as other tool requests.
   performTileTargetAction: (targetPosition, toolInstanceId) => {
-    const room = get().room;
-    const snapshot = get().snapshot;
-    const sessionId = get().sessionId;
-    const selectedToolInstanceId = toolInstanceId ?? get().selectedToolInstanceId;
+    const state = get();
 
-    if (!room || !snapshot || !sessionId || !selectedToolInstanceId) {
-      return;
-    }
-
-    const me = snapshot.players.find((player) => player.id === sessionId);
-    const selectedTool = me ? findToolInstance(me.tools, selectedToolInstanceId) : undefined;
-
-    if (!selectedTool || !isTileTargetTool(selectedTool.toolId) || !getToolAvailability(selectedTool, me?.tools ?? []).usable) {
-      return;
-    }
-
-    room.send("useTool", { toolInstanceId: selectedToolInstanceId, targetPosition });
+    sendTileTargetToolIfUsable(
+      state.room,
+      state.snapshot,
+      state.sessionId,
+      toolInstanceId ?? state.selectedToolInstanceId,
+      targetPosition
+    );
   },
-  // Automation can take over time progression for deterministic screenshot and state capture.
+  // Automation can take over time progression for deterministic text checks.
   advanceTime: (ms) => {
     set((state) => {
       const simulationTimeMs = state.simulationTimeMs + ms;
 
       return {
         simulationTimeMs,
-        // Automated tests take over the clock once they call window.advanceTime.
         manualTimeControl: true,
-        ...pumpActionPresentationPlayback({
+        ...advancePresentationClock({
           actionPresentationQueue: state.actionPresentationQueue,
           activeActionPresentation: state.activeActionPresentation,
           activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
@@ -324,7 +244,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       return {
         simulationTimeMs,
-        ...pumpActionPresentationPlayback({
+        ...advancePresentationClock({
           actionPresentationQueue: state.actionPresentationQueue,
           activeActionPresentation: state.activeActionPresentation,
           activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,

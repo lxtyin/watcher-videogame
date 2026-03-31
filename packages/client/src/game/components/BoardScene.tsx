@@ -1,6 +1,6 @@
 import { useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Color, Plane, Raycaster, Vector2, Vector3 } from "three";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Color, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
   findToolInstance,
   getToolAvailability,
@@ -14,7 +14,7 @@ import {
   type ToolTargetMode,
   type TurnToolSnapshot
 } from "@watcher/shared";
-import { BoardTileVisual, type TilePreviewVariant } from "../assets/board/BoardTileVisual";
+import { BoardTileVisual } from "../assets/board/BoardTileVisual";
 import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
@@ -23,20 +23,31 @@ import { PreviewRingAsset } from "../assets/previews/PreviewRingAsset";
 import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset";
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
-import { getActionUiConfig } from "../content/actionUi";
+import {
+  resolveDisplayedSummons,
+  resolveDisplayedTiles
+} from "../animation/displayState";
+import {
+  getDragDirection,
+  projectClientToGround,
+  resolveTileAimTarget
+} from "../interaction/aiming";
+import {
+  resolveScenePreviewState,
+  type TilePreviewVariant
+} from "../interaction/previewState";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
 import {
+  collectPendingStateTransitions,
   collectPendingPlayerOrigins,
   evaluateActionPresentation,
   getActionPresentationElapsedMs
 } from "../animation/presentationPlayback";
 import {
   buildActionPreview,
-  clampGridPositionToBoard,
-  toGridPositionFromWorld,
   toWorldPosition
 } from "../utils/boardMath";
 
@@ -70,12 +81,11 @@ interface PlayerStackLayout {
   index: number;
 }
 
-type PreviewVariant = "tile" | "blast";
-
 const AIM_DRAG_THRESHOLD_PX = 14;
 const PLAYER_STACK_STEP_Y = 0.88;
 const PLAYER_BASE_Y = -0.28;
 const STACK_REPOSITION_MS = 260;
+const STACK_ENTRY_LIFT_EPSILON = 0.12;
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
   right: -Math.PI / 2,
@@ -85,6 +95,21 @@ const DIRECTION_ROTATION_Y: Record<Direction, number> = {
 
 function toPositionKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
+}
+
+function positionsEqual(left: GridPosition | undefined, right: GridPosition): boolean {
+  return Boolean(left && left.x === right.x && left.y === right.y);
+}
+
+function areNumberMapsEqual(left: Record<string, number>, right: Record<string, number>): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
 }
 
 function mixSceneColor(base: string, target: string, ratio: number): string {
@@ -97,7 +122,13 @@ function getAnimatedStackIndex(
   elapsedMs: number
 ): number {
   if (elapsedMs <= 0 || fromIndex === toIndex) {
-    return fromIndex === toIndex ? toIndex : fromIndex;
+    if (fromIndex === toIndex) {
+      return toIndex;
+    }
+
+    const direction = Math.sign(toIndex - fromIndex);
+
+    return fromIndex + direction * Math.min(Math.abs(toIndex - fromIndex), STACK_ENTRY_LIFT_EPSILON);
   }
 
   const progress = Math.min(1, elapsedMs / STACK_REPOSITION_MS);
@@ -128,122 +159,8 @@ function getFacingFromDelta(
   return deltaY > 0 ? "down" : "up";
 }
 
-// Dragging resolves to one cardinal direction once the pointer leaves a dead zone.
-function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
-  const threshold = 0.24;
-
-  if (Math.abs(deltaX) < threshold && Math.abs(deltaZ) < threshold) {
-    return null;
-  }
-
-  if (Math.abs(deltaX) >= Math.abs(deltaZ)) {
-    return deltaX >= 0 ? "right" : "left";
-  }
-
-  return deltaZ >= 0 ? "down" : "up";
-}
-
 function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: number, _boardHeight: number): SceneHudOffset {
   return { x: 0, y: 0 };
-}
-
-// The aiming system projects screen coordinates onto the board plane before snapping.
-function projectClientToGround(
-  clientX: number,
-  clientY: number,
-  domElement: HTMLCanvasElement,
-  camera: Camera,
-  raycaster: Raycaster,
-  pointer: Vector2,
-  plane: Plane,
-  intersection: Vector3
-): { x: number; z: number } | null {
-  const bounds = domElement.getBoundingClientRect();
-
-  if (!bounds.width || !bounds.height) {
-    return null;
-  }
-
-  if (
-    clientX < bounds.left ||
-    clientX > bounds.right ||
-    clientY < bounds.top ||
-    clientY > bounds.bottom
-  ) {
-    return null;
-  }
-
-  pointer.set(
-    ((clientX - bounds.left) / bounds.width) * 2 - 1,
-    -(((clientY - bounds.top) / bounds.height) * 2 - 1)
-  );
-  raycaster.setFromCamera(pointer, camera);
-
-  if (!raycaster.ray.intersectPlane(plane, intersection)) {
-    return null;
-  }
-
-  return {
-    x: intersection.x,
-    z: intersection.z
-  };
-}
-
-// Tile-target tools clamp to a single axis so drag intent stays predictable.
-function getTileAimTarget(
-  worldX: number,
-  worldZ: number,
-  toolId: ToolId,
-  actorPosition: GridPosition,
-  boardWidth: number,
-  boardHeight: number
-): GridPosition | null {
-  const targetingMode = getToolDefinition(toolId).tileTargeting ?? "board_any";
-  const snappedPointer = clampGridPositionToBoard(
-    toGridPositionFromWorld(worldX, worldZ, boardWidth, boardHeight),
-    boardWidth,
-    boardHeight
-  );
-  const deltaX = snappedPointer.x - actorPosition.x;
-  const deltaY = snappedPointer.y - actorPosition.y;
-
-  if (targetingMode === "axis_line") {
-    if (!deltaX && !deltaY) {
-      return null;
-    }
-
-    if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
-      return {
-        x: snappedPointer.x,
-        y: actorPosition.y
-      };
-    }
-
-    if (deltaY !== 0) {
-      return {
-        x: actorPosition.x,
-        y: snappedPointer.y
-      };
-    }
-
-    return null;
-  }
-
-  if (targetingMode === "adjacent_ring") {
-    const clampedX = Math.max(-1, Math.min(1, deltaX));
-    const clampedY = Math.max(-1, Math.min(1, deltaY));
-
-    if (!clampedX && !clampedY) {
-      return null;
-    }
-
-    return {
-      x: actorPosition.x + clampedX,
-      y: actorPosition.y + clampedY
-    };
-  }
-
-  return deltaX || deltaY ? snappedPointer : null;
 }
 
 // The scene mirrors authoritative state while handling only local aiming and previews.
@@ -267,10 +184,11 @@ export function BoardScene() {
   );
   const actionPresentationQueue = useGameStore((state) => state.actionPresentationQueue);
   const [aimState, setAimState] = useState<AimState | null>(null);
+  const [cellEntrySerialByPlayer, setCellEntrySerialByPlayer] = useState<Record<string, number>>({});
   const aimStateRef = useRef<AimState | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
-  const settledPlayerPositionsRef = useRef<Record<string, GridPosition>>({});
+  const nextCellEntrySerialRef = useRef(1);
   const stackAnimationByIdRef = useRef<
     Record<string, { fromIndex: number; startedAtMs: number; toIndex: number }>
   >({});
@@ -305,6 +223,15 @@ export function BoardScene() {
     () => evaluateActionPresentation(activeActionPresentation, activePresentationElapsedMs),
     [activeActionPresentation, activePresentationElapsedMs]
   );
+  const pendingStateTransitions = useMemo(
+    () =>
+      collectPendingStateTransitions(
+        activeActionPresentation,
+        activePresentationElapsedMs,
+        actionPresentationQueue
+      ),
+    [actionPresentationQueue, activeActionPresentation, activePresentationElapsedMs]
+  );
   const pendingPlayerOrigins = useMemo(
     () =>
       collectPendingPlayerOrigins(
@@ -314,18 +241,40 @@ export function BoardScene() {
       ),
     [actionPresentationQueue, activeActionPresentation, activePresentationElapsedMs]
   );
-  const getDisplayedGridPosition = (player: PlayerSnapshot) => {
-    const activeMotion = activePresentationPlayback.playerMotions[player.id];
-
-    if (activeMotion) {
-      return {
-        x: activeMotion.position.x,
-        y: activeMotion.position.y
-      };
+  const displayedPlayerPositions = useMemo<Record<string, GridPosition>>(() => {
+    if (!snapshot) {
+      return {};
     }
 
-    return pendingPlayerOrigins[player.id] ?? settledPlayerPositionsRef.current[player.id] ?? player.position;
-  };
+    return Object.fromEntries(
+      snapshot.players.map((player) => {
+        const activeMotion = activePresentationPlayback.playerMotions[player.id];
+
+        if (activeMotion) {
+          return [
+            player.id,
+            {
+              x: activeMotion.position.x,
+              y: activeMotion.position.y
+            }
+          ] as const;
+        }
+
+        return [
+          player.id,
+          pendingPlayerOrigins[player.id] ?? player.position
+        ] as const;
+      })
+    );
+  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, snapshot]);
+  const displayedTiles = useMemo(
+    () => (snapshot ? resolveDisplayedTiles(snapshot, pendingStateTransitions) : []),
+    [pendingStateTransitions, snapshot]
+  );
+  const displayedSummons = useMemo(
+    () => (snapshot ? resolveDisplayedSummons(snapshot, pendingStateTransitions) : []),
+    [pendingStateTransitions, snapshot]
+  );
   const playerStackLayout = useMemo(() => {
     const layout = new Map<string, PlayerStackLayout>();
 
@@ -336,7 +285,7 @@ export function BoardScene() {
     const groupedPlayers = new Map<string, PlayerSnapshot[]>();
 
     for (const player of snapshot.players) {
-      const displayedPosition = getDisplayedGridPosition(player);
+      const displayedPosition = displayedPlayerPositions[player.id] ?? player.position;
       const key = toPositionKey({
         x: Math.round(displayedPosition.x),
         y: Math.round(displayedPosition.y)
@@ -347,7 +296,16 @@ export function BoardScene() {
     }
 
     for (const [, players] of groupedPlayers) {
-      const orderedPlayers = [...players].reverse();
+      const orderedPlayers = [...players].sort((left, right) => {
+        const leftSerial = cellEntrySerialByPlayer[left.id] ?? 0;
+        const rightSerial = cellEntrySerialByPlayer[right.id] ?? 0;
+
+        if (leftSerial !== rightSerial) {
+          return rightSerial - leftSerial;
+        }
+
+        return left.id.localeCompare(right.id);
+      });
 
       orderedPlayers.forEach((player, index) => {
         layout.set(player.id, {
@@ -358,7 +316,30 @@ export function BoardScene() {
     }
 
     return layout;
-  }, [getDisplayedGridPosition, snapshot]);
+  }, [cellEntrySerialByPlayer, displayedPlayerPositions, snapshot]);
+  const renderedPlayers = useMemo(() => {
+    if (!snapshot) {
+      return [];
+    }
+
+    return [...snapshot.players].sort((left, right) => {
+      const leftLayout = playerStackLayout.get(left.id) ?? { count: 1, index: 0 };
+      const rightLayout = playerStackLayout.get(right.id) ?? { count: 1, index: 0 };
+
+      if (leftLayout.index !== rightLayout.index) {
+        return leftLayout.index - rightLayout.index;
+      }
+
+      const leftSerial = cellEntrySerialByPlayer[left.id] ?? 0;
+      const rightSerial = cellEntrySerialByPlayer[right.id] ?? 0;
+
+      if (leftSerial !== rightSerial) {
+        return rightSerial - leftSerial;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+  }, [cellEntrySerialByPlayer, playerStackLayout, snapshot]);
   const facingById = useMemo(() => {
     const nextFacingById = { ...facingByIdRef.current };
 
@@ -381,6 +362,58 @@ export function BoardScene() {
   useEffect(() => {
     aimStateRef.current = aimState;
   }, [aimState]);
+
+  useLayoutEffect(() => {
+    if (!snapshot) {
+      setCellEntrySerialByPlayer({});
+      nextCellEntrySerialRef.current = 1;
+      return;
+    }
+
+    const nextEntrySerials = { ...cellEntrySerialByPlayer };
+    const fallbackOrderById = Object.fromEntries(
+      snapshot.players.map((player, index) => [player.id, index])
+    ) as Record<string, number>;
+    const arrivalMsByPlayer = Object.fromEntries(
+      (snapshot.latestPresentation?.events ?? []).flatMap((event) => {
+        if (event.kind !== "player_motion") {
+          return [];
+        }
+
+        return [[event.playerId, event.startMs + event.durationMs] as const];
+      })
+    ) as Record<string, number>;
+    const playersNeedingEntryUpdate = snapshot.players
+      .filter((player) => {
+        const previousPosition = previousPositionsRef.current[player.id];
+
+        return (
+          !(player.id in nextEntrySerials) ||
+          !positionsEqual(previousPosition, player.position)
+        );
+      })
+      .sort(
+        (left, right) =>
+          (arrivalMsByPlayer[left.id] ?? 0) - (arrivalMsByPlayer[right.id] ?? 0) ||
+          (fallbackOrderById[left.id] ?? 0) - (fallbackOrderById[right.id] ?? 0)
+      );
+
+    for (const player of playersNeedingEntryUpdate) {
+      nextEntrySerials[player.id] = nextCellEntrySerialRef.current;
+      nextCellEntrySerialRef.current += 1;
+    }
+
+    const nextState = Object.fromEntries(
+      snapshot.players.map((player) => [
+        player.id,
+        nextEntrySerials[player.id] ?? nextCellEntrySerialRef.current++
+      ])
+    );
+
+    if (!areNumberMapsEqual(cellEntrySerialByPlayer, nextState)) {
+      setCellEntrySerialByPlayer(nextState);
+    }
+  }, [cellEntrySerialByPlayer, snapshot]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -430,36 +463,11 @@ export function BoardScene() {
       return;
     }
 
-    const nextSettledPlayerPositions = { ...settledPlayerPositionsRef.current };
-
-    for (const player of snapshot.players) {
-      const hasAnimatedMotion = Boolean(activePresentationPlayback.playerMotions[player.id]);
-      const hasPendingMotion = Boolean(pendingPlayerOrigins[player.id]);
-
-      if (hasAnimatedMotion || hasPendingMotion) {
-        if (!(player.id in nextSettledPlayerPositions)) {
-          nextSettledPlayerPositions[player.id] =
-            previousPositionsRef.current[player.id] ?? player.position;
-        }
-
-        continue;
-      }
-
-      nextSettledPlayerPositions[player.id] = player.position;
-    }
-
-    settledPlayerPositionsRef.current = Object.fromEntries(
-      snapshot.players.flatMap((player) => {
-        const settledPosition = nextSettledPlayerPositions[player.id];
-
-        return settledPosition ? [[player.id, settledPosition] as const] : [];
-      })
-    );
     facingByIdRef.current = facingById;
     previousPositionsRef.current = Object.fromEntries(
       snapshot.players.map((player) => [player.id, player.position])
     );
-  }, [activePresentationPlayback.playerMotions, facingById, pendingPlayerOrigins, snapshot]);
+  }, [facingById, snapshot]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -533,7 +541,7 @@ export function BoardScene() {
 
       return {
         ...currentState,
-        targetPosition: getTileAimTarget(
+        targetPosition: resolveTileAimTarget(
           projectedPoint.x,
           projectedPoint.z,
           currentState.toolId,
@@ -661,53 +669,20 @@ export function BoardScene() {
 
     return null;
   }, [aimState, sessionId, snapshot]);
+  const scenePreview = useMemo(
+    () =>
+      resolveScenePreviewState({
+        actor: myPlayer,
+        displayedPlayerPositions,
+        previewResolution,
+        sessionId,
+        snapshot,
+        toolId: aimState?.toolId ?? null
+      }),
+    [aimState?.toolId, displayedPlayerPositions, myPlayer, previewResolution, sessionId, snapshot]
+  );
 
-  const previewKeys = useMemo(() => {
-    return new Set(
-      previewResolution?.previewTiles.map((position) => `${position.x},${position.y}`) ?? []
-    );
-  }, [previewResolution]);
-
-  const previewColor =
-    aimState?.toolId === "rocket"
-      ? "#f15a49"
-      : aimState
-        ? getActionUiConfig(aimState.toolId).accent
-        : "#6abf69";
-  const previewVariant: TilePreviewVariant = aimState?.toolId === "rocket" ? "blast" : "tile";
-  const previewLandingPosition =
-    myPlayer &&
-    previewResolution?.kind === "applied" &&
-    (previewResolution.actor.position.x !== myPlayer.position.x ||
-      previewResolution.actor.position.y !== myPlayer.position.y)
-      ? previewResolution.actor.position
-      : null;
-  const previewHookedPlayerPositions =
-    snapshot &&
-    aimState?.toolId === "hookshot" &&
-    previewResolution?.kind === "applied" &&
-    previewResolution.affectedPlayers.length
-      ? previewResolution.affectedPlayers.flatMap((affectedPlayer) => {
-          const player = snapshot.players.find((entry) => entry.id === affectedPlayer.playerId);
-
-          return player ? [player.position] : [];
-        })
-      : [];
-  const previewWallPositions =
-    snapshot &&
-    previewResolution?.kind === "applied"
-      ? previewResolution.tileMutations
-          .filter((mutation) => mutation.nextType === "earthWall")
-          .map((mutation) => mutation.position)
-      : [];
-  const previewWalletPositions =
-    previewResolution?.kind === "applied"
-      ? previewResolution.summonMutations.flatMap((mutation) =>
-          mutation.kind === "upsert" && mutation.summonId === "wallet" ? [mutation.position] : []
-        )
-      : [];
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!snapshot) {
       return;
     }
@@ -728,21 +703,43 @@ export function BoardScene() {
           return [
             player.id,
             {
-              ...getDisplayedGridPosition(player),
+              ...(displayedPlayerPositions[player.id] ?? player.position),
               color: player.color,
               isActive: player.id === snapshot.turnInfo.currentPlayerId,
+              stackSerial: cellEntrySerialByPlayer[player.id] ?? 0,
               stackIndex: animatedStackIndex,
               stackY: PLAYER_BASE_Y + animatedStackIndex * PLAYER_STACK_STEP_Y
             }
           ];
         })
+      ),
+      displayedSummons: Object.fromEntries(
+        displayedSummons.map((summon) => [summon.instanceId, summon])
+      ),
+      displayedTiles: Object.fromEntries(
+        displayedTiles.map((tile) => [
+          tile.key,
+          {
+            type: tile.type,
+            durability: tile.durability,
+            direction: tile.direction
+          }
+        ])
       )
     };
 
     return () => {
       window.watcher_scene_debug = undefined;
     };
-  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, playerStackLayout, simulationTimeMs, snapshot]);
+  }, [
+    cellEntrySerialByPlayer,
+    displayedPlayerPositions,
+    displayedSummons,
+    displayedTiles,
+    playerStackLayout,
+    simulationTimeMs,
+    snapshot
+  ]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -775,7 +772,9 @@ export function BoardScene() {
 
   const currentPlayer =
     snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
-  const currentPlayerDisplayedPosition = currentPlayer ? getDisplayedGridPosition(currentPlayer) : null;
+  const currentPlayerDisplayedPosition = currentPlayer
+    ? displayedPlayerPositions[currentPlayer.id] ?? currentPlayer.position
+    : null;
 
   // Entering aim mode captures the tool id and starting pointer so drag intent can be derived later.
   const beginAim = (
@@ -843,27 +842,27 @@ export function BoardScene() {
         <meshStandardMaterial color="#d7d8c6" />
       </mesh>
 
-      {snapshot.tiles.map((tile) => (
+      {displayedTiles.map((tile) => (
         <BoardTileVisual
           key={tile.key}
           tile={tile}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
-          previewActive={previewKeys.has(tile.key)}
-          previewColor={previewColor}
-          previewVariant={previewVariant}
+          previewActive={scenePreview.previewKeys.has(tile.key)}
+          previewColor={scenePreview.previewColor}
+          previewVariant={scenePreview.previewVariant}
         />
       ))}
-      {previewWallPositions.map((position) => (
+      {scenePreview.wallGhostPositions.map((position) => (
         <PreviewWallGhostAsset
           key={`preview-wall-${position.x}-${position.y}`}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           position={position}
-          color={previewColor}
+          color={scenePreview.previewColor}
         />
       ))}
-      {snapshot.summons.map((summon) => {
+      {displayedSummons.map((summon) => {
         const ownerColor =
           snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
 
@@ -877,30 +876,20 @@ export function BoardScene() {
           />
         );
       })}
-      {previewWalletPositions.map((position, index) => (
+      {scenePreview.summonPreviews.map((preview) => (
         <SummonVisual
-          key={`preview-wallet-${position.x}-${position.y}-${index}`}
-          summon={{
-            instanceId: `preview-wallet-${position.x}-${position.y}-${index}`,
-            ownerId: sessionId ?? "preview",
-            position,
-            summonId: "wallet"
-          }}
+          key={preview.key}
+          summon={preview.summon}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
-          color={previewColor}
-          opacity={0.45}
+          color={preview.color}
+          {...(preview.opacity !== undefined ? { opacity: preview.opacity } : {})}
         />
       ))}
 
-      {snapshot.players.map((player, index) => {
+      {renderedPlayers.map((player, index) => {
         const activeMotion = activePresentationPlayback.playerMotions[player.id] ?? null;
-        const displayedGridPosition = activeMotion
-          ? {
-              x: activeMotion.position.x,
-              y: activeMotion.position.y
-            }
-          : pendingPlayerOrigins[player.id] ?? player.position;
+        const displayedGridPosition = displayedPlayerPositions[player.id] ?? player.position;
         const [x, , z] = toWorldPositionFromGrid(
           displayedGridPosition.x,
           displayedGridPosition.y,
@@ -936,7 +925,11 @@ export function BoardScene() {
         const activeRingColor = mixSceneColor(player.color, "#fff4ce", 0.5);
 
         return (
-          <group key={player.id} position={[x, 0, z]}>
+          <group
+            key={player.id}
+            position={[x, 0, z]}
+            renderOrder={20 + Math.round(animatedStackIndex * 10)}
+          >
             {isMe && snapshot.turnInfo.currentPlayerId === sessionId && !isAiming ? (
               <SceneActionRing
                 tools={player.tools}
@@ -998,25 +991,15 @@ export function BoardScene() {
         />
       ))}
 
-      {previewLandingPosition ? (
+      {scenePreview.landingRings.map((ring) => (
         <PreviewRingAsset
+          key={ring.key}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
-          color={previewColor}
-          opacity={0.72}
-          position={previewLandingPosition}
-          radius={0.56}
-        />
-      ) : null}
-      {previewHookedPlayerPositions.map((position, index) => (
-        <PreviewRingAsset
-          key={`hookshot-preview-${position.x}-${position.y}-${index}`}
-          boardWidth={snapshot.boardWidth}
-          boardHeight={snapshot.boardHeight}
-          color={previewColor}
-          opacity={0.68}
-          position={position}
-          radius={0.52}
+          color={scenePreview.previewColor}
+          opacity={ring.opacity}
+          position={ring.position}
+          radius={ring.radius}
         />
       ))}
 

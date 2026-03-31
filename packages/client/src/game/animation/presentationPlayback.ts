@@ -6,7 +6,9 @@ import type {
   PresentationEffectType,
   PresentationMotionStyle,
   PresentationProjectileType,
-  SequencedActionPresentation
+  SequencedActionPresentation,
+  SummonStateTransition,
+  TileStateTransition
 } from "@watcher/shared";
 
 interface SampledGridPosition {
@@ -42,6 +44,14 @@ export interface ActionPresentationPlaybackState {
   effects: ActiveEffectPlayback[];
   playerMotions: Record<string, ActivePlayerMotionPlayback>;
   projectiles: ActiveProjectilePlayback[];
+}
+
+export interface PendingStateTransitionPlayback {
+  eventId: string;
+  sequence: number;
+  startMs: number;
+  summonTransitions: SummonStateTransition[];
+  tileTransitions: TileStateTransition[];
 }
 
 function clampProgress(progress: number): number {
@@ -168,13 +178,15 @@ export function evaluateActionPresentation(
       continue;
     }
 
-    effects.push({
-      eventId: event.id,
-      effectType: event.effectType,
-      position: event.position,
-      progress,
-      tiles: event.tiles
-    });
+    if (event.kind === "effect") {
+      effects.push({
+        eventId: event.id,
+        effectType: event.effectType,
+        position: event.position,
+        progress,
+        tiles: event.tiles
+      });
+    }
   }
 
   return {
@@ -218,6 +230,30 @@ function collectPendingOriginsFromPresentation(
   }
 }
 
+function collectPendingStateTransitionsFromPresentation(
+  pendingTransitions: PendingStateTransitionPlayback[],
+  presentation: SequencedActionPresentation | null,
+  elapsedMs: number
+): void {
+  if (!presentation) {
+    return;
+  }
+
+  for (const event of presentation.events) {
+    if (event.kind !== "state_transition" || event.startMs <= elapsedMs) {
+      continue;
+    }
+
+    pendingTransitions.push({
+      eventId: event.id,
+      sequence: presentation.sequence,
+      startMs: event.startMs,
+      tileTransitions: event.tileTransitions,
+      summonTransitions: event.summonTransitions
+    });
+  }
+}
+
 // Pending motion origins keep movers anchored until their semantic animation actually starts.
 export function collectPendingPlayerOrigins(
   activePresentation: SequencedActionPresentation | null,
@@ -233,4 +269,30 @@ export function collectPendingPlayerOrigins(
   }
 
   return pendingOrigins;
+}
+
+// Pending state transitions let the scene keep pre-impact visuals until their semantic trigger time.
+export function collectPendingStateTransitions(
+  activePresentation: SequencedActionPresentation | null,
+  activeElapsedMs: number,
+  queuedPresentations: SequencedActionPresentation[]
+): PendingStateTransitionPlayback[] {
+  const pendingTransitions: PendingStateTransitionPlayback[] = [];
+
+  collectPendingStateTransitionsFromPresentation(
+    pendingTransitions,
+    activePresentation,
+    activeElapsedMs
+  );
+
+  for (const presentation of queuedPresentations) {
+    collectPendingStateTransitionsFromPresentation(pendingTransitions, presentation, -1);
+  }
+
+  return pendingTransitions.sort(
+    (left, right) =>
+      right.sequence - left.sequence ||
+      right.startMs - left.startMs ||
+      right.eventId.localeCompare(left.eventId)
+  );
 }

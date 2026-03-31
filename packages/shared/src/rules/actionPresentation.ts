@@ -5,6 +5,8 @@ import type {
   PresentationEffectType,
   PresentationMotionStyle,
   PresentationProjectileType,
+  SummonStateTransition,
+  TileStateTransition,
   ToolId
 } from "../types";
 
@@ -97,6 +99,73 @@ export function createEffectEvent(
     startMs,
     durationMs
   };
+}
+
+export function createStateTransitionEvent(
+  eventId: string,
+  tileTransitions: TileStateTransition[],
+  summonTransitions: SummonStateTransition[],
+  startMs = 0
+): ActionPresentationEvent | null {
+  if (!tileTransitions.length && !summonTransitions.length) {
+    return null;
+  }
+
+  return {
+    id: eventId,
+    kind: "state_transition",
+    tileTransitions,
+    summonTransitions,
+    startMs,
+    durationMs: 0
+  };
+}
+
+export function appendPresentationEvents(
+  presentation: ActionPresentation | null,
+  actorId: string,
+  toolId: ToolId,
+  events: ActionPresentationEvent[]
+): ActionPresentation | null {
+  if (!presentation && !events.length) {
+    return null;
+  }
+
+  const nextEvents = [...(presentation?.events ?? []), ...events];
+
+  if (!nextEvents.length) {
+    return null;
+  }
+
+  return {
+    actorId: presentation?.actorId ?? actorId,
+    toolId: presentation?.toolId ?? toolId,
+    events: nextEvents,
+    durationMs: Math.max(...nextEvents.map((event) => event.startMs + event.durationMs))
+  };
+}
+
+function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {
+  return motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP;
+}
+
+// Mutation timing can align to a motion path by sampling the target cell arrival time.
+export function getMotionArrivalStartMs(
+  positions: GridPosition[],
+  motionStyle: PresentationMotionStyle,
+  targetPosition: GridPosition,
+  startMs = 0
+): number | null {
+  const stepIndex = positions.findIndex(
+    (position, index) =>
+      index > 0 && position.x === targetPosition.x && position.y === targetPosition.y
+  );
+
+  if (stepIndex <= 0) {
+    return null;
+  }
+
+  return startMs + stepIndex * getMotionStepDurationMs(motionStyle);
 }
 
 export function buildMotionPositions(

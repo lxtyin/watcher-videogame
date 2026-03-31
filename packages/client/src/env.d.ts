@@ -1,10 +1,33 @@
 export {};
 
 import type { useGameStore } from "./game/state/useGameStore";
-import type { GridPosition } from "@watcher/shared";
+import type {
+  Direction,
+  GridPosition,
+  SummonSnapshot,
+  TileType
+} from "@watcher/shared";
 
 interface WatcherSceneDebugState {
-  displayedPlayers: Record<string, GridPosition>;
+  displayedPlayers: Record<
+    string,
+    GridPosition & {
+      color: string;
+      isActive: boolean;
+      stackSerial: number;
+      stackIndex: number;
+      stackY: number;
+    }
+  >;
+  displayedSummons: Record<string, SummonSnapshot>;
+  displayedTiles: Record<
+    string,
+    {
+      direction: Direction | null;
+      durability: number;
+      type: TileType;
+    }
+  >;
 }
 
 declare global {

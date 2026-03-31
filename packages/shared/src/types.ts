@@ -331,10 +331,43 @@ export interface EffectPresentationEvent extends ActionPresentationEventBase {
   tiles: GridPosition[];
 }
 
+export interface TilePresentationState {
+  direction: Direction | null;
+  durability: number;
+  type: TileType;
+}
+
+export interface TileStateTransition {
+  after: TilePresentationState;
+  before: TilePresentationState;
+  key: string;
+  position: GridPosition;
+}
+
+export interface SummonPresentationState {
+  instanceId: string;
+  ownerId: string;
+  position: GridPosition;
+  summonId: SummonId;
+}
+
+export interface SummonStateTransition {
+  after: SummonPresentationState | null;
+  before: SummonPresentationState | null;
+  instanceId: string;
+}
+
+export interface StateTransitionPresentationEvent extends ActionPresentationEventBase {
+  kind: "state_transition";
+  summonTransitions: SummonStateTransition[];
+  tileTransitions: TileStateTransition[];
+}
+
 export type ActionPresentationEvent =
   | PlayerMotionPresentationEvent
   | ProjectilePresentationEvent
-  | EffectPresentationEvent;
+  | EffectPresentationEvent
+  | StateTransitionPresentationEvent;
 
 export interface ActionPresentation {
   actorId: string;

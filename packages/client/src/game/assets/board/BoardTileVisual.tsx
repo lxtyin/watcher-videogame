@@ -1,12 +1,11 @@
 import type { TileDefinition, TileType } from "@watcher/shared";
 import { toWorldPosition } from "../../utils/boardMath";
+import type { TilePreviewVariant } from "../../interaction/previewState";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
 import { LuckyBlockAsset } from "./LuckyBlockAsset";
 import { PitDecorationAsset } from "./PitDecorationAsset";
 import { BlastPreviewTileAsset } from "../previews/BlastPreviewTileAsset";
 import { TilePreviewAsset } from "../previews/TilePreviewAsset";
-
-export type TilePreviewVariant = "tile" | "blast";
 
 interface TileVisualStyle {
   color: string;
