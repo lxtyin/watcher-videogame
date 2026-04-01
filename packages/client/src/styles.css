@@ -318,6 +318,122 @@ button:disabled {
   border-left: 6px solid var(--tool-accent, #c9b182);
 }
 
+.golden-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100vh;
+  padding: 1.2rem;
+  overflow: auto;
+}
+
+.golden-hero,
+.golden-toolbar,
+.golden-case-card {
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid rgba(151, 120, 71, 0.16);
+  border-radius: 24px;
+  box-shadow: 0 18px 44px rgba(77, 52, 19, 0.12);
+}
+
+.golden-hero,
+.golden-toolbar,
+.golden-case-card {
+  padding: 1.1rem 1.2rem;
+}
+
+.golden-toolbar,
+.golden-case-card__header,
+.golden-toolbar__stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.golden-toolbar__stats {
+  justify-content: flex-start;
+  color: #4e5b66;
+}
+
+.golden-case-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.golden-case-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.golden-case-card h2,
+.golden-subcard h3 {
+  margin: 0;
+}
+
+.golden-case-card__id,
+.golden-case-card__description,
+.golden-pending-copy,
+.golden-pass-copy {
+  margin: 0;
+  color: #4e5b66;
+}
+
+.golden-case-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.golden-subcard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 20px;
+  padding: 0.95rem 1rem;
+  background: rgba(248, 242, 231, 0.86);
+  border: 1px solid rgba(151, 120, 71, 0.12);
+}
+
+.golden-subcard pre {
+  margin: 0;
+  padding: 0.9rem;
+  overflow: auto;
+  border-radius: 16px;
+  background: #201b17;
+  color: #f7e8c9;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.golden-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.golden-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.golden-list--errors {
+  color: #9d3a29;
+}
+
+@media (max-width: 920px) {
+  .golden-case-card__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tool-detail strong,
 .tool-detail p {
   margin: 0;

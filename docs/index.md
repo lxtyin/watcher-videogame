@@ -172,6 +172,22 @@
 This round focused on closing the highest-coupling paths identified by the architecture review:
 
 - `BoardScene.tsx` now reads one shared displayed-position map for rendering, stack layout, and debug text output.
+
+## 2026-03-31 Golden Cases
+
+- Shared now includes a reusable golden-case DSL and runner under `packages/shared/src/goldens/`.
+  - `layout.ts` builds compact symbol boards for small scenarios.
+  - `types.ts` defines scene, step, and expectation shapes.
+  - `runner.ts` executes cases with the same shared rule entry used by gameplay.
+  - `cases/` stores the registered case list.
+- Command-line usage:
+  - run all cases with `npm run goldens`
+  - optionally filter one case with `npm run goldens -- --case <case-id>`
+- Web usage:
+  - open `/?mode=goldens` or `/goldens`
+  - the page runs the registered cases sequentially and shows pass/fail, board text, and final summary
+- `window.render_game_to_text()` now also works on the golden runner page.
+  - it reports total/completed/passed/failed counts and each case result in a text-friendly shape
 - Client aiming math and preview derivation now live under `packages/client/src/game/interaction/`.
 - Shared Tool execution is grouped under `packages/shared/src/rules/executors/` instead of growing one monolithic executor file.
 - The client shell is now split so `App.tsx` only wires global hooks and layout, while sidebar HUD rendering lives in `packages/client/src/game/components/HudSidebar.tsx`.
