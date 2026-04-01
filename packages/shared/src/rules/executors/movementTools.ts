@@ -12,6 +12,10 @@ import {
   createPresentation
 } from "../actionPresentation";
 import {
+  createMovementDescriptor,
+  createResolvedPlayerMovement
+} from "../displacement";
+import {
   buildAppliedResolution,
   buildBlockedResolution,
   consumeActiveTool,
@@ -33,6 +37,9 @@ import {
 export function resolveMovementTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const movePoints = getToolParam(context.activeTool, "movePoints");
+  const movement =
+    getToolDefinition(context.activeTool.toolId).actorMovement ??
+    createMovementDescriptor("translate", "active");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -56,6 +63,7 @@ export function resolveMovementTool(context: ToolActionContext): ActionResolutio
     actorId: context.actor.id,
     board: context.board,
     direction,
+    movement,
     movePoints,
     position: context.actor.position
   });
@@ -81,7 +89,16 @@ export function resolveMovementTool(context: ToolActionContext): ActionResolutio
     [],
     traversal.triggeredTerrainEffects,
     traversal.path,
-    presentation
+    presentation,
+    [],
+    [],
+    false,
+    createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      traversal.path,
+      movement
+    )
   );
 }
 
@@ -89,6 +106,9 @@ export function resolveMovementTool(context: ToolActionContext): ActionResolutio
 export function resolveJumpTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const jumpDistance = getToolParam(context.activeTool, "jumpDistance");
+  const movement =
+    getToolDefinition(context.activeTool.toolId).actorMovement ??
+    createMovementDescriptor("leap", "active");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -140,7 +160,16 @@ export function resolveJumpTool(context: ToolActionContext): ActionResolution {
     [],
     [],
     leap.path,
-    presentation
+    presentation,
+    [],
+    [],
+    false,
+    createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      leap.path,
+      movement
+    )
   );
 }
 
@@ -148,6 +177,10 @@ export function resolveJumpTool(context: ToolActionContext): ActionResolution {
 export function resolveHookshotTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const hookLength = getToolParam(context.activeTool, "hookLength");
+  const actorMovement =
+    getToolDefinition(context.activeTool.toolId).actorMovement ??
+    createMovementDescriptor("drag", "active");
+  const pulledMovement = createMovementDescriptor("drag", "passive");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -205,7 +238,16 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
         [],
         [],
         rayPath,
-        presentation
+        presentation,
+        [],
+        [],
+        false,
+        createResolvedPlayerMovement(
+          context.actor.id,
+          context.actor.position,
+          rayPath,
+          actorMovement
+        )
       );
     }
 
@@ -240,16 +282,21 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
 
         return [
           {
+            movement: pulledMovement,
             path: pullPath,
             playerId: hitPlayer.id,
+            startPosition: hitPlayer.position,
             target: currentTarget,
             reason: "hookshot"
           }
         ];
       });
       const affectedPlayers: AffectedPlayerMove[] = affectedPlayerResults.map(
-        ({ playerId, target, reason }) => ({
+        ({ movement, path, playerId, startPosition, target, reason }) => ({
+          movement,
+          path,
           playerId,
+          startPosition,
           target,
           reason
         })
@@ -274,10 +321,7 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
           const event = createPlayerMotionEvent(
             `${context.activeTool.instanceId}:hooked-${index}`,
             result.playerId,
-            buildMotionPositions(
-              hitPlayers.find((player) => player.id === result.playerId)?.position ?? result.target,
-              result.path
-            ),
+            buildMotionPositions(result.startPosition, result.path),
             "ground"
           );
 
@@ -339,6 +383,9 @@ export function resolveDashTool(context: ToolActionContext): ActionResolution {
 export function resolveBrakeTool(context: ToolActionContext): ActionResolution {
   const maxRange = getToolParam(context.activeTool, "brakeRange");
   const axisTarget = normalizeAxisTarget(context.actor.position, context.targetPosition);
+  const movement =
+    getToolDefinition(context.activeTool.toolId).actorMovement ??
+    createMovementDescriptor("translate", "active");
 
   if (!axisTarget) {
     return buildBlockedResolution(
@@ -365,6 +412,7 @@ export function resolveBrakeTool(context: ToolActionContext): ActionResolution {
     direction: axisTarget.direction,
     movePoints: requestedDistance,
     maxSteps: requestedDistance,
+    movement,
     position: context.actor.position
   });
 
@@ -402,7 +450,16 @@ export function resolveBrakeTool(context: ToolActionContext): ActionResolution {
     [],
     traversal.triggeredTerrainEffects,
     traversal.path,
-    presentation
+    presentation,
+    [],
+    [],
+    false,
+    createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      traversal.path,
+      movement
+    )
   );
 }
 

@@ -2,7 +2,7 @@ import { getToolAvailability, getToolDefinition } from "./tools";
 import type { ActionResolution, ToolActionContext } from "./types";
 import {
   attachStateTransitionPresentation,
-  applyPassThroughBoardEffects,
+  applyMovementBoardEffects,
   buildBlockedResolution,
   finalizeAppliedResolution
 } from "./rules/actionResolution";
@@ -60,7 +60,7 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     context,
     finalizeAppliedResolution(
       context,
-      applyPassThroughBoardEffects(context, definitionAdjustedResolution)
+      applyMovementBoardEffects(context, definitionAdjustedResolution)
     )
   );
 }

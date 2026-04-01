@@ -15,6 +15,7 @@ import {
   createProjectileEvent,
   ROCKET_BLAST_DELAY_MS
 } from "../actionPresentation";
+import { createMovementDescriptor } from "../displacement";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
@@ -41,6 +42,7 @@ export function resolveBasketballTool(context: ToolActionContext): ActionResolut
   const affectedPlayers: AffectedPlayerMove[] = [];
   const tileMutations: TileMutation[] = [];
   const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
+  const pushedMovement = createMovementDescriptor("translate", "passive");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -76,7 +78,10 @@ export function resolveBasketballTool(context: ToolActionContext): ActionResolut
       }
 
       affectedPlayers.push({
+        movement: pushedMovement,
+        path: traversal.path,
         playerId: hitPlayer.id,
+        startPosition: hitPlayer.position,
         target: traversal.position,
         reason: "basketball"
       });
@@ -118,6 +123,8 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
   const projectileRange = getToolParam(context.activeTool, "projectileRange");
   const blastLeapDistance = getToolParam(context.activeTool, "rocketBlastLeapDistance");
   const splashPushDistance = getToolParam(context.activeTool, "rocketSplashPushDistance");
+  const blastMovement = createMovementDescriptor("leap", "passive");
+  const splashMovement = createMovementDescriptor("translate", "passive");
 
   if (!direction) {
     return buildBlockedResolution(
@@ -180,7 +187,10 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
     }
 
     affectedPlayers.push({
+      movement: blastMovement,
+      path: leap.path,
       playerId: hitPlayer.id,
+      startPosition: hitPlayer.position,
       target: leap.landing,
       reason: "rocket_blast"
     });
@@ -219,7 +229,10 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
       }
 
       affectedPlayers.push({
+        movement: splashMovement,
+        path: traversal.path,
         playerId: splashPlayer.id,
+        startPosition: splashPlayer.position,
         target: traversal.position,
         reason: "rocket_splash"
       });

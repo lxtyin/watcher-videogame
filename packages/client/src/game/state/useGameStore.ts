@@ -47,7 +47,10 @@ interface GameStore {
   clearToolNotice: () => void;
   setSession: (client: ColyseusClient, room: Room) => void;
   clearSession: () => void;
+  startLocalPlayback: (snapshot: GameSnapshot, sessionId?: string | null) => void;
+  clearLocalPlayback: () => void;
   setSnapshot: (snapshot: GameSnapshot) => void;
+  setLocalSnapshot: (snapshot: GameSnapshot) => void;
   setSelectedToolInstanceId: (toolInstanceId: SelectedToolInstanceId) => void;
   showToolNotice: (message: string) => void;
   rollDice: () => void;
@@ -72,6 +75,62 @@ function advancePresentationClock(state: Pick<
   "actionPresentationQueue" | "activeActionPresentation" | "activeActionPresentationStartedAtMs"
 > {
   return pumpActionPresentationPlayback(state);
+}
+
+function applyIncomingSnapshot(
+  state: Pick<
+    GameStore,
+    | "snapshot"
+    | "actionPresentationQueue"
+    | "activeActionPresentation"
+    | "activeActionPresentationStartedAtMs"
+    | "lastQueuedPresentationSequence"
+    | "simulationTimeMs"
+  >,
+  snapshot: GameSnapshot
+): Pick<
+  GameStore,
+  | "snapshot"
+  | "actionPresentationQueue"
+  | "activeActionPresentation"
+  | "activeActionPresentationStartedAtMs"
+  | "lastQueuedPresentationSequence"
+> {
+  let actionPresentationQueue = state.actionPresentationQueue;
+  let lastQueuedPresentationSequence = state.lastQueuedPresentationSequence;
+
+  if (!state.snapshot) {
+    if (snapshot.latestPresentation) {
+      lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
+    }
+
+    return {
+      snapshot,
+      actionPresentationQueue,
+      activeActionPresentation: state.activeActionPresentation,
+      activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+      lastQueuedPresentationSequence
+    };
+  }
+
+  if (
+    snapshot.latestPresentation &&
+    snapshot.latestPresentation.sequence > lastQueuedPresentationSequence
+  ) {
+    actionPresentationQueue = [...actionPresentationQueue, snapshot.latestPresentation];
+    lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
+  }
+
+  return {
+    snapshot,
+    lastQueuedPresentationSequence,
+    ...advancePresentationClock({
+      actionPresentationQueue,
+      activeActionPresentation: state.activeActionPresentation,
+      activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+      simulationTimeMs: state.simulationTimeMs
+    })
+  };
 }
 
 // The store owns shared session state, while focused helpers handle playback and room-command policy.
@@ -125,41 +184,47 @@ export const useGameStore = create<GameStore>((set, get) => ({
       connectionStatus: "disconnected"
     });
   },
-  setSnapshot: (snapshot) => {
-    set((state) => {
-      let actionPresentationQueue = state.actionPresentationQueue;
-      let lastQueuedPresentationSequence = state.lastQueuedPresentationSequence;
-
-      if (!state.snapshot) {
-        if (snapshot.latestPresentation) {
-          lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
-        }
-
-        return {
-          snapshot,
-          lastQueuedPresentationSequence
-        };
-      }
-
-      if (
-        snapshot.latestPresentation &&
-        snapshot.latestPresentation.sequence > lastQueuedPresentationSequence
-      ) {
-        actionPresentationQueue = [...actionPresentationQueue, snapshot.latestPresentation];
-        lastQueuedPresentationSequence = snapshot.latestPresentation.sequence;
-      }
-
-      return {
-        snapshot,
-        lastQueuedPresentationSequence,
-        ...advancePresentationClock({
-          actionPresentationQueue,
-          activeActionPresentation: state.activeActionPresentation,
-          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
-          simulationTimeMs: state.simulationTimeMs
-        })
-      };
+  startLocalPlayback: (snapshot, sessionId = null) => {
+    set({
+      client: null,
+      room: null,
+      sessionId,
+      connectionStatus: "connected",
+      lastError: null,
+      toolNotice: null,
+      snapshot,
+      actionPresentationQueue: [],
+      activeActionPresentation: null,
+      activeActionPresentationStartedAtMs: null,
+      lastQueuedPresentationSequence: snapshot.latestPresentation?.sequence ?? 0,
+      simulationTimeMs: 0,
+      manualTimeControl: false,
+      selectedToolInstanceId: null
     });
+  },
+  clearLocalPlayback: () => {
+    set({
+      client: null,
+      room: null,
+      sessionId: null,
+      snapshot: null,
+      actionPresentationQueue: [],
+      activeActionPresentation: null,
+      activeActionPresentationStartedAtMs: null,
+      lastQueuedPresentationSequence: 0,
+      toolNotice: null,
+      simulationTimeMs: 0,
+      manualTimeControl: false,
+      selectedToolInstanceId: null,
+      connectionStatus: "idle",
+      lastError: null
+    });
+  },
+  setSnapshot: (snapshot) => {
+    set((state) => applyIncomingSnapshot(state, snapshot));
+  },
+  setLocalSnapshot: (snapshot) => {
+    set((state) => applyIncomingSnapshot(state, snapshot));
   },
   setSelectedToolInstanceId: (selectedToolInstanceId) => {
     set({ selectedToolInstanceId });

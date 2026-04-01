@@ -79,12 +79,15 @@ export const TOOL_DIE_FACES = defineToolDieFaces([
 
 export const TOOL_REGISTRY = defineToolRegistry({
   movement: {
+    actorMovement: {
+      type: "translate",
+      disposition: "active"
+    },
     label: "移动",
     description: "朝一个方向移动，最多消耗该工具携带的点数。",
     disabledHint: "这个移动工具已经没有可用点数了。",
     source: "turn",
     targetMode: "direction",
-    passThroughEffectMode: "ground",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -100,12 +103,15 @@ export const TOOL_REGISTRY = defineToolRegistry({
     endsTurnOnUse: false
   },
   jump: {
+    actorMovement: {
+      type: "leap",
+      disposition: "active"
+    },
     label: "飞跃",
     description: "朝一个方向飞跃，可以跨过中间障碍，但落点不能是墙体。",
     disabledHint: "当前还不能使用这个飞跃工具。",
     source: "turn",
     targetMode: "direction",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -117,12 +123,15 @@ export const TOOL_REGISTRY = defineToolRegistry({
     endsTurnOnUse: false
   },
   hookshot: {
+    actorMovement: {
+      type: "drag",
+      disposition: "active"
+    },
     label: "钩锁",
     description: "朝前方发射钩锁，命中墙体时拉近自己，命中玩家时拉近对方。",
     disabledHint: "当前还不能使用这个钩锁工具。",
     source: "turn",
     targetMode: "direction",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -139,7 +148,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     disabledHint: "需要有<移动>时才可以使用。",
     source: "turn",
     targetMode: "instant",
-    passThroughEffectMode: "none",
     conditions: [{ kind: "tool_present", toolId: "movement" }],
     defaultCharges: 1,
     defaultParams: {
@@ -151,13 +159,16 @@ export const TOOL_REGISTRY = defineToolRegistry({
     endsTurnOnUse: false
   },
   brake: {
+    actorMovement: {
+      type: "translate",
+      disposition: "active"
+    },
     label: "制动",
     description: "沿一个轴向移动至多指定格数，并停在实际可达的目标格。",
     disabledHint: "这个制动工具已经没有可用距离了。",
     source: "turn",
     targetMode: "tile",
     tileTargeting: "axis_line",
-    passThroughEffectMode: "ground",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -179,7 +190,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     source: "turn",
     targetMode: "tile",
     tileTargeting: "adjacent_ring",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -196,7 +206,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     disabledHint: "当前还不能使用这个篮球工具。",
     source: "turn",
     targetMode: "direction",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -215,7 +224,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     disabledHint: "当前还不能使用这个火箭工具。",
     source: "turn",
     targetMode: "direction",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {
@@ -235,7 +243,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     source: "turn",
     targetMode: "tile",
     tileTargeting: "board_any",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {},
@@ -251,7 +258,6 @@ export const TOOL_REGISTRY = defineToolRegistry({
     source: "character_skill",
     targetMode: "tile",
     tileTargeting: "board_any",
-    passThroughEffectMode: "none",
     conditions: [],
     defaultCharges: 1,
     defaultParams: {

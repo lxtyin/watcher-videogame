@@ -5,6 +5,7 @@ export * from "./constants";
 export * from "./dice";
 export * from "./effects";
 export * from "./goldens";
+export * from "./simulation";
 export * from "./summons";
 export * from "./terrain";
 export * from "./tools";

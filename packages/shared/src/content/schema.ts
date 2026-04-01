@@ -11,6 +11,8 @@ export type Direction = "up" | "down" | "left" | "right";
 export type ToolSource = "turn" | "character_skill";
 export type ToolTargetMode = "direction" | "tile" | "instant";
 export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
+export type MovementType = "translate" | "leap" | "drag";
+export type MovementDisposition = "active" | "passive";
 
 export type ToolParameterId =
   | "movePoints"
@@ -38,7 +40,13 @@ export interface ToolConditionContentDefinition {
   toolId: string;
 }
 
+export interface MovementContentDefinition {
+  disposition: MovementDisposition;
+  type: MovementType;
+}
+
 export interface ToolContentDefinition {
+  actorMovement?: MovementContentDefinition;
   buttonValue?: ToolButtonValueContentDefinition;
   color: string;
   conditions: ToolConditionContentDefinition[];
@@ -48,7 +56,6 @@ export interface ToolContentDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
-  passThroughEffectMode: "ground" | "none";
   rollable: boolean;
   source: ToolSource;
   targetMode: ToolTargetMode;
@@ -87,7 +94,7 @@ export interface CharacterContentDefinition {
 export interface SummonContentDefinition {
   description: string;
   label: string;
-  triggerMode: "pass_through";
+  triggerMode: "movement_trigger";
 }
 
 export interface PresentationEffectContentDefinition {

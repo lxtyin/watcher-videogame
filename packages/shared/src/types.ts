@@ -1,5 +1,8 @@
 import type {
   Direction as ContentDirection,
+  MovementContentDefinition,
+  MovementDisposition as ContentMovementDisposition,
+  MovementType as ContentMovementType,
   TileTargetingMode as ContentTileTargetingMode,
   TileType as ContentTileType,
   ToolButtonValueContentDefinition,
@@ -13,6 +16,8 @@ import type {
 export type TileType = ContentTileType;
 export type TurnPhase = ContentTurnPhase;
 export type Direction = ContentDirection;
+export type MovementType = ContentMovementType;
+export type MovementDisposition = ContentMovementDisposition;
 export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
@@ -56,6 +61,8 @@ export interface BoardDefinition {
 }
 
 export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinition {}
+
+export interface MovementDescriptor extends MovementContentDefinition {}
 
 export interface PlayerSnapshot {
   characterId: CharacterId;
@@ -120,6 +127,7 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 }
 
 export interface ToolDefinition {
+  actorMovement?: MovementDescriptor;
   buttonValue?: ToolButtonValueDefinition;
   color: string;
   conditions: ToolCondition[];
@@ -131,7 +139,6 @@ export interface ToolDefinition {
   endsTurnOnUse: boolean;
   id: ToolId;
   label: string;
-  passThroughEffectMode: "ground" | "none";
   rollable: boolean;
   source: ToolSource;
   targetMode: ToolTargetMode;
@@ -214,10 +221,21 @@ export interface TileMutation {
 }
 
 export interface AffectedPlayerMove {
+  movement: MovementDescriptor;
+  path: GridPosition[];
   playerId: string;
   reason: string;
+  startPosition: GridPosition;
   target: GridPosition;
   turnFlags?: PlayerTurnFlag[];
+}
+
+export interface ResolvedPlayerMovement {
+  movement: MovementDescriptor;
+  path: GridPosition[];
+  playerId: string;
+  startPosition: GridPosition;
+  target: GridPosition;
 }
 
 export interface ActionContextBase {
@@ -252,6 +270,7 @@ export interface ToolAvailability {
 export type TriggeredTerrainEffect =
   | {
       kind: "pit";
+      movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;
       respawnPosition: GridPosition;
@@ -260,6 +279,7 @@ export type TriggeredTerrainEffect =
   | {
       grantedTool: TurnToolSnapshot;
       kind: "lucky";
+      movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;
       tileKey: string;
@@ -268,6 +288,7 @@ export type TriggeredTerrainEffect =
       bonusMovePoints: number;
       direction: Direction;
       kind: "conveyor_boost";
+      movement: MovementDescriptor;
       playerId: string;
       position: GridPosition;
       tileKey: string;
@@ -275,6 +296,7 @@ export type TriggeredTerrainEffect =
   | {
       fromDirection: Direction;
       kind: "conveyor_turn";
+      movement: MovementDescriptor;
       playerId: string;
       position: GridPosition;
       tileKey: string;
@@ -284,6 +306,7 @@ export type TriggeredTerrainEffect =
 export type TriggeredSummonEffect = {
   grantedTool: TurnToolSnapshot;
   kind: "wallet_pickup";
+  movement: MovementDescriptor;
   ownerId: string;
   playerId: string;
   position: GridPosition;
@@ -382,6 +405,7 @@ export interface SequencedActionPresentation extends ActionPresentation {
 
 export type ActionResolution =
   | {
+      actorMovement: ResolvedPlayerMovement | null;
       actor: ResolvedActorState;
       affectedPlayers: AffectedPlayerMove[];
       endsTurn: boolean;
@@ -398,6 +422,7 @@ export type ActionResolution =
       triggeredTerrainEffects: TriggeredTerrainEffect[];
     }
   | {
+      actorMovement: ResolvedPlayerMovement | null;
       actor: ResolvedActorState;
       affectedPlayers: AffectedPlayerMove[];
       endsTurn: boolean;

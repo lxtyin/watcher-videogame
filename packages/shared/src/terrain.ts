@@ -1,5 +1,6 @@
 import { getTile, toTileKey } from "./board";
 import { rollToolDie } from "./dice";
+import { isMovementType } from "./rules/displacement";
 import { createRolledToolInstance } from "./tools";
 import type {
   AffectedPlayerMove,
@@ -7,6 +8,7 @@ import type {
   BoardPlayerState,
   Direction,
   GridPosition,
+  MovementDescriptor,
   MovementActor,
   PlayerTurnFlag,
   ResolvedActorState,
@@ -18,6 +20,7 @@ import type {
 
 interface TerrainPassThroughContext {
   direction: Direction;
+  movement: MovementDescriptor;
   playerId: string;
   position: GridPosition;
   remainingMovePoints: number;
@@ -31,8 +34,10 @@ interface TerrainPassThroughResult {
 }
 
 interface StopResolutionTarget {
+  characterId: MovementActor["characterId"];
   id: string;
   isActor: boolean;
+  movement: MovementDescriptor | null;
   position: GridPosition;
   spawnPosition: GridPosition;
   turnFlags: PlayerTurnFlag[];
@@ -40,6 +45,7 @@ interface StopResolutionTarget {
 
 interface TerrainStopContext {
   activeTool: TurnToolSnapshot;
+  movement: MovementDescriptor | null;
   player: StopResolutionTarget;
   tile: TileDefinition;
   toolDieSeed: number;
@@ -63,6 +69,7 @@ interface TerrainDefinition {
 interface StopTerrainResolutionContext {
   activeTool: TurnToolSnapshot;
   actor: MovementActor;
+  actorMovement: { movement: MovementDescriptor | null };
   actorPosition: GridPosition;
   affectedPlayers: AffectedPlayerMove[];
   board: BoardDefinition;
@@ -129,6 +136,14 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
         };
       }
 
+      if (!isMovementType(context.movement, "translate")) {
+        return {
+          direction: context.direction,
+          remainingMovePoints: context.remainingMovePoints,
+          triggeredTerrainEffects: []
+        };
+      }
+
       if (context.direction === context.tile.direction) {
         return {
           direction: context.direction,
@@ -136,6 +151,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
           triggeredTerrainEffects: [
             {
               kind: "conveyor_boost",
+              movement: context.movement,
               playerId: context.playerId,
               tileKey: context.tile.key,
               position: context.position,
@@ -152,6 +168,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
         triggeredTerrainEffects: [
           {
             kind: "conveyor_turn",
+            movement: context.movement,
             playerId: context.playerId,
             tileKey: context.tile.key,
             position: context.position,
@@ -169,6 +186,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
       triggeredTerrainEffects: [
         {
           kind: "pit",
+          movement: context.movement,
           playerId: context.player.id,
           tileKey: context.tile.key,
           position: context.player.position,
@@ -196,6 +214,7 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
         triggeredTerrainEffects: [
           {
             kind: "lucky",
+            movement: context.movement,
             playerId: context.player.id,
             tileKey: context.tile.key,
             position: context.player.position,
@@ -231,8 +250,10 @@ export function applyStopTerrainEffects(
   const playersById = new Map(context.players.map((player) => [player.id, player]));
   const affectedPlayers = context.affectedPlayers.map((player) => ({ ...player }));
   const actorTarget: StopResolutionTarget = {
+    characterId: context.actor.characterId,
     id: context.actor.id,
     isActor: true,
+    movement: context.actorMovement.movement,
     position: context.actorPosition,
     spawnPosition: context.actor.spawnPosition,
     turnFlags: [...context.actor.turnFlags]
@@ -252,8 +273,10 @@ export function applyStopTerrainEffects(
 
       return [
         {
+          characterId: sourcePlayer.characterId,
           id: player.playerId,
           isActor: false,
+          movement: player.movement,
           position: player.target,
           spawnPosition: sourcePlayer.spawnPosition,
           turnFlags: [...sourcePlayer.turnFlags]
@@ -277,6 +300,7 @@ export function applyStopTerrainEffects(
 
     const result = terrainDefinition.onStop({
       activeTool: context.activeTool,
+      movement: target.movement,
       player: target,
       tile,
       toolDieSeed: nextToolDieSeed,

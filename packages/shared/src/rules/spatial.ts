@@ -1,10 +1,12 @@
 import { getTile, isWithinBoard, toTileKey } from "../board";
+import { createMovementDescriptor } from "./displacement";
 import { resolvePassThroughTerrainEffect } from "../terrain";
 import type {
   BoardDefinition,
   BoardPlayerState,
   Direction,
   GridPosition,
+  MovementDescriptor,
   TileDefinition,
   TileMutation,
   TileType,
@@ -33,6 +35,7 @@ export interface GroundTraversalOptions {
   board: BoardDefinition;
   direction: Direction;
   maxSteps?: number;
+  movement: MovementDescriptor;
   movePoints: number;
   position: GridPosition;
   priorTileMutations?: TileMutation[];
@@ -300,6 +303,7 @@ export function resolveGroundTraversal(options: GroundTraversalOptions): GroundT
 
     const terrainResolution = resolvePassThroughTerrainEffect({
       direction: currentDirection,
+      movement: options.movement,
       playerId: options.actorId,
       position: currentPosition,
       remainingMovePoints,
@@ -363,6 +367,7 @@ export function resolvePushTarget(
     actorId: pushedPlayer.id,
     board: context.board,
     direction,
+    movement: createMovementDescriptor("translate", "passive"),
     movePoints: distance,
     position: pushedPlayer.position,
     priorTileMutations

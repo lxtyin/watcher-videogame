@@ -1,7 +1,7 @@
 import { getTile } from "../board";
-import { applyPassThroughSummonEffects } from "../summons";
+import { applyMovementSummonEffects } from "../summons";
 import { applyStopTerrainEffects } from "../terrain";
-import { consumeToolInstance, getToolDefinition } from "../tools";
+import { consumeToolInstance } from "../tools";
 import type {
   ActionPresentation,
   ActionResolution,
@@ -11,6 +11,7 @@ import type {
   Direction,
   GridPosition,
   MovementActor,
+  ResolvedPlayerMovement,
   SummonPresentationState,
   SummonStateTransition,
   SummonMutation,
@@ -40,6 +41,7 @@ export function buildBlockedResolution(
 ): ActionResolution {
   return {
     kind: "blocked",
+    actorMovement: null,
     reason,
     path,
     previewTiles,
@@ -73,10 +75,12 @@ export function buildAppliedResolution(
   presentation: ActionPresentation | null = null,
   summonMutations: SummonMutation[] = [],
   triggeredSummonEffects: TriggeredSummonEffect[] = [],
-  endsTurn = false
+  endsTurn = false,
+  actorMovement: ResolvedPlayerMovement | null = null
 ): ActionResolution {
   return {
     kind: "applied",
+    actorMovement,
     summary,
     path,
     previewTiles,
@@ -108,6 +112,9 @@ export function finalizeAppliedResolution(
   const stopResolution = applyStopTerrainEffects({
     activeTool: context.activeTool,
     actor: context.actor,
+    actorMovement: {
+      movement: resolution.actorMovement?.movement ?? null
+    },
     actorPosition: resolution.actor.position,
     affectedPlayers: resolution.affectedPlayers,
     board: context.board,
@@ -130,7 +137,8 @@ export function finalizeAppliedResolution(
   };
 }
 
-export function applyPassThroughBoardEffects(
+// Movement-triggered summons run before landing terrain so pass/stop semantics stay composable.
+export function applyMovementBoardEffects(
   context: ToolActionContext,
   resolution: ActionResolution
 ): ActionResolution {
@@ -138,16 +146,23 @@ export function applyPassThroughBoardEffects(
     return resolution;
   }
 
-  if (
-    !resolution.path.length ||
-    getToolDefinition(context.activeTool.toolId).passThroughEffectMode !== "ground"
-  ) {
+  if (!resolution.actorMovement && !resolution.affectedPlayers.length) {
     return resolution;
   }
 
-  const summonResolution = applyPassThroughSummonEffects({
+  const summonResolution = applyMovementSummonEffects({
+    activeTool: context.activeTool,
     actor: context.actor,
-    path: resolution.path,
+    actorMovement:
+      resolution.actorMovement === null
+        ? null
+        : {
+            movement: resolution.actorMovement.movement,
+            path: resolution.actorMovement.path,
+            position: resolution.actor.position
+          },
+    affectedPlayers: resolution.affectedPlayers,
+    players: context.players,
     summons: context.summons,
     toolDieSeed: resolution.nextToolDieSeed,
     tools: resolution.tools
@@ -169,6 +184,7 @@ export function applyPassThroughBoardEffects(
   };
 }
 
+// Presentation snapshots normalize tiles so delayed transitions can compare before and after states.
 function toTilePresentationState(tile: {
   direction: Direction | null;
   durability: number;
@@ -250,6 +266,7 @@ function buildSummonStateTransition(
   };
 }
 
+// State transitions align with motion arrival so visuals change at the semantic impact frame.
 function findStateTransitionStartMs(
   presentation: ActionPresentation | null,
   position: GridPosition

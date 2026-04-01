@@ -15,14 +15,13 @@ import type {
   TurnInfoSnapshot,
   TurnToolSnapshot
 } from "../types";
+import type {
+  SimulationCommandOutcome,
+  SimulationSceneDefinition,
+  SimulationToolLoadoutDefinition
+} from "../simulation";
 
-export interface GoldenToolLoadoutDefinition {
-  charges?: number;
-  instanceId?: string;
-  params?: TurnToolSnapshot["params"];
-  source?: ToolSource;
-  toolId: ToolId;
-}
+export interface GoldenToolLoadoutDefinition extends SimulationToolLoadoutDefinition {}
 
 export interface GoldenPlayerDefinition {
   characterId?: CharacterId;
@@ -49,14 +48,7 @@ export interface GoldenSeedState {
   toolDieSeed: number;
 }
 
-export interface GoldenSceneDefinition {
-  layout: readonly string[];
-  players: GoldenPlayerDefinition[];
-  seeds?: Partial<GoldenSeedState>;
-  summons?: GoldenSummonDefinition[];
-  symbols?: Partial<Record<string, LayoutSymbolDefinition>>;
-  turn?: Partial<TurnInfoSnapshot>;
-}
+export interface GoldenSceneDefinition extends SimulationSceneDefinition {}
 
 export interface GoldenToolSelectorDefinition {
   instanceId?: string;
@@ -179,6 +171,14 @@ export interface GoldenCaseStepResult {
   status: "blocked" | "ok";
 }
 
+export interface GoldenCasePlaybackStep {
+  label: string;
+  outcome: SimulationCommandOutcome;
+  snapshot: GameSnapshot;
+  step: GoldenCaseStep;
+  stepResult: GoldenCaseStepResult;
+}
+
 export interface GoldenCaseResult {
   actual: GoldenCaseStateSummary;
   caseId: string;
@@ -188,6 +188,12 @@ export interface GoldenCaseResult {
   snapshot: GameSnapshot;
   stepResults: GoldenCaseStepResult[];
   title: string;
+}
+
+export interface GoldenCasePlayback {
+  initialSnapshot: GameSnapshot;
+  result: GoldenCaseResult;
+  steps: GoldenCasePlaybackStep[];
 }
 
 export function defineGoldenCase(caseDefinition: GoldenCaseDefinition): GoldenCaseDefinition {

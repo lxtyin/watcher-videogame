@@ -188,6 +188,16 @@ This round focused on closing the highest-coupling paths identified by the archi
   - the page runs the registered cases sequentially and shows pass/fail, board text, and final summary
 - `window.render_game_to_text()` now also works on the golden runner page.
   - it reports total/completed/passed/failed counts and each case result in a text-friendly shape
+
+## 2026-04-01 Golden Simulator Update
+
+- Shared now also exposes a local simulator under `packages/shared/src/simulation/`.
+  - it accepts high-level commands such as `rollDice`, `useTool`, `endTurn`, `setCharacter`, and `grantDebugTool`
+  - it owns turn flow, dice seeds, event logs, and presentation sequencing for local test playback
+- Golden CLI execution now runs through that simulator instead of keeping turn progression inside `runner.ts`.
+- The Web golden page now replays the simulator snapshots through the actual 3D scene.
+  - this means `/goldens` shows animated case playback, not only static summaries
+  - the route still avoids `WatcherRoom`, so the network shell stays outside golden testing
 - Client aiming math and preview derivation now live under `packages/client/src/game/interaction/`.
 - Shared Tool execution is grouped under `packages/shared/src/rules/executors/` instead of growing one monolithic executor file.
 - The client shell is now split so `App.tsx` only wires global hooks and layout, while sidebar HUD rendering lives in `packages/client/src/game/components/HudSidebar.tsx`.
@@ -198,3 +208,24 @@ This keeps the next expansion path closer to:
 1. Register content in `shared/content`.
 2. Implement or extend rules in focused executor / interaction modules.
 3. Attach client-facing visuals or HUD metadata without reopening large entry files.
+
+## 2026-04-01 Movement Trigger Update
+
+- Shared movement semantics now explicitly distinguish:
+  - `translate / leap / drag`
+  - `active / passive`
+- Terrain and summons now both consume movement-phase triggers instead of mixing generic flow with summon-only special cases.
+  - pass phase includes the final cell
+  - stop phase runs after pass and after the tool's direct movement result is known
+- Current trigger examples:
+  - `conveyor` only reacts to `translate` pass-through
+  - `wallet` reacts to:
+    - active translate pass
+    - active drag pass
+    - active leap stop
+  - passive movement over a wallet does not pick it up
+- Golden coverage now includes:
+  - active translate wallet pickup
+  - active drag wallet pickup
+  - active leap-stop wallet pickup
+  - passive translate ignoring wallet pickup
