@@ -32,6 +32,7 @@ export function useAutomationBridge(): void {
         sessionId: state.sessionId,
         timeMs: state.simulationTimeMs,
         selectedToolInstanceId: state.selectedToolInstanceId,
+        inspectionCard: window.watcher_scene_debug?.inspectionCard ?? null,
         displayedPlayers: window.watcher_scene_debug?.displayedPlayers ?? {},
         displayedSummons: window.watcher_scene_debug?.displayedSummons ?? {},
         displayedTiles: window.watcher_scene_debug?.displayedTiles ?? {},

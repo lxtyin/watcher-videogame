@@ -229,3 +229,32 @@ This keeps the next expansion path closer to:
   - active drag wallet pickup
   - active leap-stop wallet pickup
   - passive translate ignoring wallet pickup
+
+## 2026-04-01 Client Interaction Detail Update
+
+- 3D 场景现在支持长按查看说明卡。
+  - 长按地形、角色或召唤物时，会在 3D 窗口顶部弹出简介卡
+  - 松开鼠标后卡片立即消失
+  - 该说明卡当前用于快速查看地形效果、角色简介和召唤物说明
+- 场景弧形 UI 现在改为“常驻组件 + 瞄准时隐藏”。
+  - 进入瞄准时整环隐藏
+  - 执行或取消后重新显示
+  - 这样新工具加入时可以在同一棵 UI 树里播放插卡动画
+- 使用工具后，当前 `selectedToolInstanceId` 会主动清空。
+  - 客户端不再自动选中下一个可用工具
+  - 因此执行完成后，场景中的方向箭头也会一起消失
+- 新获得的工具现在会在弧形 UI 上播放插入卡片动画。
+  - 当前覆盖幸运方块、钱包奖励等“回合中途追加工具”的场景
+- 文本调试输出补充了 `inspectionCard` 字段。
+  - 这样长按说明卡是否出现，也可以通过文本态自动化检查
+
+## 2026-04-01 Multiplayer Golden Update
+
+- 黄金案例新增多人场景覆盖：
+  - `hookshot-pulls-stacked-players`
+  - `rocket-hits-stacked-center-and-splashes-neighbors`
+  - `rocket-pushes-stacked-splash-players`
+- 这些案例用于锁定：
+  - 钩锁命中同格多人的被动拉拽
+  - 火箭命中中心堆叠玩家时的同时炸飞
+  - 火箭溅射对多名相邻玩家或同格玩家的独立推离

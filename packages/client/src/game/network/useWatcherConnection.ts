@@ -10,21 +10,6 @@ function createPlayerName(): string {
   return `Scout-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// The client falls back to the first usable tool when the previous selection disappears.
-function pickDefaultToolInstanceId(snapshot: ReturnType<typeof deserializeRoomState>, sessionId: string | null): string | null {
-  if (!sessionId) {
-    return null;
-  }
-
-  const me = snapshot.players.find((player) => player.id === sessionId);
-
-  if (!me) {
-    return null;
-  }
-
-  return me.tools.find((tool) => getToolAvailability(tool, me.tools).usable)?.instanceId ?? null;
-}
-
 // Connection setup mirrors room state into the local store and keeps selection in sync.
 export function useWatcherConnection(): void {
   const setConnectionStatus = useGameStore((state) => state.setConnectionStatus);
@@ -68,7 +53,7 @@ export function useWatcherConnection(): void {
             selectedTool && getToolAvailability(selectedTool, me?.tools ?? []).usable;
 
           if (!selectedToolStillUsable) {
-            setSelectedToolInstanceId(pickDefaultToolInstanceId(snapshot, currentState.sessionId));
+            setSelectedToolInstanceId(null);
           }
 
           setSnapshot(snapshot);

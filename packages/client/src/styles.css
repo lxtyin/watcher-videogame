@@ -654,11 +654,17 @@ button:disabled {
 .scene-action-ring {
   position: relative;
   pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
 .scene-action-ring {
   width: 300px;
   height: 190px;
+}
+
+.scene-action-ring.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .scene-action-ring__arc {
@@ -731,6 +737,10 @@ button:disabled {
   transform: translate(-50%, -50%) scale(1.1);
 }
 
+.scene-action-button.incoming {
+  animation: scene-action-button-insert 520ms cubic-bezier(0.18, 0.9, 0.22, 1);
+}
+
 .scene-action-button.disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -773,6 +783,124 @@ button:disabled {
   font-size: 0.62rem;
   letter-spacing: 0.04em;
   opacity: 0.92;
+}
+
+.scene-inspection-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 1rem;
+  pointer-events: none;
+}
+
+.scene-inspection-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: min(420px, calc(100vw - 4rem));
+  max-width: min(520px, calc(100vw - 3rem));
+  padding: 0.95rem 1.05rem;
+  border-radius: 22px;
+  color: #fff8ee;
+  background:
+    linear-gradient(180deg, rgba(22, 28, 40, 0.94) 0%, rgba(16, 20, 31, 0.92) 100%);
+  box-shadow:
+    0 18px 42px rgba(11, 14, 20, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: scene-inspection-card-pop 140ms ease-out;
+}
+
+.scene-inspection-card__thumb {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 18px;
+  color: #fffdf6;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--inspection-accent) 74%, white 26%) 0%,
+      var(--inspection-accent) 100%
+    );
+  box-shadow:
+    0 12px 22px color-mix(in srgb, var(--inspection-accent) 38%, rgba(11, 14, 20, 0.2) 62%),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.scene-inspection-card__token {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.scene-inspection-card__direction {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.36rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.scene-inspection-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.scene-inspection-card__copy strong,
+.scene-inspection-card__copy p {
+  margin: 0;
+}
+
+.scene-inspection-card__kind {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--inspection-accent) 62%, white 38%);
+}
+
+.scene-inspection-card__subtitle {
+  font-size: 0.84rem;
+  color: rgba(255, 247, 233, 0.84);
+}
+
+.scene-inspection-card__description {
+  line-height: 1.45;
+  color: rgba(255, 247, 233, 0.92);
+}
+
+@keyframes scene-action-button-insert {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -70%) scale(0.38);
+  }
+
+  62% {
+    opacity: 1;
+    transform: translate(-50%, -46%) scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes scene-inspection-card-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .ui-notice {

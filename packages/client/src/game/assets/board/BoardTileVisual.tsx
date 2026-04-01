@@ -1,4 +1,5 @@
 import type { TileDefinition, TileType } from "@watcher/shared";
+import type { ThreeEvent } from "@react-three/fiber";
 import { toWorldPosition } from "../../utils/boardMath";
 import type { TilePreviewVariant } from "../../interaction/previewState";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
@@ -25,6 +26,7 @@ const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
 export function BoardTileVisual({
   boardHeight,
   boardWidth,
+  onPointerDown,
   previewActive,
   previewColor,
   previewVariant,
@@ -32,6 +34,7 @@ export function BoardTileVisual({
 }: {
   boardHeight: number;
   boardWidth: number;
+  onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
   previewActive: boolean;
   previewColor: string;
   previewVariant: TilePreviewVariant;
@@ -39,9 +42,10 @@ export function BoardTileVisual({
 }) {
   const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
   const tileStyle = TILE_VISUAL_STYLE[tile.type];
+  const pointerProps = onPointerDown ? { onPointerDown } : {};
 
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} {...pointerProps}>
       <mesh position={[0, tileStyle.height / 2 - 0.5, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.96, tileStyle.height, 0.96]} />
         <meshStandardMaterial color={tileStyle.color} />

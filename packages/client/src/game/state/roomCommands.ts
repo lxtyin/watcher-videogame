@@ -46,18 +46,19 @@ export function sendInstantToolIfUsable(
   snapshot: GameSnapshot | null,
   sessionId: string | null,
   selectedToolInstanceId: SelectedToolInstanceId
-): void {
+): boolean {
   if (!room || !selectedToolInstanceId) {
-    return;
+    return false;
   }
 
   const selectedToolState = getUsableInstantToolState(snapshot, sessionId, selectedToolInstanceId);
 
   if (!selectedToolState) {
-    return;
+    return false;
   }
 
   room.send("useTool", { toolInstanceId: selectedToolState.tool.instanceId });
+  return true;
 }
 
 export function sendDirectionalToolIfUsable(
@@ -66,9 +67,9 @@ export function sendDirectionalToolIfUsable(
   sessionId: string | null,
   selectedToolInstanceId: SelectedToolInstanceId,
   direction: Direction
-): void {
+): boolean {
   if (!room || !selectedToolInstanceId) {
-    return;
+    return false;
   }
 
   const selectedToolState = getUsableDirectionalToolState(
@@ -78,13 +79,14 @@ export function sendDirectionalToolIfUsable(
   );
 
   if (!selectedToolState) {
-    return;
+    return false;
   }
 
   room.send("useTool", {
     toolInstanceId: selectedToolState.tool.instanceId,
     direction
   });
+  return true;
 }
 
 export function sendTileTargetToolIfUsable(
@@ -93,19 +95,20 @@ export function sendTileTargetToolIfUsable(
   sessionId: string | null,
   selectedToolInstanceId: SelectedToolInstanceId,
   targetPosition: GridPosition
-): void {
+): boolean {
   if (!room || !selectedToolInstanceId) {
-    return;
+    return false;
   }
 
   const selectedToolState = getUsableTileToolState(snapshot, sessionId, selectedToolInstanceId);
 
   if (!selectedToolState) {
-    return;
+    return false;
   }
 
   room.send("useTool", {
     toolInstanceId: selectedToolState.tool.instanceId,
     targetPosition
   });
+  return true;
 }

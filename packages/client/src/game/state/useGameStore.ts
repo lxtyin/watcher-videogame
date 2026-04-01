@@ -251,35 +251,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   useInstantTool: (toolInstanceId) => {
     const state = get();
-
-    sendInstantToolIfUsable(
+    const didSend = sendInstantToolIfUsable(
       state.room,
       state.snapshot,
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId
     );
+
+    if (didSend) {
+      set({ selectedToolInstanceId: null });
+    }
   },
   performDirectionalAction: (direction, toolInstanceId) => {
     const state = get();
-
-    sendDirectionalToolIfUsable(
+    const didSend = sendDirectionalToolIfUsable(
       state.room,
       state.snapshot,
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId,
       direction
     );
+
+    if (didSend) {
+      set({ selectedToolInstanceId: null });
+    }
   },
   performTileTargetAction: (targetPosition, toolInstanceId) => {
     const state = get();
-
-    sendTileTargetToolIfUsable(
+    const didSend = sendTileTargetToolIfUsable(
       state.room,
       state.snapshot,
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId,
       targetPosition
     );
+
+    if (didSend) {
+      set({ selectedToolInstanceId: null });
+    }
   },
   // Automation can take over time progression for deterministic text checks.
   advanceTime: (ms) => {

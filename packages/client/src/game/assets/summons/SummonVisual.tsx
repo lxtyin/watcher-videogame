@@ -1,3 +1,4 @@
+import type { ThreeEvent } from "@react-three/fiber";
 import type { ComponentType } from "react";
 import type { SummonId, SummonSnapshot } from "@watcher/shared";
 import { WalletSummonAsset } from "./WalletSummonAsset";
@@ -22,15 +23,18 @@ export function SummonVisual({
   boardWidth,
   color,
   opacity,
+  onPointerDown,
   summon
 }: {
   boardHeight: number;
   boardWidth: number;
   color: string;
   opacity?: number;
+  onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
   summon: SummonSnapshot;
 }) {
   const Asset = SUMMON_ASSETS[summon.summonId];
+  const pointerProps = onPointerDown ? { onPointerDown } : {};
   const assetProps =
     opacity === undefined
       ? {
@@ -47,5 +51,9 @@ export function SummonVisual({
           position: summon.position
         };
 
-  return <Asset {...assetProps} />;
+  return (
+    <group {...pointerProps}>
+      <Asset {...assetProps} />
+    </group>
+  );
 }

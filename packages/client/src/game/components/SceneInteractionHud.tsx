@@ -10,11 +10,19 @@ import {
   type ToolId,
   type TurnToolSnapshot
 } from "@watcher/shared";
-import { type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import { getActionUiConfig } from "../content/actionUi";
 import type { SelectedToolInstanceId } from "../state/useGameStore";
 
 interface SceneActionRingProps {
+  hidden?: boolean;
   tools: TurnToolSnapshot[];
   phase: "roll" | "action";
   position: [number, number, number];
@@ -123,6 +131,7 @@ function getSelectedCaption(
 
 // The floating action ring is the in-scene entry point for roll, tool choice, and end turn.
 export function SceneActionRing({
+  hidden = false,
   tools,
   phase,
   position,
@@ -136,8 +145,64 @@ export function SceneActionRing({
   onShowUnavailableToolNotice,
   onUseInstantTool
 }: SceneActionRingProps) {
+  const [incomingToolInstanceIds, setIncomingToolInstanceIds] = useState<string[]>([]);
+  const previousActionToolIdsRef = useRef<string[]>([]);
+  const incomingClearTimerRef = useRef<number | null>(null);
   const selectedTool =
     tools.find((tool) => tool.instanceId === selectedToolInstanceId) ?? null;
+  const actionToolIds = useMemo(() => tools.map((tool) => tool.instanceId), [tools]);
+
+  useEffect(() => {
+    // Ring entry animations only run for tools that appear after the action phase is already active.
+    if (phase !== "action") {
+      previousActionToolIdsRef.current = [];
+      setIncomingToolInstanceIds([]);
+
+      if (incomingClearTimerRef.current !== null) {
+        window.clearTimeout(incomingClearTimerRef.current);
+        incomingClearTimerRef.current = null;
+      }
+
+      return;
+    }
+
+    if (!previousActionToolIdsRef.current.length) {
+      previousActionToolIdsRef.current = actionToolIds;
+      return;
+    }
+
+    const nextIncomingToolIds = actionToolIds.filter(
+      (toolInstanceId) => !previousActionToolIdsRef.current.includes(toolInstanceId)
+    );
+
+    previousActionToolIdsRef.current = actionToolIds;
+
+    if (!nextIncomingToolIds.length) {
+      return;
+    }
+
+    setIncomingToolInstanceIds((currentIds) =>
+      Array.from(new Set([...currentIds, ...nextIncomingToolIds]))
+    );
+
+    if (incomingClearTimerRef.current !== null) {
+      window.clearTimeout(incomingClearTimerRef.current);
+    }
+
+    incomingClearTimerRef.current = window.setTimeout(() => {
+      setIncomingToolInstanceIds([]);
+      incomingClearTimerRef.current = null;
+    }, 560);
+  }, [actionToolIds, phase]);
+
+  useEffect(
+    () => () => {
+      if (incomingClearTimerRef.current !== null) {
+        window.clearTimeout(incomingClearTimerRef.current);
+      }
+    },
+    []
+  );
 
   const actions: FloatingActionItem[] =
     phase === "roll"
@@ -218,7 +283,7 @@ export function SceneActionRing({
   return (
     <Html position={position} center>
       <div
-        className="scene-action-ring"
+        className={["scene-action-ring", hidden ? "hidden" : ""].filter(Boolean).join(" ")}
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
         <div className="scene-action-ring__arc" />
@@ -230,6 +295,9 @@ export function SceneActionRing({
             className={
               [
                 "scene-action-button",
+                action.toolInstanceId && incomingToolInstanceIds.includes(action.toolInstanceId)
+                  ? "incoming"
+                  : "",
                 action.selected ? "selected" : "",
                 action.disabled ? "disabled" : ""
               ]

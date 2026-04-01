@@ -10,6 +10,7 @@ import {
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
+  type SummonSnapshot,
   type ToolId,
   type ToolTargetMode,
   type TurnToolSnapshot
@@ -36,8 +37,15 @@ import {
   resolveScenePreviewState,
   type TilePreviewVariant
 } from "../interaction/previewState";
+import {
+  describePlayerInspection,
+  describeSummonInspection,
+  describeTileInspection,
+  type SceneInspectionCardData
+} from "../content/inspectables";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
+import { SceneInspectionCard } from "./SceneInspectionCard";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
 import {
@@ -82,6 +90,7 @@ interface PlayerStackLayout {
 }
 
 const AIM_DRAG_THRESHOLD_PX = 14;
+const INSPECTION_HOLD_DELAY_MS = 320;
 const PLAYER_STACK_STEP_Y = 0.88;
 const PLAYER_BASE_Y = -0.28;
 const STACK_REPOSITION_MS = 260;
@@ -163,6 +172,13 @@ function getActionRingOffset(_playerX: number, _playerY: number, _boardWidth: nu
   return { x: 0, y: 0 };
 }
 
+function clearInspectionTimer(timerRef: { current: number | null }): void {
+  if (timerRef.current !== null) {
+    window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+}
+
 // The scene mirrors authoritative state while handling only local aiming and previews.
 export function BoardScene() {
   const camera = useThree((state) => state.camera);
@@ -184,8 +200,10 @@ export function BoardScene() {
   );
   const actionPresentationQueue = useGameStore((state) => state.actionPresentationQueue);
   const [aimState, setAimState] = useState<AimState | null>(null);
+  const [inspectionCard, setInspectionCard] = useState<SceneInspectionCardData | null>(null);
   const [cellEntrySerialByPlayer, setCellEntrySerialByPlayer] = useState<Record<string, number>>({});
   const aimStateRef = useRef<AimState | null>(null);
+  const inspectionTimerRef = useRef<number | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
   const nextCellEntrySerialRef = useRef(1);
@@ -485,6 +503,23 @@ export function BoardScene() {
   }, [gl]);
 
   useEffect(() => {
+    const clearInspection = () => {
+      cancelInspection();
+    };
+
+    window.addEventListener("pointerup", clearInspection);
+    window.addEventListener("pointercancel", clearInspection);
+    window.addEventListener("contextmenu", clearInspection);
+
+    return () => {
+      window.removeEventListener("pointerup", clearInspection);
+      window.removeEventListener("pointercancel", clearInspection);
+      window.removeEventListener("contextmenu", clearInspection);
+      clearInspectionTimer(inspectionTimerRef);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!selectedAimTool || !myPlayer || !isMyTurn) {
       aimStateRef.current = null;
       setAimState(null);
@@ -688,6 +723,7 @@ export function BoardScene() {
     }
 
     window.watcher_scene_debug = {
+      inspectionCard,
       displayedPlayers: Object.fromEntries(
         snapshot.players.map((player) => {
           const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
@@ -736,6 +772,7 @@ export function BoardScene() {
     displayedPlayerPositions,
     displayedSummons,
     displayedTiles,
+    inspectionCard,
     playerStackLayout,
     simulationTimeMs,
     snapshot
@@ -812,18 +849,67 @@ export function BoardScene() {
     setAimState(nextState);
   };
 
+  const cancelInspection = () => {
+    clearInspectionTimer(inspectionTimerRef);
+    setInspectionCard(null);
+  };
+
+  // Long-press inspection waits briefly so normal taps do not spawn scene cards.
+  const queueInspection = (nextInspectionCard: SceneInspectionCardData) => {
+    clearInspectionTimer(inspectionTimerRef);
+    inspectionTimerRef.current = window.setTimeout(() => {
+      setInspectionCard(nextInspectionCard);
+      inspectionTimerRef.current = null;
+    }, INSPECTION_HOLD_DELAY_MS);
+  };
+
   // The local piece acts as the primary drag handle for directional and tile-target tools.
-  const handlePiecePointerDown = (event: ThreeEvent<PointerEvent>) => {
-    if (!selectedAimTool || !myPlayer || !isMyTurn) {
+  const handlePiecePointerDown = (
+    player: PlayerSnapshot,
+    event: ThreeEvent<PointerEvent>
+  ) => {
+    if (
+      player.id === sessionId &&
+      selectedAimTool &&
+      myPlayer &&
+      isMyTurn
+    ) {
+      event.stopPropagation();
+      cancelInspection();
+      beginAim(
+        selectedAimTool,
+        event.nativeEvent.clientX,
+        event.nativeEvent.clientY
+      );
       return;
     }
 
     event.stopPropagation();
-    beginAim(
-      selectedAimTool,
-      event.nativeEvent.clientX,
-      event.nativeEvent.clientY
-    );
+    queueInspection(describePlayerInspection(player));
+  };
+
+  const handleTilePointerDown = (
+    tile: typeof displayedTiles[number],
+    event: ThreeEvent<PointerEvent>
+  ) => {
+    if (aimStateRef.current) {
+      return;
+    }
+
+    event.stopPropagation();
+    queueInspection(describeTileInspection(tile));
+  };
+
+  const handleSummonPointerDown = (
+    summon: SummonSnapshot,
+    event: ThreeEvent<PointerEvent>
+  ) => {
+    if (aimStateRef.current) {
+      return;
+    }
+
+    event.stopPropagation();
+    queueInspection(describeSummonInspection(summon));
   };
 
   return (
@@ -848,6 +934,7 @@ export function BoardScene() {
           tile={tile}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
+          onPointerDown={(event) => handleTilePointerDown(tile, event)}
           previewActive={scenePreview.previewKeys.has(tile.key)}
           previewColor={scenePreview.previewColor}
           previewVariant={scenePreview.previewVariant}
@@ -873,6 +960,7 @@ export function BoardScene() {
             boardWidth={snapshot.boardWidth}
             boardHeight={snapshot.boardHeight}
             color={ownerColor}
+            onPointerDown={(event) => handleSummonPointerDown(summon, event)}
           />
         );
       })}
@@ -898,7 +986,6 @@ export function BoardScene() {
         );
         const isActive = player.id === snapshot.turnInfo.currentPlayerId;
         const isMe = player.id === sessionId;
-        const pointerProps = isMe ? { onPointerDown: handlePiecePointerDown } : {};
         const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
         const stackAnimation = stackAnimationByIdRef.current[player.id];
         const animatedStackIndex = stackAnimation
@@ -930,8 +1017,9 @@ export function BoardScene() {
             position={[x, 0, z]}
             renderOrder={20 + Math.round(animatedStackIndex * 10)}
           >
-            {isMe && snapshot.turnInfo.currentPlayerId === sessionId && !isAiming ? (
+            {isMe && snapshot.turnInfo.currentPlayerId === sessionId ? (
               <SceneActionRing
+                hidden={isAiming}
                 tools={player.tools}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
@@ -960,12 +1048,14 @@ export function BoardScene() {
               />
             ) : null}
             <PlayerHaloAsset activeColor={activeRingColor} color={player.color} isActive={isActive} />
-            {isMe ? (
-              <mesh position={[0, pieceBaseY + 0.44, 0]} scale={[1.4, 1.7, 1.4]} {...pointerProps}>
-                <sphereGeometry args={[0.34, 20, 20]} />
-                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-              </mesh>
-            ) : null}
+            <mesh
+              position={[0, pieceBaseY + 0.44, 0]}
+              scale={[1.4, 1.7, 1.4]}
+              onPointerDown={(event) => handlePiecePointerDown(player, event)}
+            >
+              <sphereGeometry args={[0.34, 20, 20]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
             <PetPiece
               playerId={player.id}
               position={[0, pieceBaseY, 0]}
@@ -1002,6 +1092,8 @@ export function BoardScene() {
           radius={ring.radius}
         />
       ))}
+
+      <SceneInspectionCard inspection={inspectionCard} />
 
       {currentPlayer ? (
         <CurrentTurnMarkerAsset

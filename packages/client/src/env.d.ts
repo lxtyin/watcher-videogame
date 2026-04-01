@@ -9,6 +9,17 @@ import type {
 } from "@watcher/shared";
 
 interface WatcherSceneDebugState {
+  inspectionCard:
+    | {
+        accent: string;
+        description: string;
+        direction?: Direction | null;
+        kindLabel: string;
+        subtitle?: string;
+        thumbnailToken: string;
+        title: string;
+      }
+    | null;
   displayedPlayers: Record<
     string,
     GridPosition & {
