@@ -46,6 +46,7 @@ export function buildBlockedResolution(
     path,
     previewTiles,
     actor: {
+      characterState: actor.characterState,
       position: actor.position,
       turnFlags: actor.turnFlags
     },
@@ -85,6 +86,7 @@ export function buildAppliedResolution(
     path,
     previewTiles,
     actor: {
+      characterState: nextActor.characterState,
       position: nextActor.position,
       turnFlags: nextActor.turnFlags
     },
@@ -109,9 +111,16 @@ export function finalizeAppliedResolution(
     return resolution;
   }
 
+  const resolvedActor: MovementActor = {
+    ...context.actor,
+    characterState: resolution.actor.characterState,
+    position: resolution.actor.position,
+    turnFlags: resolution.actor.turnFlags
+  };
+
   const stopResolution = applyStopTerrainEffects({
     activeTool: context.activeTool,
-    actor: context.actor,
+    actor: resolvedActor,
     actorMovement: {
       movement: resolution.actorMovement?.movement ?? null
     },

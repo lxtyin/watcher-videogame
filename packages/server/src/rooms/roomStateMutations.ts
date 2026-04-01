@@ -1,5 +1,6 @@
 import type {
   AffectedPlayerMove,
+  CharacterStateMap,
   SummonMutation,
   TileMutation,
   TurnToolSnapshot
@@ -59,6 +60,10 @@ export function applyPlayerTurnFlags(player: PlayerState, turnFlags: string[]): 
   }
 }
 
+export function applyCharacterState(player: PlayerState, characterState: CharacterStateMap): void {
+  player.characterStateJson = JSON.stringify(characterState);
+}
+
 // Tile mutations persist permanent board changes such as broken earth walls.
 export function applyTileMutations(state: WatcherState, tileMutations: TileMutation[]): void {
   for (const mutation of tileMutations) {
@@ -95,7 +100,8 @@ export function applySummonMutations(state: WatcherState, summonMutations: Summo
 export function applyAffectedPlayerMoves(
   state: WatcherState,
   affectedPlayers: AffectedPlayerMove[],
-  applyFlags: (player: PlayerState, turnFlags: string[]) => void
+  applyFlags: (player: PlayerState, turnFlags: string[]) => void,
+  applyCharacterStatePatch: (player: PlayerState, characterState: CharacterStateMap) => void
 ): void {
   for (const affectedPlayer of affectedPlayers) {
     const player = state.players.get(affectedPlayer.playerId);
@@ -109,6 +115,10 @@ export function applyAffectedPlayerMoves(
 
     if (affectedPlayer.turnFlags) {
       applyFlags(player, affectedPlayer.turnFlags);
+    }
+
+    if (affectedPlayer.characterState) {
+      applyCharacterStatePatch(player, affectedPlayer.characterState);
     }
   }
 }

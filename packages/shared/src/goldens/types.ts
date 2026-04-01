@@ -2,6 +2,7 @@ import type { LayoutSymbolDefinition } from "../content/defaultBoard";
 import type {
   ActionPresentationEvent,
   CharacterId,
+  CharacterStateMap,
   Direction,
   EventType,
   GameSnapshot,
@@ -25,6 +26,7 @@ export interface GoldenToolLoadoutDefinition extends SimulationToolLoadoutDefini
 
 export interface GoldenPlayerDefinition {
   characterId?: CharacterId;
+  characterState?: CharacterStateMap;
   color?: string;
   id: string;
   name?: string;
@@ -72,10 +74,16 @@ export interface GoldenRollDiceStep extends GoldenCaseStepBase {
 }
 
 export interface GoldenUseToolStep extends GoldenCaseStepBase {
+  choiceId?: string;
   direction?: Direction;
   kind: "useTool";
   targetPosition?: GridPosition;
   tool: GoldenToolSelectorDefinition | ToolId;
+}
+
+export interface GoldenUseTurnStartActionStep extends GoldenCaseStepBase {
+  actionId: GameSnapshot["turnInfo"]["turnStartActions"][number]["actionId"];
+  kind: "useTurnStartAction";
 }
 
 export interface GoldenEndTurnStep extends GoldenCaseStepBase {
@@ -94,6 +102,7 @@ export interface GoldenGrantDebugToolStep extends GoldenCaseStepBase {
 
 export type GoldenCaseStep =
   | GoldenRollDiceStep
+  | GoldenUseTurnStartActionStep
   | GoldenUseToolStep
   | GoldenEndTurnStep
   | GoldenSetCharacterStep

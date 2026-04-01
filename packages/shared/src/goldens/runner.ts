@@ -36,6 +36,9 @@ function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
     turnNumber: turnInfo.turnNumber,
     moveRoll: turnInfo.moveRoll,
     lastRolledToolId: turnInfo.lastRolledToolId,
+    turnStartActions: turnInfo.turnStartActions.map((action) => ({
+      ...action
+    })),
     toolDieSeed: turnInfo.toolDieSeed
   };
 }
@@ -94,6 +97,14 @@ function executeGoldenStep(
         kind: "rollDice",
         actorId: step.actorId
       });
+    case "useTurnStartAction":
+      return simulation.dispatch({
+        kind: "useTurnStartAction",
+        actorId: step.actorId,
+        payload: {
+          actionId: step.actionId
+        }
+      });
     case "endTurn":
       return simulation.dispatch({
         kind: "endTurn",
@@ -139,6 +150,7 @@ function executeGoldenStep(
         actorId: step.actorId,
         payload: {
           toolInstanceId: activeTool.instanceId,
+          ...(step.choiceId ? { choiceId: step.choiceId } : {}),
           ...(step.direction ? { direction: step.direction } : {}),
           ...(step.targetPosition ? { targetPosition: clonePosition(step.targetPosition) } : {})
         }

@@ -47,6 +47,27 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     );
   }
 
+  if (toolDefinition.targetMode === "choice" && !context.choiceId) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      `${toolDefinition.label} needs a choice`,
+      context.toolDieSeed
+    );
+  }
+
+  if (
+    toolDefinition.targetMode === "tile_direction" &&
+    (!context.targetPosition || !context.direction)
+  ) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      `${toolDefinition.label} needs both a target tile and a direction`,
+      context.toolDieSeed
+    );
+  }
+
   const executedResolution = TOOL_EXECUTORS[context.activeTool.toolId](context);
   const definitionAdjustedResolution =
     executedResolution.kind === "applied" && toolDefinition.endsTurnOnUse

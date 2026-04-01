@@ -118,6 +118,7 @@ export function buildActionPreview(
   const players = snapshot.players.map((player) => ({
     id: player.id,
     characterId: player.characterId,
+    characterState: player.characterState,
     position: player.position,
     spawnPosition: player.spawnPosition,
     turnFlags: player.turnFlags
@@ -131,6 +132,7 @@ export function buildActionPreview(
   const actor = {
     id: me.id,
     characterId: me.characterId,
+    characterState: me.characterState,
     position: me.position,
     spawnPosition: me.spawnPosition,
     turnFlags: me.turnFlags
@@ -148,6 +150,7 @@ export function buildActionPreview(
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
     tools: me.tools,
     summons,
+    ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
     ...(payload.direction ? { direction: payload.direction } : {}),
     ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
     players

@@ -1,5 +1,6 @@
 import type { ToolId } from "../types";
 import { resolveBuildWallTool, resolveDeployWalletTool } from "./executors/boardTools";
+import { resolveBalanceTool, resolveBombThrowTool } from "./executors/characterTools";
 import {
   resolveBrakeTool,
   resolveDashTool,
@@ -19,6 +20,8 @@ export const TOOL_EXECUTORS: Record<ToolId, ToolExecutor> = {
   dash: resolveDashTool,
   brake: resolveBrakeTool,
   buildWall: resolveBuildWallTool,
+  bombThrow: resolveBombThrowTool,
+  balance: resolveBalanceTool,
   deployWallet: resolveDeployWalletTool,
   basketball: resolveBasketballTool,
   rocket: resolveRocketTool,

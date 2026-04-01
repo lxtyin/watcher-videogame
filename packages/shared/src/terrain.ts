@@ -35,6 +35,7 @@ interface TerrainPassThroughResult {
 
 interface StopResolutionTarget {
   characterId: MovementActor["characterId"];
+  characterState: MovementActor["characterState"];
   id: string;
   isActor: boolean;
   movement: MovementDescriptor | null;
@@ -251,6 +252,7 @@ export function applyStopTerrainEffects(
   const affectedPlayers = context.affectedPlayers.map((player) => ({ ...player }));
   const actorTarget: StopResolutionTarget = {
     characterId: context.actor.characterId,
+    characterState: context.actor.characterState,
     id: context.actor.id,
     isActor: true,
     movement: context.actorMovement.movement,
@@ -274,6 +276,7 @@ export function applyStopTerrainEffects(
       return [
         {
           characterId: sourcePlayer.characterId,
+          characterState: sourcePlayer.characterState,
           id: player.playerId,
           isActor: false,
           movement: player.movement,
@@ -341,6 +344,7 @@ export function applyStopTerrainEffects(
 
   return {
     actor: {
+      characterState: actorTarget.characterState,
       position: actorTarget.position,
       turnFlags: actorTarget.turnFlags
     },

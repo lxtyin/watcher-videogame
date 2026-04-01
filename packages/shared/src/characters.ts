@@ -5,6 +5,7 @@ import type {
   ToolId,
   ToolLoadoutDefinition,
   ToolParameterId,
+  TurnStartActionId,
   TurnToolSnapshot
 } from "./types";
 
@@ -24,6 +25,7 @@ export interface CharacterDefinition {
   passiveDescriptions: string[];
   summary: string;
   toolTransforms: CharacterToolTransformDefinition[];
+  turnStartActionIds: readonly TurnStartActionId[];
   turnStartGrants: ToolLoadoutDefinition[];
 }
 
@@ -38,6 +40,9 @@ function materializeCharacterDefinitions(): Record<CharacterId, CharacterDefinit
           ...loadout,
           toolId: loadout.toolId as ToolId
         })),
+        turnStartActionIds: definition.turnStartActionIds.map(
+          (actionId) => actionId as TurnStartActionId
+        ),
         turnStartGrants: definition.turnStartGrants.map((loadout) => ({
           ...loadout,
           toolId: loadout.toolId as ToolId
@@ -106,6 +111,10 @@ export function buildCharacterTurnLoadout(characterId: CharacterId): ToolLoadout
 
 export function getCharacterActiveSkillToolIds(characterId: CharacterId): ToolId[] {
   return getCharacterDefinition(characterId).activeSkillLoadout.map((entry) => entry.toolId);
+}
+
+export function getCharacterTurnStartActionIds(characterId: CharacterId): readonly TurnStartActionId[] {
+  return getCharacterDefinition(characterId).turnStartActionIds;
 }
 
 // Passive tool transforms are applied after any inventory change so later rewards stay role-aware.

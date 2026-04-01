@@ -9,7 +9,12 @@ export type TileType =
 export type TurnPhase = "roll" | "action";
 export type Direction = "up" | "down" | "left" | "right";
 export type ToolSource = "turn" | "character_skill";
-export type ToolTargetMode = "direction" | "tile" | "instant";
+export type ToolTargetMode =
+  | "direction"
+  | "tile"
+  | "instant"
+  | "choice"
+  | "tile_direction";
 export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
 export type MovementType = "translate" | "leap" | "drag";
 export type MovementDisposition = "active" | "passive";
@@ -26,7 +31,8 @@ export type ToolParameterId =
   | "wallDurability"
   | "targetRange"
   | "rocketBlastLeapDistance"
-  | "rocketSplashPushDistance";
+  | "rocketSplashPushDistance"
+  | "pushDistance";
 
 export type ToolParameterValueMap = Partial<Record<ToolParameterId, number>>;
 
@@ -40,6 +46,12 @@ export interface ToolConditionContentDefinition {
   toolId: string;
 }
 
+export interface ToolChoiceContentDefinition {
+  description: string;
+  id: string;
+  label: string;
+}
+
 export interface MovementContentDefinition {
   disposition: MovementDisposition;
   type: MovementType;
@@ -48,6 +60,7 @@ export interface MovementContentDefinition {
 export interface ToolContentDefinition {
   actorMovement?: MovementContentDefinition;
   buttonValue?: ToolButtonValueContentDefinition;
+  choices?: readonly ToolChoiceContentDefinition[];
   color: string;
   conditions: ToolConditionContentDefinition[];
   defaultCharges: number;
@@ -88,7 +101,14 @@ export interface CharacterContentDefinition {
   passiveDescriptions: string[];
   summary: string;
   toolTransforms: CharacterToolTransformContentDefinition[];
+  turnStartActionIds: readonly string[];
   turnStartGrants: ToolLoadoutContentDefinition[];
+}
+
+export interface TurnStartActionContentDefinition {
+  color: string;
+  description: string;
+  label: string;
 }
 
 export interface SummonContentDefinition {

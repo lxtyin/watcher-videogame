@@ -1,6 +1,10 @@
-import { TOOL_DEFINITIONS, type ToolId } from "@watcher/shared";
+import {
+  TOOL_DEFINITIONS,
+  type ToolId,
+  type TurnStartActionId
+} from "@watcher/shared";
 
-export type ActionUiId = "roll" | ToolId | "end";
+export type ActionUiId = "roll" | ToolId | TurnStartActionId | "end";
 export type DirectionVisualVariant =
   | "move"
   | "jump"
@@ -78,8 +82,29 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: TOOL_DEFINITIONS.deployWallet.color,
     detail: "按住选格"
   },
+  bombThrow: {
+    token: "弹",
+    accent: TOOL_DEFINITIONS.bombThrow.color,
+    detail: "按住选格定向",
+    directionalVariant: "special"
+  },
+  balance: {
+    token: "衡",
+    accent: TOOL_DEFINITIONS.balance.color,
+    detail: "点击二选一"
+  },
+  blazePrepareBomb: {
+    token: "备",
+    accent: "#d86a42",
+    detail: "准备投弹"
+  },
+  volatySkipToolDie: {
+    token: "跃",
+    accent: "#77b8ff",
+    detail: "弃骰飞跃"
+  },
   end: {
-    token: "终",
+    token: "结",
     accent: "#607087",
     detail: "结束回合"
   }

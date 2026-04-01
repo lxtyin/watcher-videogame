@@ -1,5 +1,6 @@
 import type {
   CharacterId,
+  CharacterStateMap,
   Direction,
   GameSnapshot,
   PlayerTurnFlag,
@@ -28,6 +29,7 @@ interface RoomPlayerState {
   name: string;
   color: string;
   characterId: CharacterId;
+  characterStateJson: string;
   x: number;
   y: number;
   spawnX: number;
@@ -58,6 +60,7 @@ interface RoomTurnInfo {
   turnNumber: number;
   moveRoll: number;
   lastRolledToolId: RolledToolId | "";
+  turnStartActionsJson: string;
   toolDieSeed: number;
 }
 
@@ -75,7 +78,8 @@ interface RoomEventLogEntry {
     | "player_respawned"
     | "debug_granted"
     | "character_switched"
-    | "summon_triggered";
+    | "summon_triggered"
+    | "character_action_used";
   message: string;
   createdAt: number;
 }
@@ -100,6 +104,20 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return JSON.parse(paramsJson) as ToolParameterValueMap;
     } catch {
       return {};
+    }
+  };
+  const parseCharacterState = (characterStateJson: string): CharacterStateMap => {
+    try {
+      return JSON.parse(characterStateJson) as CharacterStateMap;
+    } catch {
+      return {};
+    }
+  };
+  const parseTurnStartActions = () => {
+    try {
+      return JSON.parse(roomState.turnInfo.turnStartActionsJson) as GameSnapshot["turnInfo"]["turnStartActions"];
+    } catch {
+      return [];
     }
   };
   const parseLatestPresentation = (): SequencedActionPresentation | null => {
@@ -142,6 +160,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       name: player.name,
       color: player.color,
       characterId: player.characterId,
+      characterState: parseCharacterState(player.characterStateJson),
       position: {
         x: player.x,
         y: player.y
@@ -168,6 +187,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         roomState.turnInfo.lastRolledToolId === ""
           ? null
           : roomState.turnInfo.lastRolledToolId,
+      turnStartActions: parseTurnStartActions(),
       toolDieSeed: roomState.turnInfo.toolDieSeed
     },
     eventLog: Array.from(roomState.eventLog).map((entry) => ({

@@ -1,9 +1,11 @@
 import type {
   BoardPlayerState,
   BoardSummonState,
+  CharacterStateMap,
   Direction,
   PlayerTurnFlag,
   TileType,
+  TurnStartActionSnapshot,
   TurnToolSnapshot
 } from "@watcher/shared";
 import {
@@ -35,6 +37,7 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
   return Array.from(state.players.values() as Iterable<PlayerState>).map((entry) => ({
     id: entry.id,
     characterId: entry.characterId,
+    characterState: parseCharacterState(entry.characterStateJson),
     position: {
       x: entry.x,
       y: entry.y
@@ -45,6 +48,22 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
     },
     turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
   }));
+}
+
+export function parseCharacterState(characterStateJson: string): CharacterStateMap {
+  try {
+    return JSON.parse(characterStateJson) as CharacterStateMap;
+  } catch {
+    return {};
+  }
+}
+
+export function parseTurnStartActions(turnStartActionsJson: string): TurnStartActionSnapshot[] {
+  try {
+    return JSON.parse(turnStartActionsJson) as TurnStartActionSnapshot[];
+  } catch {
+    return [];
+  }
 }
 
 export function createBoardSummonsFromState(state: WatcherState): BoardSummonState[] {

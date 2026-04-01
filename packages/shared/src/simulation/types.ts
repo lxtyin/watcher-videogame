@@ -1,5 +1,6 @@
 import type { LayoutSymbolDefinition } from "../content/defaultBoard";
 import type {
+  CharacterStateMap,
   CharacterId,
   GameSnapshot,
   GrantDebugToolPayload,
@@ -11,6 +12,7 @@ import type {
   ToolSource,
   TurnInfoSnapshot,
   TurnToolSnapshot,
+  UseTurnStartActionCommandPayload,
   UseToolCommandPayload
 } from "../types";
 
@@ -24,6 +26,7 @@ export interface SimulationToolLoadoutDefinition {
 
 export interface SimulationPlayerDefinition {
   characterId?: CharacterId;
+  characterState?: CharacterStateMap;
   color?: string;
   id: string;
   name?: string;
@@ -61,6 +64,12 @@ export interface SimulationRollDiceCommand {
   kind: "rollDice";
 }
 
+export interface SimulationUseTurnStartActionCommand {
+  actorId: string;
+  kind: "useTurnStartAction";
+  payload: UseTurnStartActionCommandPayload;
+}
+
 export interface SimulationUseToolCommand {
   actorId: string;
   kind: "useTool";
@@ -86,6 +95,7 @@ export interface SimulationGrantDebugToolCommand {
 
 export type SimulationCommand =
   | SimulationRollDiceCommand
+  | SimulationUseTurnStartActionCommand
   | SimulationUseToolCommand
   | SimulationEndTurnCommand
   | SimulationSetCharacterCommand

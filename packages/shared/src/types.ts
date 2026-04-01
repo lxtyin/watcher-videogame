@@ -5,6 +5,7 @@ import type {
   MovementType as ContentMovementType,
   TileTargetingMode as ContentTileTargetingMode,
   TileType as ContentTileType,
+  ToolChoiceContentDefinition,
   ToolButtonValueContentDefinition,
   ToolParameterId as ContentToolParameterId,
   ToolParameterValueMap as ContentToolParameterValueMap,
@@ -22,12 +23,16 @@ export type CharacterId = keyof typeof import("./content/characters").CHARACTER_
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
 export type RolledToolId = typeof import("./content/tools").TOOL_DIE_FACES[number]["toolId"];
+export type TurnStartActionId =
+  keyof typeof import("./content/turnStartActions").TURN_START_ACTION_REGISTRY;
 export type ToolSource = ContentToolSource;
 export type ToolTargetMode = ContentToolTargetMode;
 export type TileTargetingMode = ContentTileTargetingMode;
 export type PlayerTurnFlag = "lucky_tile_claimed";
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
+export type CharacterStateValue = boolean | number | string;
+export type CharacterStateMap = Partial<Record<string, CharacterStateValue>>;
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -40,7 +45,8 @@ export type EventType =
   | "player_respawned"
   | "debug_granted"
   | "character_switched"
-  | "summon_triggered";
+  | "summon_triggered"
+  | "character_action_used";
 
 export interface GridPosition {
   x: number;
@@ -64,8 +70,14 @@ export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinit
 
 export interface MovementDescriptor extends MovementContentDefinition {}
 
+export interface TurnStartActionSnapshot {
+  actionId: TurnStartActionId;
+  characterId: CharacterId;
+}
+
 export interface PlayerSnapshot {
   characterId: CharacterId;
+  characterState: CharacterStateMap;
   color: string;
   id: string;
   name: string;
@@ -87,6 +99,7 @@ export interface TurnInfoSnapshot {
   lastRolledToolId: RolledToolId | null;
   moveRoll: number;
   phase: TurnPhase;
+  turnStartActions: TurnStartActionSnapshot[];
   toolDieSeed: number;
   turnNumber: number;
 }
@@ -115,6 +128,8 @@ export interface ToolCondition {
   toolId: ToolId;
 }
 
+export interface ToolChoiceDefinition extends ToolChoiceContentDefinition {}
+
 export interface ToolLoadoutDefinition {
   charges?: number;
   params?: ToolParameterValueMap;
@@ -129,6 +144,7 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 export interface ToolDefinition {
   actorMovement?: MovementDescriptor;
   buttonValue?: ToolButtonValueDefinition;
+  choices?: readonly ToolChoiceDefinition[];
   color: string;
   conditions: ToolCondition[];
   debugGrantable: boolean;
@@ -157,9 +173,15 @@ export interface GameSnapshot {
 }
 
 export interface UseToolCommandPayload {
+  choiceId?: string;
   direction?: Direction;
   targetPosition?: GridPosition;
   toolInstanceId: string;
+}
+
+export interface UseTurnStartActionCommandPayload {
+  actionId: TurnStartActionId;
+  choiceId?: string;
 }
 
 export interface GrantDebugToolPayload {
@@ -172,6 +194,7 @@ export interface SetCharacterCommandPayload {
 
 export interface MovementActor {
   characterId: CharacterId;
+  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
@@ -200,6 +223,7 @@ export type MovementResolution =
 
 export interface BoardPlayerState {
   characterId: CharacterId;
+  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
@@ -221,6 +245,7 @@ export interface TileMutation {
 }
 
 export interface AffectedPlayerMove {
+  characterState?: CharacterStateMap;
   movement: MovementDescriptor;
   path: GridPosition[];
   playerId: string;
@@ -250,6 +275,7 @@ export interface DirectionalActionContext extends ActionContextBase {
 
 export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
+  choiceId?: string;
   direction?: Direction;
   summons: BoardSummonState[];
   targetPosition?: GridPosition;
@@ -258,6 +284,7 @@ export interface ToolActionContext extends ActionContextBase {
 }
 
 export interface ResolvedActorState {
+  characterState: CharacterStateMap;
   position: GridPosition;
   turnFlags: PlayerTurnFlag[];
 }

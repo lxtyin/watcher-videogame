@@ -1,13 +1,18 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
+  TURN_START_ACTION_DEFINITIONS,
   describeToolButtonValue,
-  getToolDisabledMessage,
   getToolAvailability,
+  getToolChoiceDefinitions,
+  getToolDisabledMessage,
   isAimTool,
+  isChoiceTool,
   isDirectionalTool,
+  isTileDirectionTool,
   isTileTargetTool,
   type ToolId,
+  type TurnStartActionSnapshot,
   type TurnToolSnapshot
 } from "@watcher/shared";
 import {
@@ -24,6 +29,7 @@ import type { SelectedToolInstanceId } from "../state/useGameStore";
 interface SceneActionRingProps {
   hidden?: boolean;
   tools: TurnToolSnapshot[];
+  turnStartActions: TurnStartActionSnapshot[];
   phase: "roll" | "action";
   position: [number, number, number];
   screenOffsetX?: number;
@@ -38,7 +44,9 @@ interface SceneActionRingProps {
   onRollDice: () => void;
   onSelectTool: (toolInstanceId: SelectedToolInstanceId) => void;
   onShowUnavailableToolNotice: (message: string) => void;
+  onUseChoiceTool: (toolInstanceId: string, choiceId: string) => void;
   onUseInstantTool: (toolInstanceId: string) => void;
+  onUseTurnStartAction: (actionId: TurnStartActionSnapshot["actionId"]) => void;
 }
 
 interface FloatingActionItem {
@@ -97,10 +105,13 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
 function getSelectedCaption(
   phase: "roll" | "action",
   selectedTool: TurnToolSnapshot | null,
-  tools: TurnToolSnapshot[]
+  tools: TurnToolSnapshot[],
+  turnStartActions: TurnStartActionSnapshot[]
 ): string {
   if (phase === "roll") {
-    return "点击头顶骰子开始本回合";
+    return turnStartActions.length
+      ? "点击掷骰开始回合，或使用角色的回合开始技能"
+      : "点击头顶骰子开始本回合";
   }
 
   if (!tools.length) {
@@ -126,6 +137,14 @@ function getSelectedCaption(
     return `按住${label}，拖到目标格后松手执行`;
   }
 
+  if (isTileDirectionTool(selectedTool.toolId)) {
+    return `按住${label}，先选目标格，再拖出方向后松手执行`;
+  }
+
+  if (isChoiceTool(selectedTool.toolId)) {
+    return `点击下方选项，决定${label}的结算方式`;
+  }
+
   return `${label}已准备好`;
 }
 
@@ -133,6 +152,7 @@ function getSelectedCaption(
 export function SceneActionRing({
   hidden = false,
   tools,
+  turnStartActions,
   phase,
   position,
   screenOffsetX = 0,
@@ -143,7 +163,9 @@ export function SceneActionRing({
   onRollDice,
   onSelectTool,
   onShowUnavailableToolNotice,
-  onUseInstantTool
+  onUseChoiceTool,
+  onUseInstantTool,
+  onUseTurnStartAction
 }: SceneActionRingProps) {
   const [incomingToolInstanceIds, setIncomingToolInstanceIds] = useState<string[]>([]);
   const previousActionToolIdsRef = useRef<string[]>([]);
@@ -218,7 +240,19 @@ export function SceneActionRing({
             testId: "scene-roll-dice-button",
             onPointerDown: undefined,
             onClick: onRollDice
-          }
+          },
+          ...turnStartActions.map((action, index) => ({
+            id: action.actionId,
+            label: TURN_START_ACTION_DEFINITIONS[action.actionId].label,
+            token: getActionUiConfig(action.actionId).token,
+            accent: getActionUiConfig(action.actionId).accent,
+            detail: getActionUiConfig(action.actionId).detail,
+            disabled: false,
+            selected: false,
+            testId: `scene-turn-start-action-${index}`,
+            onPointerDown: undefined,
+            onClick: () => onUseTurnStartAction(action.actionId)
+          }))
         ]
       : [
           ...tools.map((tool, index) => {
@@ -257,7 +291,7 @@ export function SceneActionRing({
                   return;
                 }
 
-                if (isAimTool(tool.toolId)) {
+                if (isAimTool(tool.toolId) || isChoiceTool(tool.toolId)) {
                   onSelectTool(tool.instanceId);
                   return;
                 }
@@ -279,6 +313,8 @@ export function SceneActionRing({
             onClick: onEndTurn
           }
         ];
+  const selectedChoiceTool =
+    phase === "action" && selectedTool && isChoiceTool(selectedTool.toolId) ? selectedTool : null;
 
   return (
     <Html position={position} center>
@@ -287,7 +323,9 @@ export function SceneActionRing({
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
         <div className="scene-action-ring__arc" />
-        <div className="scene-action-ring__caption">{getSelectedCaption(phase, selectedTool, tools)}</div>
+        <div className="scene-action-ring__caption">
+          {getSelectedCaption(phase, selectedTool, tools, turnStartActions)}
+        </div>
         {actions.map((action, index) => (
           <button
             key={action.id}
@@ -317,6 +355,21 @@ export function SceneActionRing({
             <span className="scene-action-button__detail">{action.detail}</span>
           </button>
         ))}
+        {selectedChoiceTool ? (
+          <div className="scene-choice-panel">
+            {getToolChoiceDefinitions(selectedChoiceTool.toolId).map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className="scene-choice-button"
+                onClick={() => onUseChoiceTool(selectedChoiceTool.instanceId, choice.id)}
+              >
+                <span className="scene-choice-button__label">{choice.label}</span>
+                <span className="scene-choice-button__detail">{choice.description}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </Html>
   );

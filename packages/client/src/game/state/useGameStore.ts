@@ -6,17 +6,21 @@ import type {
   GameSnapshot,
   GridPosition,
   SequencedActionPresentation,
+  TurnStartActionId,
   ToolId
 } from "@watcher/shared";
 import { pumpActionPresentationPlayback } from "./presentationPlayback";
 import {
+  sendChoiceToolIfUsable,
   sendDirectionalToolIfUsable,
   sendEndTurn,
   sendGrantDebugTool,
   sendInstantToolIfUsable,
   sendRollDice,
   sendSetCharacter,
-  sendTileTargetToolIfUsable
+  sendTileDirectionToolIfUsable,
+  sendTileTargetToolIfUsable,
+  sendUseTurnStartAction
 } from "./roomCommands";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -54,12 +58,19 @@ interface GameStore {
   setSelectedToolInstanceId: (toolInstanceId: SelectedToolInstanceId) => void;
   showToolNotice: (message: string) => void;
   rollDice: () => void;
+  useTurnStartAction: (actionId: TurnStartActionId) => void;
   endTurn: () => void;
   setCharacter: (characterId: CharacterId) => void;
   grantDebugTool: (toolId: ToolId) => void;
   useInstantTool: (toolInstanceId?: string | null) => void;
+  useChoiceTool: (choiceId: string, toolInstanceId?: string | null) => void;
   performDirectionalAction: (direction: Direction, toolInstanceId?: string | null) => void;
   performTileTargetAction: (targetPosition: GridPosition, toolInstanceId?: string | null) => void;
+  performTileDirectionAction: (
+    targetPosition: GridPosition,
+    direction: Direction,
+    toolInstanceId?: string | null
+  ) => void;
   advanceTime: (ms: number) => void;
   tickRealTime: (ms: number) => void;
 }
@@ -240,6 +251,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   rollDice: () => {
     sendRollDice(get().room);
   },
+  useTurnStartAction: (actionId) => {
+    sendUseTurnStartAction(get().room, actionId);
+  },
   endTurn: () => {
     sendEndTurn(get().room);
   },
@@ -256,6 +270,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state.snapshot,
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId
+    );
+
+    if (didSend) {
+      set({ selectedToolInstanceId: null });
+    }
+  },
+  useChoiceTool: (choiceId, toolInstanceId) => {
+    const state = get();
+    const didSend = sendChoiceToolIfUsable(
+      state.room,
+      state.snapshot,
+      state.sessionId,
+      toolInstanceId ?? state.selectedToolInstanceId,
+      choiceId
     );
 
     if (didSend) {
@@ -284,6 +312,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId,
       targetPosition
+    );
+
+    if (didSend) {
+      set({ selectedToolInstanceId: null });
+    }
+  },
+  performTileDirectionAction: (targetPosition, direction, toolInstanceId) => {
+    const state = get();
+    const didSend = sendTileDirectionToolIfUsable(
+      state.room,
+      state.snapshot,
+      state.sessionId,
+      toolInstanceId ?? state.selectedToolInstanceId,
+      targetPosition,
+      direction
     );
 
     if (didSend) {

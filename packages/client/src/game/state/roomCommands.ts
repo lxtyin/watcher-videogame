@@ -1,8 +1,17 @@
 import type { Room } from "colyseus.js";
-import type { CharacterId, Direction, GameSnapshot, GridPosition, ToolId } from "@watcher/shared";
+import type {
+  CharacterId,
+  Direction,
+  GameSnapshot,
+  GridPosition,
+  ToolId,
+  TurnStartActionId
+} from "@watcher/shared";
 import {
+  getUsableChoiceToolState,
   getUsableDirectionalToolState,
   getUsableInstantToolState,
+  getUsableTileDirectionToolState,
   getUsableTileToolState
 } from "./toolSelection";
 
@@ -61,6 +70,17 @@ export function sendInstantToolIfUsable(
   return true;
 }
 
+export function sendUseTurnStartAction(
+  room: Room | null,
+  actionId: TurnStartActionId
+): void {
+  if (!room) {
+    return;
+  }
+
+  room.send("useTurnStartAction", { actionId });
+}
+
 export function sendDirectionalToolIfUsable(
   room: Room | null,
   snapshot: GameSnapshot | null,
@@ -109,6 +129,64 @@ export function sendTileTargetToolIfUsable(
   room.send("useTool", {
     toolInstanceId: selectedToolState.tool.instanceId,
     targetPosition
+  });
+  return true;
+}
+
+export function sendTileDirectionToolIfUsable(
+  room: Room | null,
+  snapshot: GameSnapshot | null,
+  sessionId: string | null,
+  selectedToolInstanceId: SelectedToolInstanceId,
+  targetPosition: GridPosition,
+  direction: Direction
+): boolean {
+  if (!room || !selectedToolInstanceId) {
+    return false;
+  }
+
+  const selectedToolState = getUsableTileDirectionToolState(
+    snapshot,
+    sessionId,
+    selectedToolInstanceId
+  );
+
+  if (!selectedToolState) {
+    return false;
+  }
+
+  room.send("useTool", {
+    toolInstanceId: selectedToolState.tool.instanceId,
+    targetPosition,
+    direction
+  });
+  return true;
+}
+
+export function sendChoiceToolIfUsable(
+  room: Room | null,
+  snapshot: GameSnapshot | null,
+  sessionId: string | null,
+  selectedToolInstanceId: SelectedToolInstanceId,
+  choiceId: string
+): boolean {
+  if (!room || !selectedToolInstanceId) {
+    return false;
+  }
+
+  const selectedToolState = getUsableChoiceToolState(
+    snapshot,
+    sessionId,
+    selectedToolInstanceId
+  );
+
+  if (!selectedToolState) {
+    return false;
+  }
+
+  room.send("useTool", {
+    toolInstanceId: selectedToolState.tool.instanceId,
+    choiceId
   });
   return true;
 }

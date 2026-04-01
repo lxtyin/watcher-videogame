@@ -1,39 +1,55 @@
 import { type Client, Room } from "colyseus";
 import {
   type ActionPresentation,
+  adjustMovementTools,
   applyCharacterToolTransforms,
+  applyCharacterTurnEndCleanup,
+  buildCharacterTurnLoadoutRuntime,
+  cloneCharacterState,
   createToolInstance,
-  PLAYER_COLORS,
-  PLAYER_SPAWNS,
+  createTurnStartActionSnapshot,
+  FARTHER_PENDING_MOVE_BONUS_STATE_KEY,
   getCharacterDefinition,
   getCharacterIds,
+  getTotalMovementPoints,
+  markCharacterMovedOutOfTurn,
+  prepareCharacterTurnStart,
+  PLAYER_COLORS,
+  PLAYER_SPAWNS,
   createDebugToolInstance,
   createDefaultBoardDefinition,
   createMovementToolInstance,
   createRolledToolInstance,
+  clearMovementTools,
   findToolInstance,
   getToolDefinition,
+  getToolParam,
   type PlayerTurnFlag,
   resolveToolAction,
   rollMovementDie,
   rollToolDie,
+  resolveCharacterTurnStartAction,
   type CharacterId,
+  type CharacterStateMap,
   type GrantDebugToolPayload,
   type SetCharacterCommandPayload,
   type ToolId,
   type ToolLoadoutDefinition,
+  type UseTurnStartActionCommandPayload,
   type TurnToolSnapshot,
   type UseToolCommandPayload
 } from "@watcher/shared";
 import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
 import { pushRoomEvent, pushSummonEvents, pushTerrainEvents } from "./roomEventLog";
 import {
+  parseCharacterState,
   createBoardDefinitionFromState,
   createBoardPlayersFromState,
   createBoardSummonsFromState,
   createPlayerToolsFromState
 } from "./roomStateMappers";
 import {
+  applyCharacterState,
   applyAffectedPlayerMoves,
   applyPlayerTurnFlags,
   applySummonMutations,
@@ -76,6 +92,10 @@ export class WatcherRoom extends Room<WatcherState> {
       this.handleRollDice(client);
     });
 
+    this.onMessage("useTurnStartAction", (client, payload: UseTurnStartActionCommandPayload) => {
+      this.handleUseTurnStartAction(client, payload);
+    });
+
     this.onMessage("useTool", (client, payload: UseToolCommandPayload) => {
       this.handleUseTool(client, payload);
     });
@@ -104,6 +124,7 @@ export class WatcherRoom extends Room<WatcherState> {
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
     player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
+    player.characterStateJson = "{}";
     player.x = spawn.x;
     player.y = spawn.y;
     player.spawnX = spawn.x;
@@ -135,6 +156,7 @@ export class WatcherRoom extends Room<WatcherState> {
       this.state.turnInfo.phase = "roll";
       this.state.turnInfo.moveRoll = 0;
       this.state.turnInfo.lastRolledToolId = "";
+      this.state.turnInfo.turnStartActionsJson = "[]";
       this.state.turnInfo.toolDieSeed = this.toolDieSeed;
       return;
     }
@@ -187,19 +209,80 @@ export class WatcherRoom extends Room<WatcherState> {
     });
   }
 
-  // Character loadouts are added at roll time, while passive transforms are reused on every inventory write.
-  private buildTurnStartTools(characterId: CharacterId, baseTools: TurnToolSnapshot[]): TurnToolSnapshot[] {
-    const definition = getCharacterDefinition(characterId);
+  private getPlayerCharacterState(player: PlayerState): CharacterStateMap {
+    return parseCharacterState(player.characterStateJson);
+  }
 
-    return applyCharacterToolTransforms(characterId, [
+  private applyPlayerCharacterState(player: PlayerState, characterState: CharacterStateMap): void {
+    applyCharacterState(player, characterState);
+  }
+
+  // Character loadouts are added at roll time, while passive transforms are reused on every inventory write.
+  private buildTurnActionTools(player: PlayerState, baseTools: TurnToolSnapshot[]): TurnToolSnapshot[] {
+    const runtimeLoadout = buildCharacterTurnLoadoutRuntime(
+      player.characterId,
+      this.getPlayerCharacterState(player)
+    );
+
+    this.applyPlayerCharacterState(player, runtimeLoadout.nextCharacterState);
+
+    return applyCharacterToolTransforms(player.characterId, [
       ...baseTools,
-      ...definition.turnStartGrants.map((loadout) => this.createLoadoutTool(loadout)),
-      ...definition.activeSkillLoadout.map((loadout) => this.createLoadoutTool(loadout))
+      ...runtimeLoadout.loadout.map((loadout) => this.createLoadoutTool(loadout))
     ]);
   }
 
   private normalizePlayerTools(player: PlayerState, tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
     return applyCharacterToolTransforms(player.characterId, tools);
+  }
+
+  private refreshTurnStartActions(player: PlayerState, actionIds: readonly import("@watcher/shared").TurnStartActionId[]): void {
+    this.state.turnInfo.turnStartActionsJson = JSON.stringify(
+      actionIds.map((actionId) => createTurnStartActionSnapshot(actionId, player.characterId))
+    );
+  }
+
+  private prepareTurnStartState(player: PlayerState) {
+    const preparation = prepareCharacterTurnStart(
+      player.characterId,
+      this.getPlayerCharacterState(player)
+    );
+
+    this.applyPlayerCharacterState(player, preparation.nextCharacterState);
+    return preparation;
+  }
+
+  private enterActionPhaseWithRoll(
+    player: PlayerState,
+    moveRoll: number,
+    rolledTool: TurnToolSnapshot | null
+  ): void {
+    clearPlayerTurnResources(player);
+    applyToolInventory(
+      player,
+      this.buildTurnActionTools(player, [
+        createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll),
+        ...(rolledTool ? [rolledTool] : [])
+      ]),
+      (tools) => this.normalizePlayerTools(player, tools)
+    );
+
+    this.state.turnInfo.phase = "action";
+    this.state.turnInfo.moveRoll = moveRoll;
+    this.state.turnInfo.lastRolledToolId =
+      (rolledTool?.toolId as typeof this.state.turnInfo.lastRolledToolId) ?? "";
+    this.state.turnInfo.turnStartActionsJson = "[]";
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
+  }
+
+  private finishTurn(player: PlayerState): void {
+    this.pushEvent("turn_ended", `${player.name} ended the turn.`);
+    this.applyPlayerCharacterState(
+      player,
+      applyCharacterTurnEndCleanup(player.characterId, this.getPlayerCharacterState(player))
+    );
+    clearPlayerTurnResources(player);
+    this.beginTurnFor(this.getNextPlayerId(player.id), true);
   }
 
   // Starting a turn resets dice results and tool inventory for the chosen player.
@@ -210,11 +293,13 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
+    const preparation = this.prepareTurnStartState(player);
     clearPlayerTurnResources(player);
     this.state.turnInfo.currentPlayerId = playerId;
     this.state.turnInfo.phase = "roll";
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
+    this.refreshTurnStartActions(player, preparation.turnStartActions);
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     if (shouldAdvanceTurnNumber) {
@@ -275,26 +360,70 @@ export class WatcherRoom extends Room<WatcherState> {
 
     const toolRoll = rollToolDie(this.toolDieSeed);
     this.toolDieSeed = toolRoll.nextSeed;
-
-    clearPlayerTurnResources(player);
-    applyToolInventory(
+    this.enterActionPhaseWithRoll(
       player,
-      this.buildTurnStartTools(player.characterId, [
-        createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll.value),
-        createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
-      ]),
-      (tools) => this.normalizePlayerTools(player, tools)
+      moveRoll.value,
+      createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
     );
-
-    this.state.turnInfo.phase = "action";
-    this.state.turnInfo.moveRoll = moveRoll.value;
-    this.state.turnInfo.lastRolledToolId = toolRoll.value.toolId;
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     this.pushEvent(
       "dice_rolled",
       `${player.name} rolled Movement ${moveRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
     );
+  }
+
+  private handleUseTurnStartAction(
+    client: Client,
+    payload: UseTurnStartActionCommandPayload
+  ): void {
+    const player = this.ensureActivePlayer(client);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.state.turnInfo.phase !== "roll") {
+      this.pushEvent("move_blocked", `${player.name} can only use this action before rolling.`);
+      return;
+    }
+
+    const availableActions = JSON.parse(this.state.turnInfo.turnStartActionsJson) as Array<{
+      actionId: UseTurnStartActionCommandPayload["actionId"];
+    }>;
+
+    if (!availableActions.some((action) => action.actionId === payload.actionId)) {
+      this.pushEvent("move_blocked", `${player.name} cannot use that roll-phase action right now.`);
+      return;
+    }
+
+    const resolution = resolveCharacterTurnStartAction(
+      player.characterId,
+      this.getPlayerCharacterState(player),
+      payload.actionId
+    );
+
+    if (!resolution) {
+      this.pushEvent("move_blocked", `${player.name} cannot use that roll-phase action right now.`);
+      return;
+    }
+
+    this.applyPlayerCharacterState(player, resolution.nextCharacterState);
+    this.pushEvent("character_action_used", `${player.name} used ${payload.actionId}.`);
+
+    if (resolution.endTurn) {
+      this.finishTurn(player);
+      return;
+    }
+
+    if (resolution.skipToolDie) {
+      const moveRoll = rollMovementDie(this.moveDieSeed);
+      this.moveDieSeed = moveRoll.nextSeed;
+      this.enterActionPhaseWithRoll(player, moveRoll.value, null);
+      this.pushEvent(
+        "dice_rolled",
+        `${player.name} rolled Movement ${moveRoll.value} and skipped the tool die.`
+      );
+    }
   }
 
   // Tool usage delegates rule resolution to the shared layer, then mirrors the result into schema state.
@@ -330,11 +459,22 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
+    if (toolDefinition.targetMode === "choice" && !payload.choiceId) {
+      this.pushEvent("move_blocked", `${toolDefinition.label} needs a choice.`);
+      return;
+    }
+
+    if (toolDefinition.targetMode === "tile_direction" && (!payload.targetPosition || !payload.direction)) {
+      this.pushEvent("move_blocked", `${toolDefinition.label} needs both a tile and a direction.`);
+      return;
+    }
+
     const resolution = resolveToolAction({
       board: createBoardDefinitionFromState(this.state),
       actor: {
         id: player.id,
         characterId: player.characterId,
+        characterState: cloneCharacterState(this.getPlayerCharacterState(player)),
         position: { x: player.x, y: player.y },
         spawnPosition: { x: player.spawnX, y: player.spawnY },
         turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
@@ -343,7 +483,8 @@ export class WatcherRoom extends Room<WatcherState> {
       toolDieSeed: this.toolDieSeed,
       tools,
       summons: createBoardSummonsFromState(this.state),
-      direction: payload.direction ?? "up",
+      ...(payload.direction ? { direction: payload.direction } : {}),
+      ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
       ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
       players: createBoardPlayersFromState(this.state)
     });
@@ -358,12 +499,39 @@ export class WatcherRoom extends Room<WatcherState> {
 
     player.x = resolution.actor.position.x;
     player.y = resolution.actor.position.y;
+    this.applyPlayerCharacterState(player, resolution.actor.characterState);
     applyPlayerTurnFlags(player, resolution.actor.turnFlags);
 
     applyToolInventory(player, resolution.tools, (tools) => this.normalizePlayerTools(player, tools));
     applyTileMutations(this.state, resolution.tileMutations);
     applySummonMutations(this.state, resolution.summonMutations);
-    applyAffectedPlayerMoves(this.state, resolution.affectedPlayers, applyPlayerTurnFlags);
+    applyAffectedPlayerMoves(
+      this.state,
+      resolution.affectedPlayers,
+      applyPlayerTurnFlags,
+      applyCharacterState
+    );
+
+    for (const affectedPlayer of resolution.affectedPlayers) {
+      if (affectedPlayer.playerId === player.id) {
+        continue;
+      }
+
+      const movedPlayer = this.state.players.get(affectedPlayer.playerId);
+
+      if (!movedPlayer) {
+        continue;
+      }
+
+      this.applyPlayerCharacterState(
+        movedPlayer,
+        markCharacterMovedOutOfTurn(
+          movedPlayer.characterId,
+          this.getPlayerCharacterState(movedPlayer)
+        )
+      );
+    }
+
     this.toolDieSeed = resolution.nextToolDieSeed;
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
     this.publishActionPresentation(resolution.presentation);
@@ -392,11 +560,7 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    this.pushEvent("turn_ended", `${player.name} ended the turn.`);
-    clearPlayerTurnResources(player);
-
-    const nextPlayerId = this.getNextPlayerId(player.id);
-    this.beginTurnFor(nextPlayerId, true);
+    this.finishTurn(player);
   }
 
   // Ending a turn clears transient resources and advances authority to the next player.
@@ -412,11 +576,7 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    this.pushEvent("turn_ended", `${player.name} ended the turn.`);
-    clearPlayerTurnResources(player);
-
-    const nextPlayerId = this.getNextPlayerId(player.id);
-    this.beginTurnFor(nextPlayerId, true);
+    this.finishTurn(player);
   }
 
   // Character switching is treated as a turn-setup choice so passive/loadout semantics stay deterministic.
@@ -438,6 +598,8 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     player.characterId = payload.characterId;
+    this.applyPlayerCharacterState(player, {});
+    this.refreshTurnStartActions(player, [...getCharacterDefinition(payload.characterId).turnStartActionIds]);
     this.pushEvent(
       "character_switched",
       `${player.name} switched to ${getCharacterDefinition(payload.characterId).label}.`

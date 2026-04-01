@@ -23,7 +23,7 @@ export const TOOL_PARAMETER_LABELS: Record<
   movePoints: { label: "移动点数", unit: "point" },
   jumpDistance: { label: "飞跃距离", unit: "tile" },
   hookLength: { label: "钩锁长度", unit: "tile" },
-  dashBonus: { label: "冲刺加值", unit: "point" },
+  dashBonus: { label: "冲刺加成", unit: "point" },
   brakeRange: { label: "制动距离", unit: "tile" },
   projectileRange: { label: "射程", unit: "tile" },
   projectileBounceCount: { label: "反弹次数", unit: "count" },
@@ -31,7 +31,8 @@ export const TOOL_PARAMETER_LABELS: Record<
   wallDurability: { label: "墙体耐久", unit: "count" },
   targetRange: { label: "施放范围", unit: "tile" },
   rocketBlastLeapDistance: { label: "炸飞距离", unit: "tile" },
-  rocketSplashPushDistance: { label: "爆风推力", unit: "tile" }
+  rocketSplashPushDistance: { label: "爆风推力", unit: "tile" },
+  pushDistance: { label: "位移距离", unit: "tile" }
 };
 
 export const TOOL_DIE_FACES = defineToolDieFaces([
@@ -108,7 +109,7 @@ export const TOOL_REGISTRY = defineToolRegistry({
       disposition: "active"
     },
     label: "飞跃",
-    description: "朝一个方向飞跃，可以跨过中间障碍，但落点不能是墙体。",
+    description: "朝一个方向飞跃，可以越过中间阻挡，但落点不能是墙。",
     disabledHint: "当前还不能使用这个飞跃工具。",
     source: "turn",
     targetMode: "direction",
@@ -128,7 +129,7 @@ export const TOOL_REGISTRY = defineToolRegistry({
       disposition: "active"
     },
     label: "钩锁",
-    description: "朝前方发射钩锁，命中墙体时拉近自己，命中玩家时拉近对方。",
+    description: "朝前方发射钩锁，命中墙时拉近自己，命中玩家时拉近对方。",
     disabledHint: "当前还不能使用这个钩锁工具。",
     source: "turn",
     targetMode: "direction",
@@ -145,7 +146,7 @@ export const TOOL_REGISTRY = defineToolRegistry({
   dash: {
     label: "冲刺",
     description: "让当前回合工具列表中的所有移动工具额外获得指定点数。",
-    disabledHint: "需要有<移动>时才可以使用。",
+    disabledHint: "需要保留一个可用的<移动>时才能使用。",
     source: "turn",
     targetMode: "instant",
     conditions: [{ kind: "tool_present", toolId: "movement" }],
@@ -267,5 +268,49 @@ export const TOOL_REGISTRY = defineToolRegistry({
     rollable: false,
     debugGrantable: false,
     endsTurnOnUse: true
+  },
+  bombThrow: {
+    label: "投弹",
+    description: "选择周围八码内的一格，并指定一个方向，让其中所有玩家位移 2 格。",
+    disabledHint: "请先选择一个有效目标格，并指定推动方向。",
+    source: "turn",
+    targetMode: "tile_direction",
+    tileTargeting: "adjacent_ring",
+    conditions: [],
+    defaultCharges: 1,
+    defaultParams: {
+      targetRange: 1,
+      pushDistance: 2
+    },
+    color: "#d86a42",
+    rollable: false,
+    debugGrantable: true,
+    endsTurnOnUse: false
+  },
+  balance: {
+    label: "制衡",
+    description: "在压缩本回合移动，或把本回合移动转存到下回合之间二选一。",
+    disabledHint: "需要保留一个有剩余点数的<移动>时才能使用。",
+    source: "turn",
+    targetMode: "choice",
+    choices: [
+      {
+        id: "trim_and_bank",
+        label: "本回合 -1",
+        description: "本回合移动点数 -1，下回合额外获得 1 点移动。"
+      },
+      {
+        id: "store_all",
+        label: "转存本回合",
+        description: "本回合失去全部移动，下回合额外获得本回合的移动。"
+      }
+    ],
+    conditions: [{ kind: "tool_present", toolId: "movement" }],
+    defaultCharges: 1,
+    defaultParams: {},
+    color: "#8c6bda",
+    rollable: false,
+    debugGrantable: true,
+    endsTurnOnUse: false
   }
 } as const);

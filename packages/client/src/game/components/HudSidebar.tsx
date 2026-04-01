@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   TOOL_DEFINITIONS,
+  TURN_START_ACTION_DEFINITIONS,
   describeToolButtonLabel,
   describeToolParameters,
   getCharacterDefinition,
   getDebugGrantableToolIds,
   getNextCharacterId,
   getToolAvailability,
+  getToolChoiceDefinitions,
   getToolDisabledMessage,
   isAimTool,
   isCharacterSkillTool,
+  isChoiceTool,
   isDirectionalTool,
+  isTileDirectionTool,
   isTileTargetTool,
   type ToolId,
   type TurnToolSnapshot
@@ -37,19 +41,22 @@ function describeInteractionHint(
   isMyTurn: boolean,
   phase: "roll" | "action" | null,
   selectedTool: TurnToolSnapshot | null,
-  localTools: TurnToolSnapshot[]
+  localTools: TurnToolSnapshot[],
+  turnStartActionCount: number
 ): string {
   if (!isMyTurn) {
     return "当前不是你的回合，请等待其他玩家行动。";
   }
 
   if (phase === "roll") {
-    return "点击棋子头顶的骰子开始投掷，或按 R。";
+    return turnStartActionCount
+      ? "点击掷骰开始回合，或先使用角色的回合开始技能。"
+      : "点击掷骰开始本回合，或按 R。";
   }
 
   if (!selectedTool) {
     return localTools.length
-      ? "从头顶弧环中选择一个可用工具。灰色按钮表示当前条件未满足。"
+      ? "从工具列表或场景头顶弧环中选择一个可用工具。"
       : "本回合已经没有工具可用了，可以结束回合。";
   }
 
@@ -61,14 +68,22 @@ function describeInteractionHint(
   }
 
   if (isDirectionalTool(selectedTool.toolId)) {
-    return `按住${label}，拖到高亮方向箭头后松手执行，脚底圆环会预览结果。`;
+    return `按住${label}，拖到高亮方向后松手执行，脚底圆环会预览结果。`;
   }
 
   if (isTileTargetTool(selectedTool.toolId)) {
-    return `按住${label}，把目标拖到棋盘格上后松手执行，高亮格会自动吸附到实际可达位置。`;
+    return `按住${label}，把目标拖到棋盘格上后松手执行。`;
   }
 
-  return `点击头顶弧环使用${label}，或按 Enter。`;
+  if (isTileDirectionTool(selectedTool.toolId)) {
+    return `按住${label}，先选目标格，再拖出方向后松手执行。`;
+  }
+
+  if (isChoiceTool(selectedTool.toolId)) {
+    return `在下方点选一个方案，决定${label}的结算方式。`;
+  }
+
+  return `点击按钮使用${label}。`;
 }
 
 function getBlockedToolMessage(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
@@ -87,16 +102,19 @@ export function HudSidebar() {
   const showToolNotice = useGameStore((state) => state.showToolNotice);
   const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const rollDice = useGameStore((state) => state.rollDice);
+  const useTurnStartAction = useGameStore((state) => state.useTurnStartAction);
   const endTurn = useGameStore((state) => state.endTurn);
   const setCharacter = useGameStore((state) => state.setCharacter);
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useInstantTool = useGameStore((state) => state.useInstantTool);
+  const useChoiceTool = useGameStore((state) => state.useChoiceTool);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
   const activePlayer = snapshot?.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
   const isMyTurn = Boolean(activePlayer && sessionId && activePlayer.id === sessionId);
   const activePhase = snapshot?.turnInfo.phase ?? null;
+  const turnStartActions = snapshot?.turnInfo.turnStartActions ?? [];
   const selectedTool = findSelectedTool(snapshot, sessionId, selectedToolInstanceId);
   const selectedToolDefinition = selectedTool ? TOOL_DEFINITIONS[selectedTool.toolId] : null;
   const selectedToolParameters = selectedTool ? describeToolParameters(selectedTool) : [];
@@ -118,10 +136,21 @@ export function HudSidebar() {
     selectedTool &&
       selectedToolDefinition &&
       !isAimTool(selectedTool.toolId) &&
+      !isChoiceTool(selectedTool.toolId) &&
       selectedToolAvailability?.usable
   );
+  const selectedChoiceOptions =
+    selectedTool && isChoiceTool(selectedTool.toolId)
+      ? getToolChoiceDefinitions(selectedTool.toolId)
+      : [];
   const usableToolCount = me?.tools.filter((tool) => getToolAvailability(tool, me.tools).usable).length ?? 0;
-  const interactionHint = describeInteractionHint(isMyTurn, activePhase, selectedTool, me?.tools ?? []);
+  const interactionHint = describeInteractionHint(
+    isMyTurn,
+    activePhase,
+    selectedTool,
+    me?.tools ?? [],
+    turnStartActions.length
+  );
 
   useEffect(() => {
     if (!toolNotice) {
@@ -148,7 +177,7 @@ export function HudSidebar() {
       return;
     }
 
-    if (isAimTool(tool.toolId)) {
+    if (isAimTool(tool.toolId) || isChoiceTool(tool.toolId)) {
       return;
     }
 
@@ -268,12 +297,10 @@ export function HudSidebar() {
         ) : (
           <p className="hint-copy">这个角色当前没有可点击的主动技能。</p>
         )}
-        <p className="hint-copy">主动技能会出现在这里，也会同步显示在场景中的头顶弧环。</p>
-        <p className="hint-copy">切换角色只允许在投骰前进行，这样本回合工具列表会保持稳定。</p>
       </section>
 
       <section className="controls-card">
-        <p className="section-title">辅助操作</p>
+        <p className="section-title">回合开始</p>
         <div className="action-row">
           <button
             type="button"
@@ -281,7 +308,7 @@ export function HudSidebar() {
             onClick={() => rollDice()}
             disabled={!isMyTurn || activePhase !== "roll"}
           >
-            投骰
+            掷骰
           </button>
           <button
             type="button"
@@ -292,6 +319,24 @@ export function HudSidebar() {
             结束回合
           </button>
         </div>
+        {turnStartActions.length ? (
+          <div className="tool-grid role-skill-grid">
+            {turnStartActions.map((action, index) => (
+              <button
+                key={`${action.characterId}-${action.actionId}`}
+                type="button"
+                data-testid={`turn-start-action-button-${index}`}
+                className="tool-button"
+                onClick={() => useTurnStartAction(action.actionId)}
+                disabled={!isMyTurn || activePhase !== "roll"}
+              >
+                {TURN_START_ACTION_DEFINITIONS[action.actionId].label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="hint-copy">当前角色没有额外的回合开始技能。</p>
+        )}
         <div className="debug-grant-row">
           <select
             value={debugToolId}
@@ -315,7 +360,7 @@ export function HudSidebar() {
           </button>
         </div>
         <p className="hint-copy">调试：行动阶段可以从下拉列表里直接发放任意已实现工具。</p>
-        <p className="hint-copy">主要操作都在棋子头顶完成。键盘辅助：`R` 投骰，`E` 结束回合，方向键执行当前定向工具。</p>
+        <p className="hint-copy">主要操作都在棋子头顶完成。键盘辅助：`R` 掷骰，`E` 结束回合，方向键执行当前定向工具。</p>
       </section>
 
       <section className="roll-card">
@@ -389,9 +434,33 @@ export function HudSidebar() {
         ) : (
           <div className="tool-detail">
             <strong>尚未选择工具</strong>
-            <p>可以从上方列表或场景里的头顶弧环选择一个工具。</p>
+            <p>可以从上方列表或场景中的头顶弧环选择一个工具。</p>
           </div>
         )}
+        {selectedChoiceOptions.length && selectedTool ? (
+          <div className="tool-grid role-skill-grid">
+            {selectedChoiceOptions.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className="tool-button"
+                onClick={() => useChoiceTool(choice.id, selectedTool.instanceId)}
+                disabled={!selectedToolAvailability?.usable}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {selectedChoiceOptions.length ? (
+          <div className="character-passive-list">
+            {selectedChoiceOptions.map((choice) => (
+              <p key={`${selectedTool?.instanceId}-${choice.id}`} className="hint-copy">
+                {choice.label}：{choice.description}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {instantToolReady && selectedTool ? (
           <button
             type="button"
@@ -401,7 +470,7 @@ export function HudSidebar() {
             使用 {selectedToolDefinition?.label}
           </button>
         ) : null}
-        <p className="hint-copy">灰色工具仍会显示在列表里，点击后会提示当前为什么不能用。</p>
+        <p className="hint-copy">灰色工具仍会显示在列表里，点击后会提示当前为什么不能使用。</p>
       </section>
 
       <section className="player-observer-section">
@@ -488,11 +557,11 @@ export function HudSidebar() {
         </div>
         <div className="legend-row">
           <span className="legend-swatch conveyor" />
-          加速带，移动经过时会加速或转向
+          加速带，平移经过时会加速或转向
         </div>
         <div className="legend-row">
           <span className="legend-swatch wallet" />
-          钱包，领导经过自己放置的钱包时会拾取并获得一个工具骰子
+          钱包，领导经过自己的钱包时会拾取并获得一个工具骰
         </div>
         <div className="legend-row">
           <span className="legend-swatch active" />

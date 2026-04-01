@@ -6,6 +6,7 @@ import {
 import type {
   RolledToolId,
   ToolAvailability,
+  ToolChoiceDefinition,
   ToolCondition,
   ToolDefinition,
   ToolDieFaceDefinition,
@@ -23,6 +24,12 @@ function materializeToolDefinitions(): Record<ToolId, ToolDefinition> {
       {
         id: toolId as ToolId,
         ...definition,
+        choices:
+          "choices" in definition
+            ? (definition.choices?.map((choice: ToolChoiceDefinition) => ({
+                ...choice
+              })) as readonly ToolChoiceDefinition[] | undefined)
+            : undefined,
         conditions: definition.conditions.map((condition) => ({
           ...condition,
           toolId: condition.toolId as ToolId
@@ -67,9 +74,19 @@ export function isTileTargetTool(toolId: ToolId): boolean {
   return TOOL_DEFINITIONS[toolId].targetMode === "tile";
 }
 
+export function isChoiceTool(toolId: ToolId): boolean {
+  return TOOL_DEFINITIONS[toolId].targetMode === "choice";
+}
+
+export function isTileDirectionTool(toolId: ToolId): boolean {
+  return TOOL_DEFINITIONS[toolId].targetMode === "tile_direction";
+}
+
 // Aim tools share the same press-drag-release interaction path in the client.
 export function isAimTool(toolId: ToolId): boolean {
-  return TOOL_DEFINITIONS[toolId].targetMode !== "instant";
+  const targetMode = TOOL_DEFINITIONS[toolId].targetMode;
+
+  return targetMode === "direction" || targetMode === "tile" || targetMode === "tile_direction";
 }
 
 export function isCharacterSkillTool(tool: TurnToolSnapshot): boolean {
@@ -130,10 +147,7 @@ export function findToolInstance(
 }
 
 // Parameter access always falls back to the tool definition defaults.
-export function getToolParam(
-  tool: TurnToolSnapshot,
-  paramId: ToolParameterId
-): number {
+export function getToolParam(tool: TurnToolSnapshot, paramId: ToolParameterId): number {
   return tool.params[paramId] ?? TOOL_DEFINITIONS[tool.toolId].defaultParams[paramId] ?? 0;
 }
 
@@ -179,7 +193,7 @@ function satisfiesCondition(
         ? { usable: true, reason: null }
         : {
             usable: false,
-            reason: `需要保留 ${TOOL_DEFINITIONS[condition.toolId].label}`
+            reason: `需要保留一个可用的${TOOL_DEFINITIONS[condition.toolId].label}`
           };
     }
   }
@@ -208,6 +222,13 @@ export function getToolAvailability(
     return {
       usable: false,
       reason: "没有剩余距离"
+    };
+  }
+
+  if (tool.toolId === "bombThrow" && getToolParam(tool, "pushDistance") < 1) {
+    return {
+      usable: false,
+      reason: "没有可用的投弹位移距离"
     };
   }
 
@@ -302,6 +323,10 @@ export function describeToolParameters(tool: TurnToolSnapshot): string[] {
 
     return `${descriptor.label} ${formatToolParameterValue(descriptor.unit, value)}`;
   });
+}
+
+export function getToolChoiceDefinitions(toolId: ToolId): readonly ToolChoiceDefinition[] {
+  return TOOL_DEFINITIONS[toolId].choices ?? [];
 }
 
 // Debug menus list every tool that can be spawned directly in the current prototype.

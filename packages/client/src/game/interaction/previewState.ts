@@ -80,6 +80,34 @@ const TOOL_PREVIEW_RESOLVERS: Partial<Record<ToolId, ToolPreviewResolver>> = {
       })
     };
   },
+  bombThrow: ({ displayedPlayerPositions, previewResolution, snapshot }) => {
+    if (
+      !snapshot ||
+      previewResolution?.kind !== "applied" ||
+      !previewResolution.affectedPlayers.length
+    ) {
+      return {};
+    }
+
+    return {
+      landingRings: previewResolution.affectedPlayers.flatMap((affectedPlayer, index) => {
+        const player = snapshot.players.find((entry) => entry.id === affectedPlayer.playerId);
+
+        if (!player) {
+          return [];
+        }
+
+        return [
+          {
+            key: `bomb-preview-${affectedPlayer.playerId}-${index}`,
+            opacity: 0.72,
+            position: affectedPlayer.target,
+            radius: 0.54
+          }
+        ];
+      })
+    };
+  },
   buildWall: ({ previewResolution }) => ({
     wallGhostPositions:
       previewResolution?.kind === "applied"

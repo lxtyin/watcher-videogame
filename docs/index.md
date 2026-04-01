@@ -248,6 +248,20 @@ This keeps the next expansion path closer to:
 - 文本调试输出补充了 `inspectionCard` 字段。
   - 这样长按说明卡是否出现，也可以通过文本态自动化检查
 
+## 2026-04-01 Cross-Turn Character Update
+
+- 角色系统新增了 roll 阶段可用的 `turnStartActions`，会和骰子按钮一起出现。
+- Shared 新增 `characterState` 与 `characterRuntime`，用于承载跨回合记忆，而不是把角色特判散落到房间或前端里。
+- 当前已接入的新角色：
+  - `Blaze`：可在回合开始时进入投弹准备并立刻结束回合，下回合获得 `Bomb Throw`
+  - `Volaty`：可放弃工具骰，并让本回合的行动按飞跃处理
+  - `Chain`：若回合外未发生位移，本回合获得长度为 2 的 `Hookshot`
+  - `Farther`：每回合获得 `Balance`，可把本回合的移动点数转存到下回合
+- Tool 交互模型继续扩展为：
+  - `choice`：用于二选一或多选一的纯决策类 Tool
+  - `tile_direction`：用于先选格子、再选方向的 Tool
+- 角色相关黄金案例已经加入 CLI / Web 共用的 golden runner，当前 `npm run goldens` 为 `16/16` 通过。
+
 ## 2026-04-01 Multiplayer Golden Update
 
 - 黄金案例新增多人场景覆盖：

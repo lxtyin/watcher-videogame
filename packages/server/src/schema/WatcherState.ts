@@ -30,6 +30,7 @@ export class PlayerState extends Schema {
   @type("string") name = "";
   @type("string") color = "";
   @type("string") characterId: CharacterId = "late";
+  @type("string") characterStateJson = "{}";
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") spawnX = 0;
@@ -52,6 +53,7 @@ export class TurnInfoState extends Schema {
   @type("number") turnNumber = 1;
   @type("number") moveRoll = 0;
   @type("string") lastRolledToolId: RolledToolId | "" = "";
+  @type("string") turnStartActionsJson = "[]";
   @type("number") toolDieSeed = 1;
 }
 
