@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Direction as ContentDirection,
   MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
@@ -19,6 +19,7 @@ export type TurnPhase = ContentTurnPhase;
 export type Direction = ContentDirection;
 export type MovementType = ContentMovementType;
 export type MovementDisposition = ContentMovementDisposition;
+export type MovementTiming = "in_turn" | "out_of_turn";
 export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
@@ -68,7 +69,10 @@ export interface BoardDefinition {
 
 export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinition {}
 
-export interface MovementDescriptor extends MovementContentDefinition {}
+export interface MovementDescriptor extends MovementContentDefinition {
+  tags: string[];
+  timing: MovementTiming;
+}
 
 export interface TurnStartActionSnapshot {
   actionId: TurnStartActionId;
@@ -142,7 +146,7 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 }
 
 export interface ToolDefinition {
-  actorMovement?: MovementDescriptor;
+  actorMovement?: MovementContentDefinition;
   buttonValue?: ToolButtonValueDefinition;
   choices?: readonly ToolChoiceDefinition[];
   color: string;
@@ -465,3 +469,5 @@ export type ActionResolution =
       triggeredSummonEffects: TriggeredSummonEffect[];
       triggeredTerrainEffects: TriggeredTerrainEffect[];
     };
+
+

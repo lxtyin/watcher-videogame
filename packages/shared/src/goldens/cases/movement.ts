@@ -116,5 +116,117 @@ export const GOLDEN_MOVEMENT_CASES = [
                 }
             }
         }
+    }),
+    defineGoldenCase({
+        id: "turn-start-lucky-grants-pre-roll-tool",
+        title: "Turn start stop triggers lucky before the roll",
+        description: "Starting a turn on a lucky tile should immediately grant one rolled tool during the roll phase.",
+        scene: {
+            layout: [
+                "#####",
+                "#.l.#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 2, y: 1 },
+                    spawnPosition: { x: 1, y: 2 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "action",
+                turnNumber: 1
+            },
+            seeds: {
+                toolDieSeed: 1
+            }
+        },
+        steps: [
+            {
+                kind: "endTurn",
+                actorId: "hero",
+                label: "End the turn while standing on lucky"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#.l.#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 1,
+                    turnFlags: ["lucky_tile_claimed"]
+                }
+            },
+            turnInfo: {
+                currentPlayerId: "hero",
+                phase: "roll",
+                turnNumber: 2
+            }
+        }
+    }),
+
+    defineGoldenCase({
+        id: "turn-start-pit-respawns-before-roll",
+        title: "Turn start stop triggers pit before the roll",
+        description: "Starting a turn on a pit should immediately respawn the player to their spawn tile before rolling.",
+        scene: {
+            layout: [
+                "#####",
+                "#.p.#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 2, y: 1 },
+                    spawnPosition: { x: 1, y: 2 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "action",
+                turnNumber: 1
+            }
+        },
+        steps: [
+            {
+                kind: "endTurn",
+                actorId: "hero",
+                label: "End the turn while standing on pit"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#.p.#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 2 },
+                    toolCount: 0
+                }
+            },
+            turnInfo: {
+                currentPlayerId: "hero",
+                phase: "roll",
+                turnNumber: 2
+            },
+            eventTypes: ["turn_ended", "turn_started", "player_respawned"]
+        }
     })
 ];

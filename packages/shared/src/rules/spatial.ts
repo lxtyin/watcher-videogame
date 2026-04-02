@@ -1,44 +1,19 @@
-import { getTile, isWithinBoard, toTileKey } from "../board";
-import { createMovementDescriptor } from "./displacement";
-import { resolvePassThroughTerrainEffect } from "../terrain";
+﻿import { getTile, isWithinBoard, toTileKey } from "../board";
 import type {
   BoardDefinition,
   BoardPlayerState,
   Direction,
   GridPosition,
-  MovementDescriptor,
   TileDefinition,
   TileMutation,
   TileType,
-  ToolActionContext,
-  TriggeredTerrainEffect
+  ToolActionContext
 } from "../types";
 
 export interface AxisTarget {
   direction: Direction;
   distance: number;
   snappedTarget: GridPosition;
-}
-
-export interface GroundTraversalResult {
-  currentDirection: Direction;
-  path: GridPosition[];
-  position: GridPosition;
-  remainingMovePoints: number;
-  stopReason: string;
-  tileMutations: TileMutation[];
-  triggeredTerrainEffects: TriggeredTerrainEffect[];
-}
-
-export interface GroundTraversalOptions {
-  actorId: string;
-  board: BoardDefinition;
-  direction: Direction;
-  maxSteps?: number;
-  movement: MovementDescriptor;
-  movePoints: number;
-  position: GridPosition;
-  priorTileMutations?: TileMutation[];
 }
 
 export interface ProjectileTraceResult {
@@ -87,7 +62,7 @@ export function getDirectionVector(direction: Direction): GridPosition {
   return DIRECTION_VECTORS[direction];
 }
 
-// Opposite directions are reused when hookshot pulls a target back toward the actor.
+// Opposite directions are reused when projectiles or hookshots reverse a target path.
 export function getOppositeDirection(direction: Direction): Direction {
   switch (direction) {
     case "up":
@@ -115,7 +90,7 @@ export function stepPosition(
   };
 }
 
-// Solid tiles block both grounded traversal and landing checks.
+// Solid tiles block grounded traversal and landing checks.
 export function isSolidTileType(tileType: TileType): boolean {
   return tileType === "wall" || tileType === "earthWall";
 }
@@ -189,14 +164,10 @@ export function isLandablePosition(
 
   const tile = getTileAfterMutations(board, tileMutations, position);
 
-  if (!tile || isSolidTileType(tile.type)) {
-    return false;
-  }
-
-  return true;
+  return !!tile && !isSolidTileType(tile.type);
 }
 
-// Tile mutations are emitted through one helper so floors and walls use the same room sync path.
+// Tile mutations are emitted through one helper so floors and walls use the same sync path.
 export function createTileMutation(
   position: GridPosition,
   nextType: TileType,
@@ -251,82 +222,7 @@ export function normalizeAxisTarget(
   return null;
 }
 
-// Ground traversal is shared by movement and push-like effects so tile rules stay identical.
-export function resolveGroundTraversal(options: GroundTraversalOptions): GroundTraversalResult {
-  let currentDirection = options.direction;
-  let currentPosition = options.position;
-  let remainingMovePoints = options.movePoints;
-  let remainingSteps = options.maxSteps ?? Number.POSITIVE_INFINITY;
-  const path: GridPosition[] = [];
-  const tileMutations: TileMutation[] = [];
-  const effectiveTileMutations = [...(options.priorTileMutations ?? [])];
-  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
-  let stopReason = "Movement ended";
-
-  while (remainingMovePoints > 0 && remainingSteps > 0) {
-    const target = stepPosition(currentPosition, currentDirection);
-
-    if (!isWithinBoard(options.board, target)) {
-      stopReason = "Board edge";
-      break;
-    }
-
-    const tile = getTileAfterMutations(options.board, effectiveTileMutations, target);
-
-    if (!tile) {
-      stopReason = "Missing tile";
-      break;
-    }
-
-    if (tile.type === "wall") {
-      stopReason = "Wall";
-      break;
-    }
-
-    const moveCost = tile.type === "earthWall" ? 1 + tile.durability : 1;
-
-    if (remainingMovePoints < moveCost) {
-      stopReason = "Not enough move points";
-      break;
-    }
-
-    remainingMovePoints -= moveCost;
-    remainingSteps -= 1;
-    currentPosition = target;
-    path.push(target);
-
-    if (tile.type === "earthWall") {
-      const mutation = createTileMutation(target, "floor", 0);
-      tileMutations.push(mutation);
-      effectiveTileMutations.push(mutation);
-    }
-
-    const terrainResolution = resolvePassThroughTerrainEffect({
-      direction: currentDirection,
-      movement: options.movement,
-      playerId: options.actorId,
-      position: currentPosition,
-      remainingMovePoints,
-      tile
-    });
-
-    currentDirection = terrainResolution.direction;
-    remainingMovePoints = terrainResolution.remainingMovePoints;
-    triggeredTerrainEffects.push(...terrainResolution.triggeredTerrainEffects);
-  }
-
-  return {
-    currentDirection,
-    path,
-    position: currentPosition,
-    remainingMovePoints,
-    stopReason,
-    tileMutations,
-    triggeredTerrainEffects
-  };
-}
-
-// Leap resolution reuses landing rules while ignoring walls between start and destination.
+// Leap landing search ignores blockers between start and landing, but the landing itself must be valid.
 export function resolveLeapLanding(
   board: BoardDefinition,
   startPosition: GridPosition,
@@ -338,40 +234,21 @@ export function resolveLeapLanding(
     const landing = stepPosition(startPosition, direction, distance);
 
     if (isLandablePosition(board, landing, tileMutations)) {
-      const path = Array.from({ length: distance }, (_, index) =>
-        stepPosition(startPosition, direction, index + 1)
-      );
-
       return {
         landing,
-        path
+        path: Array.from({ length: distance }, (_, index) =>
+          stepPosition(startPosition, direction, index + 1)
+        )
       };
     }
   }
 
   return {
     landing: null,
-    path: []
+    path: Array.from({ length: Math.max(0, maxDistance) }, (_, index) =>
+      stepPosition(startPosition, direction, index + 1)
+    )
   };
-}
-
-// Push resolution is grounded traversal with a move budget equal to push strength.
-export function resolvePushTarget(
-  context: ToolActionContext,
-  pushedPlayer: BoardPlayerState,
-  direction: Direction,
-  distance: number,
-  priorTileMutations: TileMutation[] = []
-): GroundTraversalResult {
-  return resolveGroundTraversal({
-    actorId: pushedPlayer.id,
-    board: context.board,
-    direction,
-    movement: createMovementDescriptor("translate", "passive"),
-    movePoints: distance,
-    position: pushedPlayer.position,
-    priorTileMutations
-  });
 }
 
 // Projectile tracing stops on the first solid tile or tile that contains any players.

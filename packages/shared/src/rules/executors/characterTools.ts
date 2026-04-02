@@ -11,8 +11,12 @@ import type {
   ActionPresentationEvent,
   ActionResolution,
   AffectedPlayerMove,
+  MovementDescriptor,
+  SummonMutation,
   TileMutation,
-  ToolActionContext
+  ToolActionContext,
+  TriggeredSummonEffect,
+  TriggeredTerrainEffect
 } from "../../types";
 import {
   buildMotionPositions,
@@ -26,7 +30,38 @@ import {
   consumeActiveTool,
   requireDirection
 } from "../actionResolution";
-import { findPlayersAtPosition, resolvePushTarget } from "../spatial";
+import { resolveLinearDisplacement } from "../movementSystem";
+import { findPlayersAtPosition } from "../spatial";
+
+function buildMovementSystemContext(context: ToolActionContext) {
+  return {
+    activeTool: context.activeTool,
+    actorId: context.actor.id,
+    board: context.board,
+    players: context.players,
+    sourceId: context.activeTool.instanceId,
+    summons: context.summons
+  };
+}
+
+function toAffectedPlayerMove(
+  playerId: string,
+  startPosition: ToolActionContext["actor"]["position"],
+  movement: MovementDescriptor,
+  resolution: ReturnType<typeof resolveLinearDisplacement>,
+  reason: string
+): AffectedPlayerMove {
+  return {
+    characterState: resolution.actor.characterState,
+    movement,
+    path: resolution.path,
+    playerId,
+    reason,
+    startPosition,
+    target: resolution.actor.position,
+    turnFlags: resolution.actor.turnFlags
+  };
+}
 
 // Balance converts the current turn's move stock into a deferred bonus for a later turn.
 export function resolveBalanceTool(context: ToolActionContext): ActionResolution {
@@ -97,13 +132,16 @@ export function resolveBalanceTool(context: ToolActionContext): ActionResolution
   );
 }
 
-// Bomb Throw selects one adjacent tile, then pushes every player on it in the chosen direction.
+// Bomb Throw selects one nearby tile, then resolves every pushed player through shared passive translation.
 export function resolveBombThrowTool(context: ToolActionContext): ActionResolution {
   const targetPosition = context.targetPosition;
   const direction = requireDirection(context);
   const targetRange = getToolParam(context.activeTool, "targetRange");
   const pushDistance = getToolParam(context.activeTool, "pushDistance");
-  const pushMovement = createMovementDescriptor("translate", "passive");
+  const pushMovement = createMovementDescriptor("translate", "passive", {
+    tags: [`tool:${context.activeTool.toolId}`, "bomb:push"],
+    timing: "out_of_turn"
+  });
 
   if (!targetPosition) {
     return buildBlockedResolution(
@@ -157,31 +195,57 @@ export function resolveBombThrowTool(context: ToolActionContext): ActionResoluti
 
   const affectedPlayers: AffectedPlayerMove[] = [];
   const tileMutations: TileMutation[] = [];
-  const triggeredTerrainEffects = [];
+  const summonMutations: SummonMutation[] = [];
+  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
+  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
   const motionEvents: ActionPresentationEvent[] = [];
+  let nextTools = consumeActiveTool(context);
+  let nextToolDieSeed = context.toolDieSeed;
 
   for (const [index, targetPlayer] of targetPlayers.entries()) {
-    const traversal = resolvePushTarget(context, targetPlayer, direction, pushDistance, tileMutations);
+    const pushResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+      direction,
+      maxSteps: pushDistance,
+      movePoints: pushDistance,
+      movement: pushMovement,
+      player: {
+        characterId: targetPlayer.characterId,
+        characterState: targetPlayer.characterState,
+        id: targetPlayer.id,
+        position: targetPlayer.position,
+        spawnPosition: targetPlayer.spawnPosition,
+        turnFlags: targetPlayer.turnFlags
+      },
+      priorSummonMutations: summonMutations,
+      priorTileMutations: tileMutations,
+      toolDieSeed: nextToolDieSeed,
+      tools: nextTools
+    });
 
-    if (!traversal.path.length) {
+    if (!pushResolution.path.length) {
       continue;
     }
 
-    affectedPlayers.push({
-      movement: pushMovement,
-      path: traversal.path,
-      playerId: targetPlayer.id,
-      reason: "bomb_throw",
-      startPosition: targetPlayer.position,
-      target: traversal.position
-    });
-    tileMutations.push(...traversal.tileMutations);
-    triggeredTerrainEffects.push(...traversal.triggeredTerrainEffects);
+    affectedPlayers.push(
+      toAffectedPlayerMove(
+        targetPlayer.id,
+        targetPlayer.position,
+        pushMovement,
+        pushResolution,
+        "bomb_throw"
+      )
+    );
+    nextTools = pushResolution.tools;
+    nextToolDieSeed = pushResolution.nextToolDieSeed;
+    tileMutations.push(...pushResolution.tileMutations);
+    summonMutations.push(...pushResolution.summonMutations);
+    triggeredTerrainEffects.push(...pushResolution.triggeredTerrainEffects);
+    triggeredSummonEffects.push(...pushResolution.triggeredSummonEffects);
 
     const motionEvent = createPlayerMotionEvent(
       `${context.activeTool.instanceId}:bomb-push-${targetPlayer.id}-${index}`,
       targetPlayer.id,
-      buildMotionPositions(targetPlayer.position, traversal.path),
+      buildMotionPositions(targetPlayer.position, pushResolution.path),
       "ground"
     );
 
@@ -204,14 +268,16 @@ export function resolveBombThrowTool(context: ToolActionContext): ActionResoluti
 
   return buildAppliedResolution(
     context.actor,
-    consumeActiveTool(context),
+    nextTools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
+    nextToolDieSeed,
     [],
     tileMutations,
     affectedPlayers,
     triggeredTerrainEffects,
     [targetPosition],
-    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
+    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    summonMutations,
+    triggeredSummonEffects
   );
 }

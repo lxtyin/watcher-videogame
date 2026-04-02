@@ -238,6 +238,10 @@ export const TOOL_REGISTRY = defineToolRegistry({
     endsTurnOnUse: false
   },
   teleport: {
+    actorMovement: {
+      type: "teleport",
+      disposition: "active"
+    },
     label: "瞬移",
     description: "选择全场任意一个可落脚地块，直接瞬移到目标位置。",
     disabledHint: "当前还不能瞬移到这个位置。",

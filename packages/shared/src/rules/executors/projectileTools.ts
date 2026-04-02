@@ -3,8 +3,11 @@ import type {
   ActionPresentationEvent,
   ActionResolution,
   AffectedPlayerMove,
+  MovementDescriptor,
+  SummonMutation,
   TileMutation,
   ToolActionContext,
+  TriggeredSummonEffect,
   TriggeredTerrainEffect
 } from "../../types";
 import {
@@ -23,26 +26,69 @@ import {
   requireDirection
 } from "../actionResolution";
 import {
+  resolveLeapDisplacement,
+  resolveLinearDisplacement
+} from "../movementSystem";
+import {
   CARDINAL_DIRECTIONS,
   collectExplosionPreviewTiles,
   findPlayersAtPosition,
   getOppositeDirection,
-  resolveLeapLanding,
-  resolvePushTarget,
   stepPosition,
   traceProjectile
 } from "../spatial";
 
-// Basketball uses a bouncing projectile and can reward extra charges after a player hit.
+function buildMovementSystemContext(context: ToolActionContext) {
+  return {
+    activeTool: context.activeTool,
+    actorId: context.actor.id,
+    board: context.board,
+    players: context.players,
+    sourceId: context.activeTool.instanceId,
+    summons: context.summons
+  };
+}
+
+function toSubject(player: ToolActionContext["actor"] | ToolActionContext["players"][number]) {
+  return {
+    characterId: player.characterId,
+    characterState: player.characterState,
+    id: player.id,
+    position: player.position,
+    spawnPosition: player.spawnPosition,
+    turnFlags: player.turnFlags
+  };
+}
+
+function toAffectedPlayerMove(
+  playerId: string,
+  startPosition: ToolActionContext["actor"]["position"],
+  movement: MovementDescriptor,
+  resolution: ReturnType<typeof resolveLinearDisplacement> | ReturnType<typeof resolveLeapDisplacement>,
+  reason: string
+): AffectedPlayerMove {
+  return {
+    characterState: resolution.actor.characterState,
+    movement,
+    path: resolution.path,
+    playerId,
+    reason,
+    startPosition,
+    target: resolution.actor.position,
+    turnFlags: resolution.actor.turnFlags
+  };
+}
+
+// Basketball uses a bouncing projectile and resolves each hit push through the shared translation system.
 export function resolveBasketballTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const projectileRange = getToolParam(context.activeTool, "projectileRange");
   const bounceCount = getToolParam(context.activeTool, "projectileBounceCount");
   const pushDistance = getToolParam(context.activeTool, "projectilePushDistance");
-  const affectedPlayers: AffectedPlayerMove[] = [];
-  const tileMutations: TileMutation[] = [];
-  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
-  const pushedMovement = createMovementDescriptor("translate", "passive");
+  const pushedMovement = createMovementDescriptor("translate", "passive", {
+    tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
+    timing: "out_of_turn"
+  });
 
   if (!direction) {
     return buildBlockedResolution(
@@ -62,35 +108,52 @@ export function resolveBasketballTool(context: ToolActionContext): ActionResolut
   );
   const impactStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
   const motionEvents: ActionPresentationEvent[] = projectileEvent ? [projectileEvent] : [];
+  const affectedPlayers: AffectedPlayerMove[] = [];
+  const tileMutations: TileMutation[] = [];
+  const summonMutations: SummonMutation[] = [];
+  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
+  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
+  let nextTools = consumeActiveTool(context);
+  let nextToolDieSeed = context.toolDieSeed;
 
   if (trace.collision.kind === "player") {
     for (const [index, hitPlayer] of trace.collision.players.entries()) {
-      const traversal = resolvePushTarget(
-        context,
-        hitPlayer,
-        trace.collision.direction,
-        pushDistance,
-        tileMutations
-      );
+      const pushResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+        direction: trace.collision.direction,
+        maxSteps: pushDistance,
+        movePoints: pushDistance,
+        movement: pushedMovement,
+        player: toSubject(hitPlayer),
+        priorSummonMutations: summonMutations,
+        priorTileMutations: tileMutations,
+        toolDieSeed: nextToolDieSeed,
+        tools: nextTools
+      });
 
-      if (!traversal.path.length) {
+      if (!pushResolution.path.length) {
         continue;
       }
 
-      affectedPlayers.push({
-        movement: pushedMovement,
-        path: traversal.path,
-        playerId: hitPlayer.id,
-        startPosition: hitPlayer.position,
-        target: traversal.position,
-        reason: "basketball"
-      });
-      tileMutations.push(...traversal.tileMutations);
-      triggeredTerrainEffects.push(...traversal.triggeredTerrainEffects);
+      affectedPlayers.push(
+        toAffectedPlayerMove(
+          hitPlayer.id,
+          hitPlayer.position,
+          pushedMovement,
+          pushResolution,
+          "basketball"
+        )
+      );
+      nextTools = pushResolution.tools;
+      nextToolDieSeed = pushResolution.nextToolDieSeed;
+      tileMutations.push(...pushResolution.tileMutations);
+      summonMutations.push(...pushResolution.summonMutations);
+      triggeredTerrainEffects.push(...pushResolution.triggeredTerrainEffects);
+      triggeredSummonEffects.push(...pushResolution.triggeredSummonEffects);
+
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:basketball-hit-${index}`,
         hitPlayer.id,
-        buildMotionPositions(hitPlayer.position, traversal.path),
+        buildMotionPositions(hitPlayer.position, pushResolution.path),
         "ground",
         impactStartMs
       );
@@ -101,30 +164,36 @@ export function resolveBasketballTool(context: ToolActionContext): ActionResolut
     }
   }
 
-  const presentation = createPresentation(context.actor.id, context.activeTool.toolId, motionEvents);
-
   return buildAppliedResolution(
     context.actor,
-    consumeActiveTool(context),
+    nextTools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
+    nextToolDieSeed,
     trace.path,
     tileMutations,
     affectedPlayers,
     triggeredTerrainEffects,
     [],
-    presentation
+    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    summonMutations,
+    triggeredSummonEffects
   );
 }
 
-// Rocket resolves a line trace, then applies an explosion-centered knockback pattern.
+// Rocket resolves a line trace, then applies leap and push displacement through the shared movement system.
 export function resolveRocketTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const projectileRange = getToolParam(context.activeTool, "projectileRange");
   const blastLeapDistance = getToolParam(context.activeTool, "rocketBlastLeapDistance");
   const splashPushDistance = getToolParam(context.activeTool, "rocketSplashPushDistance");
-  const blastMovement = createMovementDescriptor("leap", "passive");
-  const splashMovement = createMovementDescriptor("translate", "passive");
+  const blastMovement = createMovementDescriptor("leap", "passive", {
+    tags: [`tool:${context.activeTool.toolId}`, "rocket:blast"],
+    timing: "out_of_turn"
+  });
+  const splashMovement = createMovementDescriptor("translate", "passive", {
+    tags: [`tool:${context.activeTool.toolId}`, "rocket:splash"],
+    timing: "out_of_turn"
+  });
 
   if (!direction) {
     return buildBlockedResolution(
@@ -136,7 +205,6 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
   }
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
-
   const explosionPosition =
     trace.collision.kind === "player"
       ? trace.collision.position
@@ -164,40 +232,55 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
     buildMotionPositions(context.actor.position, trace.path)
   );
   const explosionStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
+  const motionEvents: ActionPresentationEvent[] = projectileEvent ? [projectileEvent] : [];
   const affectedPlayers: AffectedPlayerMove[] = [];
   const tileMutations: TileMutation[] = [];
+  const summonMutations: SummonMutation[] = [];
   const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
-  const motionEvents: ActionPresentationEvent[] = projectileEvent ? [projectileEvent] : [];
+  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
+  let nextTools = consumeActiveTool(context);
+  let nextToolDieSeed = context.toolDieSeed;
   const centerPlayers =
     trace.collision.kind === "player"
       ? trace.collision.players
       : findPlayersAtPosition(context.players, explosionPosition, []);
 
   centerPlayers.forEach((hitPlayer, index) => {
-    const leap = resolveLeapLanding(
-      context.board,
-      hitPlayer.position,
-      centerLeapDirection,
-      blastLeapDistance,
-      tileMutations
-    );
+    const leapResolution = resolveLeapDisplacement(buildMovementSystemContext(context), {
+      direction: centerLeapDirection,
+      maxDistance: blastLeapDistance,
+      movement: blastMovement,
+      player: toSubject(hitPlayer),
+      priorSummonMutations: summonMutations,
+      priorTileMutations: tileMutations,
+      toolDieSeed: nextToolDieSeed,
+      tools: nextTools
+    });
 
-    if (!leap.landing) {
+    if (!leapResolution.path.length) {
       return;
     }
 
-    affectedPlayers.push({
-      movement: blastMovement,
-      path: leap.path,
-      playerId: hitPlayer.id,
-      startPosition: hitPlayer.position,
-      target: leap.landing,
-      reason: "rocket_blast"
-    });
+    affectedPlayers.push(
+      toAffectedPlayerMove(
+        hitPlayer.id,
+        hitPlayer.position,
+        blastMovement,
+        leapResolution,
+        "rocket_blast"
+      )
+    );
+    nextTools = leapResolution.tools;
+    nextToolDieSeed = leapResolution.nextToolDieSeed;
+    tileMutations.push(...leapResolution.tileMutations);
+    summonMutations.push(...leapResolution.summonMutations);
+    triggeredTerrainEffects.push(...leapResolution.triggeredTerrainEffects);
+    triggeredSummonEffects.push(...leapResolution.triggeredSummonEffects);
+
     const motionEvent = createPlayerMotionEvent(
       `${context.activeTool.instanceId}:blast-${index}`,
       hitPlayer.id,
-      buildMotionPositions(hitPlayer.position, leap.path),
+      buildMotionPositions(hitPlayer.position, leapResolution.path),
       "arc",
       explosionStartMs + ROCKET_BLAST_DELAY_MS
     );
@@ -216,32 +299,42 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
     );
 
     for (const splashPlayer of splashPlayers) {
-      const traversal = resolvePushTarget(
-        context,
-        splashPlayer,
-        splashDirection,
-        splashPushDistance,
-        tileMutations
-      );
+      const pushResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+        direction: splashDirection,
+        maxSteps: splashPushDistance,
+        movePoints: splashPushDistance,
+        movement: splashMovement,
+        player: toSubject(splashPlayer),
+        priorSummonMutations: summonMutations,
+        priorTileMutations: tileMutations,
+        toolDieSeed: nextToolDieSeed,
+        tools: nextTools
+      });
 
-      if (!traversal.path.length) {
+      if (!pushResolution.path.length) {
         continue;
       }
 
-      affectedPlayers.push({
-        movement: splashMovement,
-        path: traversal.path,
-        playerId: splashPlayer.id,
-        startPosition: splashPlayer.position,
-        target: traversal.position,
-        reason: "rocket_splash"
-      });
-      tileMutations.push(...traversal.tileMutations);
-      triggeredTerrainEffects.push(...traversal.triggeredTerrainEffects);
+      affectedPlayers.push(
+        toAffectedPlayerMove(
+          splashPlayer.id,
+          splashPlayer.position,
+          splashMovement,
+          pushResolution,
+          "rocket_splash"
+        )
+      );
+      nextTools = pushResolution.tools;
+      nextToolDieSeed = pushResolution.nextToolDieSeed;
+      tileMutations.push(...pushResolution.tileMutations);
+      summonMutations.push(...pushResolution.summonMutations);
+      triggeredTerrainEffects.push(...pushResolution.triggeredTerrainEffects);
+      triggeredSummonEffects.push(...pushResolution.triggeredSummonEffects);
+
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:splash-${splashPlayer.id}-${splashDirection}`,
         splashPlayer.id,
-        buildMotionPositions(splashPlayer.position, traversal.path),
+        buildMotionPositions(splashPlayer.position, pushResolution.path),
         "ground",
         explosionStartMs + ROCKET_BLAST_DELAY_MS
       );
@@ -252,28 +345,29 @@ export function resolveRocketTool(context: ToolActionContext): ActionResolution 
     }
   }
 
+  const previewTiles = collectExplosionPreviewTiles(context.board, explosionPosition);
   motionEvents.push(
     createEffectEvent(
       `${context.activeTool.instanceId}:explosion`,
       "rocket_explosion",
       explosionPosition,
-      collectExplosionPreviewTiles(context.board, explosionPosition),
+      previewTiles,
       explosionStartMs
     )
   );
-  const previewTiles = collectExplosionPreviewTiles(context.board, explosionPosition);
-  const presentation = createPresentation(context.actor.id, context.activeTool.toolId, motionEvents);
 
   return buildAppliedResolution(
     context.actor,
-    consumeActiveTool(context),
+    nextTools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
+    nextToolDieSeed,
     trace.path,
     tileMutations,
     affectedPlayers,
     triggeredTerrainEffects,
     previewTiles,
-    presentation
+    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    summonMutations,
+    triggeredSummonEffects
   );
 }

@@ -25,6 +25,7 @@ import {
   getToolDefinition,
   getToolParam,
   type PlayerTurnFlag,
+  resolveCurrentTileStop,
   resolveToolAction,
   rollMovementDie,
   rollToolDie,
@@ -232,6 +233,43 @@ export class WatcherRoom extends Room<WatcherState> {
     ]);
   }
 
+  private applyTurnStartStop(player: PlayerState): void {
+    const stopResolution = resolveCurrentTileStop(
+      {
+        activeTool: null,
+        actorId: player.id,
+        board: createBoardDefinitionFromState(this.state),
+        players: createBoardPlayersFromState(this.state),
+        sourceId: `turn-start:${player.id}:${this.state.turnInfo.turnNumber}`,
+        summons: createBoardSummonsFromState(this.state)
+      },
+      {
+        player: {
+          characterId: player.characterId,
+          characterState: cloneCharacterState(this.getPlayerCharacterState(player)),
+          id: player.id,
+          position: { x: player.x, y: player.y },
+          spawnPosition: { x: player.spawnX, y: player.spawnY },
+          turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
+        },
+        toolDieSeed: this.toolDieSeed,
+        tools: createPlayerToolsFromState(player)
+      }
+    );
+
+    player.x = stopResolution.actor.position.x;
+    player.y = stopResolution.actor.position.y;
+    this.applyPlayerCharacterState(player, stopResolution.actor.characterState);
+    applyPlayerTurnFlags(player, stopResolution.actor.turnFlags);
+    applyToolInventory(player, stopResolution.tools, (tools) => this.normalizePlayerTools(player, tools));
+    applyTileMutations(this.state, stopResolution.tileMutations);
+    applySummonMutations(this.state, stopResolution.summonMutations);
+    this.toolDieSeed = stopResolution.nextToolDieSeed;
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
+    pushTerrainEvents(this.state, player.id, stopResolution.triggeredTerrainEffects);
+    pushSummonEvents(this.state, stopResolution.triggeredSummonEffects);
+  }
+
   private normalizePlayerTools(player: PlayerState, tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
     return applyCharacterToolTransforms(player.characterId, tools);
   }
@@ -257,10 +295,10 @@ export class WatcherRoom extends Room<WatcherState> {
     moveRoll: number,
     rolledTool: TurnToolSnapshot | null
   ): void {
-    clearPlayerTurnResources(player);
     applyToolInventory(
       player,
       this.buildTurnActionTools(player, [
+        ...createPlayerToolsFromState(player),
         createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll),
         ...(rolledTool ? [rolledTool] : [])
       ]),
@@ -307,6 +345,7 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     this.pushEvent("turn_started", `${player.name}'s turn started. Roll the dice.`);
+    this.applyTurnStartStop(player);
   }
 
   // Player order follows the current schema insertion order.

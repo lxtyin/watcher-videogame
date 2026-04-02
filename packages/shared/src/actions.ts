@@ -2,11 +2,10 @@ import { getToolAvailability, getToolDefinition } from "./tools";
 import type { ActionResolution, ToolActionContext } from "./types";
 import {
   attachStateTransitionPresentation,
-  applyMovementBoardEffects,
-  buildBlockedResolution,
-  finalizeAppliedResolution
+  buildBlockedResolution
 } from "./rules/actionResolution";
 import { TOOL_EXECUTORS } from "./rules/toolExecutors";
+export { resolveCurrentTileStop } from "./rules/movementSystem";
 
 export {
   getDirectionVector,
@@ -77,11 +76,5 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
         }
       : executedResolution;
 
-  return attachStateTransitionPresentation(
-    context,
-    finalizeAppliedResolution(
-      context,
-      applyMovementBoardEffects(context, definitionAdjustedResolution)
-    )
-  );
+  return attachStateTransitionPresentation(context, definitionAdjustedResolution);
 }

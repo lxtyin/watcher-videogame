@@ -16,7 +16,7 @@ export type ToolTargetMode =
   | "choice"
   | "tile_direction";
 export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
-export type MovementType = "translate" | "leap" | "drag";
+export type MovementType = "translate" | "leap" | "drag" | "teleport";
 export type MovementDisposition = "active" | "passive";
 
 export type ToolParameterId =
@@ -121,3 +121,4 @@ export interface PresentationEffectContentDefinition {
   description: string;
   label: string;
 }
+

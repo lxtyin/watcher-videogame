@@ -1,12 +1,10 @@
 import { getTile } from "../board";
-import { applyMovementSummonEffects } from "../summons";
-import { applyStopTerrainEffects } from "../terrain";
 import { consumeToolInstance } from "../tools";
 import type {
   ActionPresentation,
   ActionResolution,
-  AffectedPlayerMove,
   ActionPresentationEvent,
+  AffectedPlayerMove,
   BoardSummonState,
   Direction,
   GridPosition,
@@ -62,7 +60,7 @@ export function buildBlockedResolution(
   };
 }
 
-// Applied resolutions capture the immediate tool result before stop-terrain post-processing.
+// Applied resolutions capture the fully resolved tool result after movement-trigger processing.
 export function buildAppliedResolution(
   nextActor: MovementActor,
   tools: TurnToolSnapshot[],
@@ -99,97 +97,6 @@ export function buildAppliedResolution(
     presentation,
     endsTurn,
     nextToolDieSeed
-  };
-}
-
-// Stop terrain runs after tool mechanics so every executor inherits the same landing rules.
-export function finalizeAppliedResolution(
-  context: ToolActionContext,
-  resolution: ActionResolution
-): ActionResolution {
-  if (resolution.kind === "blocked") {
-    return resolution;
-  }
-
-  const resolvedActor: MovementActor = {
-    ...context.actor,
-    characterState: resolution.actor.characterState,
-    position: resolution.actor.position,
-    turnFlags: resolution.actor.turnFlags
-  };
-
-  const stopResolution = applyStopTerrainEffects({
-    activeTool: context.activeTool,
-    actor: resolvedActor,
-    actorMovement: {
-      movement: resolution.actorMovement?.movement ?? null
-    },
-    actorPosition: resolution.actor.position,
-    affectedPlayers: resolution.affectedPlayers,
-    board: context.board,
-    players: context.players,
-    tileMutations: resolution.tileMutations,
-    toolDieSeed: resolution.nextToolDieSeed,
-    tools: resolution.tools
-  });
-
-  return {
-    ...resolution,
-    actor: stopResolution.actor,
-    affectedPlayers: stopResolution.affectedPlayers,
-    tools: stopResolution.tools,
-    triggeredTerrainEffects: [
-      ...resolution.triggeredTerrainEffects,
-      ...stopResolution.triggeredTerrainEffects
-    ],
-    nextToolDieSeed: stopResolution.nextToolDieSeed
-  };
-}
-
-// Movement-triggered summons run before landing terrain so pass/stop semantics stay composable.
-export function applyMovementBoardEffects(
-  context: ToolActionContext,
-  resolution: ActionResolution
-): ActionResolution {
-  if (resolution.kind === "blocked") {
-    return resolution;
-  }
-
-  if (!resolution.actorMovement && !resolution.affectedPlayers.length) {
-    return resolution;
-  }
-
-  const summonResolution = applyMovementSummonEffects({
-    activeTool: context.activeTool,
-    actor: context.actor,
-    actorMovement:
-      resolution.actorMovement === null
-        ? null
-        : {
-            movement: resolution.actorMovement.movement,
-            path: resolution.actorMovement.path,
-            position: resolution.actor.position
-          },
-    affectedPlayers: resolution.affectedPlayers,
-    players: context.players,
-    summons: context.summons,
-    toolDieSeed: resolution.nextToolDieSeed,
-    tools: resolution.tools
-  });
-
-  if (!summonResolution.summonMutations.length && !summonResolution.triggeredSummonEffects.length) {
-    return resolution;
-  }
-
-  return {
-    ...resolution,
-    tools: summonResolution.tools,
-    summonMutations: [...resolution.summonMutations, ...summonResolution.summonMutations],
-    triggeredSummonEffects: [
-      ...resolution.triggeredSummonEffects,
-      ...summonResolution.triggeredSummonEffects
-    ],
-    nextToolDieSeed: summonResolution.nextToolDieSeed
   };
 }
 

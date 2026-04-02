@@ -230,6 +230,32 @@ This keeps the next expansion path closer to:
   - active leap-stop wallet pickup
   - passive translate ignoring wallet pickup
 
+## 2026-04-02 Core Movement Update
+
+- Shared 规则层继续收敛为统一底层位移系统：
+  - `translate`
+  - `leap`
+  - `drag`
+  - `teleport`
+- 所有真正发生位移的 Tool 现在都复用 `packages/shared/src/rules/movementSystem.ts`
+  - Tool executor 只保留“选目标 / 选命中对象”的差异
+  - 真正的位移、地形触发、召唤物触发与 stop 结算统一下沉
+- `MovementDescriptor` 现在额外带有：
+  - `timing`
+    - `in_turn`
+    - `out_of_turn`
+  - `tags`
+    - 用于表达 `tool:hookshot`、`rocket:splash` 这类自由描述符
+- summon 不再在 Tool 结束后按 path 回放
+  - 现在和 terrain 一样在位移过程中即时触发
+  - 这为未来“像传送带一样能影响位移过程的 summon”预留了结构
+- 回合开始时，当前玩家会立刻对脚下格子执行一次 `onStop`
+  - 站在幸运方块上会在掷骰前先拿到 Tool
+  - 站在坑上会在掷骰前先回出生点
+- 对应黄金案例已补充：
+  - `turn-start-lucky-grants-pre-roll-tool`
+  - `turn-start-pit-respawns-before-roll`
+
 ## 2026-04-01 Client Interaction Detail Update
 
 - 3D 场景现在支持长按查看说明卡。

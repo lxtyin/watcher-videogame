@@ -4,7 +4,8 @@ import { getToolDefinition, getToolParam } from "../../tools";
 import type {
   ActionResolution,
   AffectedPlayerMove,
-  GridPosition,
+  MovementActor,
+  MovementDescriptor,
   ToolActionContext
 } from "../../types";
 import {
@@ -14,7 +15,8 @@ import {
 } from "../actionPresentation";
 import {
   createMovementDescriptor,
-  createResolvedPlayerMovement
+  createResolvedPlayerMovement,
+  materializeMovementDescriptor
 } from "../displacement";
 import {
   buildAppliedResolution,
@@ -23,45 +25,125 @@ import {
   requireDirection
 } from "../actionResolution";
 import {
+  resolveLeapDisplacement,
+  resolveLinearDisplacement,
+  resolveTeleportDisplacement
+} from "../movementSystem";
+import {
   findPlayersAtPosition,
   getOppositeDirection,
-  isLandablePosition,
   isSolidTileType,
   normalizeAxisTarget,
-  positionsEqual,
-  resolveGroundTraversal,
-  resolveLeapLanding,
   stepPosition
 } from "../spatial";
 
-function getActorMovementDescriptor(
+function buildMovementSystemContext(context: ToolActionContext) {
+  return {
+    activeTool: context.activeTool,
+    actorId: context.actor.id,
+    board: context.board,
+    players: context.players,
+    sourceId: context.activeTool.instanceId,
+    summons: context.summons
+  };
+}
+
+function toMovementSubject(actor: MovementActor | ToolActionContext["players"][number]) {
+  return {
+    characterId: actor.characterId,
+    characterState: actor.characterState,
+    id: actor.id,
+    position: actor.position,
+    spawnPosition: actor.spawnPosition,
+    turnFlags: actor.turnFlags
+  };
+}
+
+function getToolMovementDescriptor(
   context: ToolActionContext,
-  fallbackType: "translate" | "leap" | "drag"
-) {
+  fallbackType: "translate" | "leap" | "drag" | "teleport",
+  extraTags: string[] = []
+): MovementDescriptor {
   const definitionMovement =
-    getToolDefinition(context.activeTool.toolId).actorMovement ??
-    createMovementDescriptor(fallbackType, "active");
+    getToolDefinition(context.activeTool.toolId).actorMovement ?? {
+      type: fallbackType,
+      disposition: "active" as const
+    };
   const overrideType = getCharacterMovementOverrideType(
     context.actor.characterId,
     context.actor.characterState
   );
-
-  if (
+  const type =
     definitionMovement.disposition === "active" &&
     definitionMovement.type === "translate" &&
     overrideType === "leap"
-  ) {
-    return createMovementDescriptor("leap", "active");
-  }
+      ? "leap"
+      : definitionMovement.type;
 
-  return definitionMovement;
+  return materializeMovementDescriptor(
+    {
+      ...definitionMovement,
+      type
+    },
+    {
+      tags: [`tool:${context.activeTool.toolId}`, ...extraTags],
+      timing: "in_turn"
+    }
+  );
 }
 
-// Movement spends the tool's stored move points on the grounded traversal pipeline.
+function createPassiveToolMovementDescriptor(
+  toolId: ToolActionContext["activeTool"]["toolId"],
+  type: "translate" | "leap" | "drag",
+  extraTags: string[] = []
+): MovementDescriptor {
+  return createMovementDescriptor(type, "passive", {
+    tags: [`tool:${toolId}`, ...extraTags],
+    timing: "out_of_turn"
+  });
+}
+
+function createActorMotionPresentation(
+  context: ToolActionContext,
+  eventSuffix: string,
+  path: ToolActionContext["actor"]["position"][],
+  motionStyle: "ground" | "arc"
+) {
+  return createPresentation(context.actor.id, context.activeTool.toolId, [
+    createPlayerMotionEvent(
+      `${context.activeTool.instanceId}:${eventSuffix}`,
+      context.actor.id,
+      buildMotionPositions(context.actor.position, path),
+      motionStyle
+    )
+  ].flatMap((event) => (event ? [event] : [])));
+}
+
+function toAffectedPlayerMove(
+  playerId: string,
+  startPosition: MovementActor["position"],
+  movement: MovementDescriptor,
+  resolution: ReturnType<typeof resolveLinearDisplacement> | ReturnType<typeof resolveLeapDisplacement>,
+  reason: string
+): AffectedPlayerMove {
+  return {
+    characterState: resolution.actor.characterState,
+    movement,
+    path: resolution.path,
+    playerId,
+    reason,
+    startPosition,
+    target: resolution.actor.position,
+    turnFlags: resolution.actor.turnFlags
+  };
+}
+
+// Movement spends the tool's stored move points on the shared displacement system.
 export function resolveMovementTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const movePoints = getToolParam(context.activeTool, "movePoints");
-  const movement = getActorMovementDescriptor(context, "translate");
+  const movement = getToolMovementDescriptor(context, "translate");
+  const nextTools = consumeActiveTool(context);
 
   if (!direction) {
     return buildBlockedResolution(
@@ -81,101 +163,82 @@ export function resolveMovementTool(context: ToolActionContext): ActionResolutio
     );
   }
 
-  if (movement.type === "leap") {
-    const leap = resolveLeapLanding(context.board, context.actor.position, direction, movePoints);
+  const resolution =
+    movement.type === "leap"
+      ? resolveLeapDisplacement(buildMovementSystemContext(context), {
+          direction,
+          maxDistance: movePoints,
+          movement,
+          player: toMovementSubject(context.actor),
+          toolDieSeed: context.toolDieSeed,
+          tools: nextTools
+        })
+      : resolveLinearDisplacement(buildMovementSystemContext(context), {
+          direction,
+          movePoints,
+          movement,
+          player: toMovementSubject(context.actor),
+          toolDieSeed: context.toolDieSeed,
+          tools: nextTools
+        });
 
-    if (!leap.landing) {
-      return buildBlockedResolution(
-        context.actor,
-        context.tools,
-        "No landing tile",
-        context.toolDieSeed,
-        leap.path,
-        [],
-        leap.path
-      );
-    }
-
-    const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-      createPlayerMotionEvent(
-        `${context.activeTool.instanceId}:actor-move`,
-        context.actor.id,
-        buildMotionPositions(context.actor.position, leap.path),
-        "arc"
-      )
-    ].flatMap((event) => (event ? [event] : [])));
-
-    return buildAppliedResolution(
-      {
-        ...context.actor,
-        position: leap.landing
-      },
-      consumeActiveTool(context),
-      `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+  if (!resolution.path.length) {
+    return buildBlockedResolution(
+      context.actor,
+      context.tools,
+      resolution.stopReason,
       context.toolDieSeed,
-      leap.path,
+      resolution.path,
       [],
-      [],
-      [],
-      leap.path,
-      presentation,
-      [],
-      [],
-      false,
-      createResolvedPlayerMovement(context.actor.id, context.actor.position, leap.path, movement)
+      resolution.path
     );
   }
-
-  const traversal = resolveGroundTraversal({
-    actorId: context.actor.id,
-    board: context.board,
-    direction,
-    movement,
-    movePoints,
-    position: context.actor.position
-  });
-  const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-    createPlayerMotionEvent(
-      `${context.activeTool.instanceId}:actor-move`,
-      context.actor.id,
-      buildMotionPositions(context.actor.position, traversal.path),
-      "ground"
-    )
-  ].flatMap((event) => (event ? [event] : [])));
 
   return buildAppliedResolution(
     {
       ...context.actor,
-      position: traversal.position
+      characterState: resolution.actor.characterState,
+      position: resolution.actor.position,
+      turnFlags: resolution.actor.turnFlags
     },
-    consumeActiveTool(context),
+    resolution.tools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
-    traversal.path,
-    traversal.tileMutations,
+    resolution.nextToolDieSeed,
+    resolution.path,
+    resolution.tileMutations,
     [],
-    traversal.triggeredTerrainEffects,
-    traversal.path,
-    presentation,
-    [],
-    [],
+    resolution.triggeredTerrainEffects,
+    resolution.path,
+    createActorMotionPresentation(
+      context,
+      "actor-move",
+      resolution.path,
+      movement.type === "leap" ? "arc" : "ground"
+    ),
+    resolution.summonMutations,
+    resolution.triggeredSummonEffects,
     false,
-    createResolvedPlayerMovement(
-      context.actor.id,
-      context.actor.position,
-      traversal.path,
-      movement
-    )
+    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
   );
 }
 
-// Jump checks multiple landings without triggering grounded pass-through terrain.
+// Jump resolves through the same leap system as other arc movement effects.
 export function resolveJumpTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const jumpDistance = getToolParam(context.activeTool, "jumpDistance");
-  const movement = getActorMovementDescriptor(context, "leap");
+  const movement = getToolMovementDescriptor(context, "leap");
+  const resolution = direction
+    ? resolveLeapDisplacement(buildMovementSystemContext(context), {
+        direction,
+        maxDistance: jumpDistance,
+        movement,
+        player: toMovementSubject(context.actor),
+        toolDieSeed: context.toolDieSeed,
+        tools: consumeActiveTool(context)
+      })
+    : null;
 
-  if (!direction) {
+  if (!direction || !resolution) {
     return buildBlockedResolution(
       context.actor,
       context.tools,
@@ -184,66 +247,49 @@ export function resolveJumpTool(context: ToolActionContext): ActionResolution {
     );
   }
 
-  const leap = resolveLeapLanding(
-    context.board,
-    context.actor.position,
-    direction,
-    jumpDistance
-  );
-
-  if (!leap.landing) {
+  if (!resolution.path.length) {
     return buildBlockedResolution(
       context.actor,
       context.tools,
-      "No landing tile",
+      resolution.stopReason,
       context.toolDieSeed,
-      leap.path,
+      resolution.path,
       [],
-      leap.path
+      resolution.path
     );
   }
-
-  const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-    createPlayerMotionEvent(
-      `${context.activeTool.instanceId}:actor-jump`,
-      context.actor.id,
-      buildMotionPositions(context.actor.position, leap.path),
-      "arc"
-    )
-  ].flatMap((event) => (event ? [event] : [])));
 
   return buildAppliedResolution(
     {
       ...context.actor,
-      position: leap.landing
+      characterState: resolution.actor.characterState,
+      position: resolution.actor.position,
+      turnFlags: resolution.actor.turnFlags
     },
-    consumeActiveTool(context),
+    resolution.tools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
-    leap.path,
+    resolution.nextToolDieSeed,
+    resolution.path,
+    resolution.tileMutations,
     [],
-    [],
-    [],
-    leap.path,
-    presentation,
-    [],
-    [],
+    resolution.triggeredTerrainEffects,
+    resolution.path,
+    createActorMotionPresentation(context, "actor-jump", resolution.path, "arc"),
+    resolution.summonMutations,
+    resolution.triggeredSummonEffects,
     false,
-    createResolvedPlayerMovement(
-      context.actor.id,
-      context.actor.position,
-      leap.path,
-      movement
-    )
+    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
   );
 }
 
-// Hookshot either pulls a player or snaps the actor toward the first solid obstacle hit.
+// Hookshot keeps its trace selection, but every resulting displacement resolves through the shared movement system.
 export function resolveHookshotTool(context: ToolActionContext): ActionResolution {
   const direction = requireDirection(context);
   const hookLength = getToolParam(context.activeTool, "hookLength");
-  const actorMovement = getActorMovementDescriptor(context, "drag");
-  const pulledMovement = createMovementDescriptor("drag", "passive");
+  const actorMovement = getToolMovementDescriptor(context, "drag", ["hookshot:self"]);
+  const pulledMovement = createPassiveToolMovementDescriptor(context.activeTool.toolId, "drag", [
+    "hookshot:pull"
+  ]);
 
   if (!direction) {
     return buildBlockedResolution(
@@ -254,7 +300,7 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
     );
   }
 
-  const rayPath: GridPosition[] = [];
+  const rayPath: MovementActor["position"][] = [];
 
   for (let distance = 1; distance <= hookLength; distance += 1) {
     const target = stepPosition(context.actor.position, direction, distance);
@@ -266,7 +312,9 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
     const tile = getTile(context.board, target);
 
     if (tile && isSolidTileType(tile.type)) {
-      if (distance === 1) {
+      const pullDistance = distance - 1;
+
+      if (pullDistance < 1) {
         return buildBlockedResolution(
           context.actor,
           context.tools,
@@ -278,37 +326,51 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
         );
       }
 
-      const landing = stepPosition(context.actor.position, direction, distance - 1);
-      const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-        createPlayerMotionEvent(
-          `${context.activeTool.instanceId}:actor-hook`,
-          context.actor.id,
-          buildMotionPositions(context.actor.position, rayPath),
-          "ground"
-        )
-      ].flatMap((event) => (event ? [event] : [])));
+      const actorResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+        direction,
+        maxSteps: pullDistance,
+        movePoints: pullDistance,
+        movement: actorMovement,
+        player: toMovementSubject(context.actor),
+        toolDieSeed: context.toolDieSeed,
+        tools: consumeActiveTool(context)
+      });
+
+      if (!actorResolution.path.length) {
+        return buildBlockedResolution(
+          context.actor,
+          context.tools,
+          actorResolution.stopReason,
+          context.toolDieSeed,
+          rayPath,
+          [],
+          rayPath
+        );
+      }
 
       return buildAppliedResolution(
         {
           ...context.actor,
-          position: landing
+          characterState: actorResolution.actor.characterState,
+          position: actorResolution.actor.position,
+          turnFlags: actorResolution.actor.turnFlags
         },
-        consumeActiveTool(context),
+        actorResolution.tools,
         `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-        context.toolDieSeed,
+        actorResolution.nextToolDieSeed,
+        actorResolution.path,
+        actorResolution.tileMutations,
+        [],
+        actorResolution.triggeredTerrainEffects,
         rayPath,
-        [],
-        [],
-        [],
-        rayPath,
-        presentation,
-        [],
-        [],
+        createActorMotionPresentation(context, "actor-hook", actorResolution.path, "ground"),
+        actorResolution.summonMutations,
+        actorResolution.triggeredSummonEffects,
         false,
         createResolvedPlayerMovement(
           context.actor.id,
           context.actor.position,
-          rayPath,
+          actorResolution.path,
           actorMovement
         )
       );
@@ -318,93 +380,96 @@ export function resolveHookshotTool(context: ToolActionContext): ActionResolutio
 
     const hitPlayers = findPlayersAtPosition(context.players, target, [context.actor.id]);
 
-    if (hitPlayers.length) {
-      const pullDirection = getOppositeDirection(direction);
-      const affectedPlayerResults = hitPlayers.flatMap((hitPlayer) => {
-        let currentTarget = hitPlayer.position;
-        const pullPath: GridPosition[] = [];
+    if (!hitPlayers.length) {
+      continue;
+    }
 
-        while (true) {
-          const nextTarget = stepPosition(currentTarget, pullDirection);
+    let nextTools = consumeActiveTool(context);
+    let nextToolDieSeed = context.toolDieSeed;
+    const tileMutations = [];
+    const summonMutations = [];
+    const triggeredTerrainEffects = [];
+    const triggeredSummonEffects = [];
+    const affectedPlayers: AffectedPlayerMove[] = [];
+    const motionEvents = [];
 
-          if (positionsEqual(nextTarget, context.actor.position)) {
-            break;
-          }
+    for (const [index, hitPlayer] of hitPlayers.entries()) {
+      const pullDistance = Math.max(0, distance - 1);
 
-          if (!isLandablePosition(context.board, nextTarget)) {
-            break;
-          }
-
-          currentTarget = nextTarget;
-          pullPath.push(currentTarget);
-        }
-
-        if (positionsEqual(currentTarget, hitPlayer.position)) {
-          return [];
-        }
-
-        return [
-          {
-            movement: pulledMovement,
-            path: pullPath,
-            playerId: hitPlayer.id,
-            startPosition: hitPlayer.position,
-            target: currentTarget,
-            reason: "hookshot"
-          }
-        ];
-      });
-      const affectedPlayers: AffectedPlayerMove[] = affectedPlayerResults.map(
-        ({ movement, path, playerId, startPosition, target, reason }) => ({
-          movement,
-          path,
-          playerId,
-          startPosition,
-          target,
-          reason
-        })
-      );
-
-      if (!affectedPlayers.length) {
-        return buildBlockedResolution(
-          context.actor,
-          context.tools,
-          "Target cannot be pulled",
-          context.toolDieSeed,
-          rayPath,
-          [],
-          rayPath
-        );
+      if (pullDistance < 1) {
+        continue;
       }
 
-      const presentation = createPresentation(
-        context.actor.id,
-        context.activeTool.toolId,
-        affectedPlayerResults.flatMap((result, index) => {
-          const event = createPlayerMotionEvent(
-            `${context.activeTool.instanceId}:hooked-${index}`,
-            result.playerId,
-            buildMotionPositions(result.startPosition, result.path),
-            "ground"
-          );
+      const pullResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+        direction: getOppositeDirection(direction),
+        maxSteps: pullDistance,
+        movePoints: pullDistance,
+        movement: pulledMovement,
+        player: toMovementSubject(hitPlayer),
+        priorSummonMutations: summonMutations,
+        priorTileMutations: tileMutations,
+        toolDieSeed: nextToolDieSeed,
+        tools: nextTools
+      });
 
-          return event ? [event] : [];
-        })
+      if (!pullResolution.path.length) {
+        continue;
+      }
+
+      affectedPlayers.push(
+        toAffectedPlayerMove(
+          hitPlayer.id,
+          hitPlayer.position,
+          pulledMovement,
+          pullResolution,
+          "hookshot"
+        )
+      );
+      nextTools = pullResolution.tools;
+      nextToolDieSeed = pullResolution.nextToolDieSeed;
+      tileMutations.push(...pullResolution.tileMutations);
+      summonMutations.push(...pullResolution.summonMutations);
+      triggeredTerrainEffects.push(...pullResolution.triggeredTerrainEffects);
+      triggeredSummonEffects.push(...pullResolution.triggeredSummonEffects);
+
+      const motionEvent = createPlayerMotionEvent(
+        `${context.activeTool.instanceId}:hooked-${index}`,
+        hitPlayer.id,
+        buildMotionPositions(hitPlayer.position, pullResolution.path),
+        "ground"
       );
 
-      return buildAppliedResolution(
+      if (motionEvent) {
+        motionEvents.push(motionEvent);
+      }
+    }
+
+    if (!affectedPlayers.length) {
+      return buildBlockedResolution(
         context.actor,
-        consumeActiveTool(context),
-        `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+        context.tools,
+        "Target cannot be pulled",
         context.toolDieSeed,
         rayPath,
         [],
-        affectedPlayers,
-        [],
-        rayPath,
-        presentation
+        rayPath
       );
     }
+
+    return buildAppliedResolution(
+      context.actor,
+      nextTools,
+      `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
+      nextToolDieSeed,
+      rayPath,
+      tileMutations,
+      affectedPlayers,
+      triggeredTerrainEffects,
+      rayPath,
+      createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+      summonMutations,
+      triggeredSummonEffects
+    );
   }
 
   return buildBlockedResolution(
@@ -446,7 +511,8 @@ export function resolveDashTool(context: ToolActionContext): ActionResolution {
 export function resolveBrakeTool(context: ToolActionContext): ActionResolution {
   const maxRange = getToolParam(context.activeTool, "brakeRange");
   const axisTarget = normalizeAxisTarget(context.actor.position, context.targetPosition);
-  const movement = getActorMovementDescriptor(context, "translate");
+  const movement = getToolMovementDescriptor(context, "translate");
+  const nextTools = consumeActiveTool(context);
 
   if (!axisTarget) {
     return buildBlockedResolution(
@@ -467,116 +533,70 @@ export function resolveBrakeTool(context: ToolActionContext): ActionResolution {
   }
 
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
-  if (movement.type === "leap") {
-    const leap = resolveLeapLanding(
-      context.board,
-      context.actor.position,
-      axisTarget.direction,
-      requestedDistance
-    );
+  const resolution =
+    movement.type === "leap"
+      ? resolveLeapDisplacement(buildMovementSystemContext(context), {
+          direction: axisTarget.direction,
+          maxDistance: requestedDistance,
+          movement,
+          player: toMovementSubject(context.actor),
+          toolDieSeed: context.toolDieSeed,
+          tools: nextTools
+        })
+      : resolveLinearDisplacement(buildMovementSystemContext(context), {
+          direction: axisTarget.direction,
+          maxSteps: requestedDistance,
+          movePoints: requestedDistance,
+          movement,
+          player: toMovementSubject(context.actor),
+          toolDieSeed: context.toolDieSeed,
+          tools: nextTools
+        });
 
-    if (!leap.landing) {
-      return buildBlockedResolution(
-        context.actor,
-        context.tools,
-        "No landing tile",
-        context.toolDieSeed,
-        leap.path,
-        [],
-        [axisTarget.snappedTarget]
-      );
-    }
-
-    const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-      createPlayerMotionEvent(
-        `${context.activeTool.instanceId}:actor-brake`,
-        context.actor.id,
-        buildMotionPositions(context.actor.position, leap.path),
-        "arc"
-      )
-    ].flatMap((event) => (event ? [event] : [])));
-
-    return buildAppliedResolution(
-      {
-        ...context.actor,
-        position: leap.landing
-      },
-      consumeActiveTool(context),
-      `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-      context.toolDieSeed,
-      leap.path,
-      [],
-      [],
-      [],
-      leap.path,
-      presentation,
-      [],
-      [],
-      false,
-      createResolvedPlayerMovement(context.actor.id, context.actor.position, leap.path, movement)
-    );
-  }
-
-  const traversal = resolveGroundTraversal({
-    actorId: context.actor.id,
-    board: context.board,
-    direction: axisTarget.direction,
-    movePoints: requestedDistance,
-    maxSteps: requestedDistance,
-    movement,
-    position: context.actor.position
-  });
-
-  if (!traversal.path.length) {
+  if (!resolution.path.length) {
     return buildBlockedResolution(
       context.actor,
       context.tools,
-      traversal.stopReason,
+      resolution.stopReason,
       context.toolDieSeed,
-      [],
+      resolution.path,
       [],
       [axisTarget.snappedTarget]
     );
   }
 
-  const presentation = createPresentation(context.actor.id, context.activeTool.toolId, [
-    createPlayerMotionEvent(
-      `${context.activeTool.instanceId}:actor-brake`,
-      context.actor.id,
-      buildMotionPositions(context.actor.position, traversal.path),
-      "ground"
-    )
-  ].flatMap((event) => (event ? [event] : [])));
-
   return buildAppliedResolution(
     {
       ...context.actor,
-      position: traversal.position
+      characterState: resolution.actor.characterState,
+      position: resolution.actor.position,
+      turnFlags: resolution.actor.turnFlags
     },
-    consumeActiveTool(context),
+    resolution.tools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
-    traversal.path,
-    traversal.tileMutations,
+    resolution.nextToolDieSeed,
+    resolution.path,
+    resolution.tileMutations,
     [],
-    traversal.triggeredTerrainEffects,
-    traversal.path,
-    presentation,
-    [],
-    [],
+    resolution.triggeredTerrainEffects,
+    resolution.path,
+    createActorMotionPresentation(
+      context,
+      "actor-brake",
+      resolution.path,
+      movement.type === "leap" ? "arc" : "ground"
+    ),
+    resolution.summonMutations,
+    resolution.triggeredSummonEffects,
     false,
-    createResolvedPlayerMovement(
-      context.actor.id,
-      context.actor.position,
-      traversal.path,
-      movement
-    )
+    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
   );
 }
 
-// Teleport moves directly onto any valid landing tile on the board.
+// Teleport goes through the shared teleport displacement so stop triggers still apply.
 export function resolveTeleportTool(context: ToolActionContext): ActionResolution {
   const targetPosition = context.targetPosition;
+  const movement = getToolMovementDescriptor(context, "teleport");
 
   if (!targetPosition) {
     return buildBlockedResolution(
@@ -587,11 +607,19 @@ export function resolveTeleportTool(context: ToolActionContext): ActionResolutio
     );
   }
 
-  if (!isLandablePosition(context.board, targetPosition)) {
+  const resolution = resolveTeleportDisplacement(buildMovementSystemContext(context), {
+    movement,
+    player: toMovementSubject(context.actor),
+    targetPosition,
+    toolDieSeed: context.toolDieSeed,
+    tools: consumeActiveTool(context)
+  });
+
+  if (!resolution.path.length) {
     return buildBlockedResolution(
       context.actor,
       context.tools,
-      "Teleport target is not landable",
+      resolution.stopReason,
       context.toolDieSeed,
       [],
       [],
@@ -602,15 +630,22 @@ export function resolveTeleportTool(context: ToolActionContext): ActionResolutio
   return buildAppliedResolution(
     {
       ...context.actor,
-      position: targetPosition
+      characterState: resolution.actor.characterState,
+      position: resolution.actor.position,
+      turnFlags: resolution.actor.turnFlags
     },
-    consumeActiveTool(context),
+    resolution.tools,
     `Used ${getToolDefinition(context.activeTool.toolId).label}.`,
-    context.toolDieSeed,
+    resolution.nextToolDieSeed,
+    resolution.path,
+    resolution.tileMutations,
+    [],
+    resolution.triggeredTerrainEffects,
     [targetPosition],
-    [],
-    [],
-    [],
-    [targetPosition]
+    null,
+    resolution.summonMutations,
+    resolution.triggeredSummonEffects,
+    false,
+    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
   );
 }

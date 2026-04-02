@@ -1,37 +1,38 @@
 import { SUMMON_REGISTRY } from "./content/summons";
 import { rollToolDie } from "./dice";
-import {
-  isMovementDisposition,
-  isMovementType
-} from "./rules/displacement";
-import { createRolledToolInstance } from "./tools";
+import { isMovementDisposition, isMovementType } from "./rules/displacement";
 import type {
-  BoardPlayerState,
   BoardSummonState,
   CharacterId,
+  CharacterStateMap,
+  Direction,
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  PlayerTurnFlag,
   SummonId,
   SummonMutation,
   TriggeredSummonEffect,
   TurnToolSnapshot
 } from "./types";
+import { createRolledToolInstance } from "./tools";
 
 interface SummonTriggerTarget {
   characterId: CharacterId;
+  characterState: CharacterStateMap;
   id: string;
-  movement: MovementDescriptor;
-  path: GridPosition[];
   position: GridPosition;
   spawnPosition: GridPosition;
-  startPosition: GridPosition;
+  turnFlags: PlayerTurnFlag[];
 }
 
 interface SummonTriggerContext {
-  activeTool: TurnToolSnapshot;
-  movement: MovementDescriptor;
+  direction?: Direction;
+  movement: MovementDescriptor | null;
   player: SummonTriggerTarget;
+  position: GridPosition;
+  remainingMovePoints?: number;
+  sourceId: string;
   summon: BoardSummonState;
   toolDieSeed: number;
   tools: TurnToolSnapshot[];
@@ -39,36 +40,35 @@ interface SummonTriggerContext {
 
 interface SummonTriggerResult {
   consumeSummon?: boolean;
+  nextCharacterState?: CharacterStateMap;
+  nextDirection?: Direction;
+  nextRemainingMovePoints?: number;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
+  nextTurnFlags?: PlayerTurnFlag[];
   triggeredSummonEffects: TriggeredSummonEffect[];
 }
 
-interface ApplyMovementSummonEffectsContext {
-  activeTool: TurnToolSnapshot;
-  actor: MovementActor;
-  actorMovement: {
-    movement: MovementDescriptor;
-    path: GridPosition[];
-    position: GridPosition;
-  } | null;
-  affectedPlayers: Array<{
-    movement: MovementDescriptor;
-    path: GridPosition[];
-    playerId: string;
-    startPosition: GridPosition;
-    target: GridPosition;
-  }>;
-  players: BoardPlayerState[];
+interface SummonPhaseContext {
+  direction?: Direction;
+  movement: MovementDescriptor | null;
+  player: MovementActor;
+  position: GridPosition;
+  remainingMovePoints?: number;
+  sourceId: string;
   summons: BoardSummonState[];
   toolDieSeed: number;
   tools: TurnToolSnapshot[];
 }
 
-interface ApplyMovementSummonEffectsResolution {
-  nextToolDieSeed: number;
+export interface SummonPhaseResolution {
+  nextCharacterState?: CharacterStateMap;
+  nextDirection?: Direction;
+  nextRemainingMovePoints?: number;
+  nextToolDieSeed?: number;
+  nextTools?: TurnToolSnapshot[];
+  nextTurnFlags?: PlayerTurnFlag[];
   summonMutations: SummonMutation[];
-  tools: TurnToolSnapshot[];
   triggeredSummonEffects: TriggeredSummonEffect[];
 }
 
@@ -76,17 +76,71 @@ export interface SummonDefinition {
   description: string;
   id: SummonId;
   label: string;
-  onPass?: (context: SummonTriggerContext) => SummonTriggerResult | null;
-  onStart?: (context: SummonTriggerContext) => SummonTriggerResult | null;
+  onPassThrough?: (context: SummonTriggerContext) => SummonTriggerResult | null;
   onStop?: (context: SummonTriggerContext) => SummonTriggerResult | null;
   triggerMode: "movement_trigger";
+}
+
+function positionsEqual(left: GridPosition, right: GridPosition): boolean {
+  return left.x === right.x && left.y === right.y;
+}
+
+function buildWalletRewardToolInstanceId(
+  instanceId: string,
+  sourceId: string,
+  grantedToolId: TurnToolSnapshot["toolId"]
+): string {
+  return `${instanceId}:${sourceId}:pickup:${grantedToolId}`;
+}
+
+function canWalletTrigger(
+  context: SummonTriggerContext,
+  allowedMovementTypes: Array<MovementDescriptor["type"]>
+): boolean {
+  return (
+    context.summon.ownerId === context.player.id &&
+    context.player.characterId === "leader" &&
+    !!context.movement &&
+    isMovementDisposition(context.movement, "active") &&
+    allowedMovementTypes.some((movementType) => isMovementType(context.movement, movementType))
+  );
+}
+
+function grantWalletReward(context: SummonTriggerContext): SummonTriggerResult {
+  const toolRoll = rollToolDie(context.toolDieSeed);
+  const grantedTool = createRolledToolInstance(
+    buildWalletRewardToolInstanceId(
+      context.summon.instanceId,
+      context.sourceId,
+      toolRoll.value.toolId
+    ),
+    toolRoll.value
+  );
+
+  return {
+    consumeSummon: true,
+    nextToolDieSeed: toolRoll.nextSeed,
+    nextTools: [...context.tools, grantedTool],
+    triggeredSummonEffects: [
+      {
+        kind: "wallet_pickup",
+        movement: context.movement!,
+        ownerId: context.summon.ownerId,
+        playerId: context.player.id,
+        position: context.summon.position,
+        summonId: context.summon.summonId,
+        summonInstanceId: context.summon.instanceId,
+        grantedTool
+      }
+    ]
+  };
 }
 
 export const SUMMON_DEFINITIONS: Record<SummonId, SummonDefinition> = {
   wallet: {
     id: "wallet",
     ...SUMMON_REGISTRY.wallet,
-    onPass: (context) => {
+    onPassThrough: (context) => {
       if (!canWalletTrigger(context, ["translate", "drag"])) {
         return null;
       }
@@ -107,120 +161,74 @@ export function getSummonDefinition(summonId: SummonId): SummonDefinition {
   return SUMMON_DEFINITIONS[summonId];
 }
 
-function positionsEqual(left: GridPosition, right: GridPosition): boolean {
-  return left.x === right.x && left.y === right.y;
-}
-
-function buildWalletRewardToolInstanceId(
-  instanceId: string,
-  grantedToolId: TurnToolSnapshot["toolId"]
-): string {
-  return `${instanceId}:pickup:${grantedToolId}`;
-}
-
-function canWalletTrigger(
-  context: SummonTriggerContext,
-  allowedMovementTypes: Array<MovementDescriptor["type"]>
-): boolean {
-  return (
-    context.summon.ownerId === context.player.id &&
-    context.player.characterId === "leader" &&
-    isMovementDisposition(context.movement, "active") &&
-    allowedMovementTypes.some((movementType) => isMovementType(context.movement, movementType))
+function collectSummonsAtPosition(
+  summons: BoardSummonState[],
+  position: GridPosition,
+  remainingSummonIds: Set<string>
+): BoardSummonState[] {
+  return summons.filter(
+    (summon) =>
+      remainingSummonIds.has(summon.instanceId) &&
+      positionsEqual(summon.position, position)
   );
 }
 
-function grantWalletReward(context: SummonTriggerContext): SummonTriggerResult {
-  const toolRoll = rollToolDie(context.toolDieSeed);
-  const grantedTool = createRolledToolInstance(
-    buildWalletRewardToolInstanceId(context.summon.instanceId, toolRoll.value.toolId),
-    toolRoll.value
-  );
-
-  return {
-    consumeSummon: true,
-    nextToolDieSeed: toolRoll.nextSeed,
-    nextTools: [...context.tools, grantedTool],
-    triggeredSummonEffects: [
-      {
-        kind: "wallet_pickup",
-        movement: context.movement,
-        playerId: context.player.id,
-        ownerId: context.summon.ownerId,
-        position: context.summon.position,
-        summonId: context.summon.summonId,
-        summonInstanceId: context.summon.instanceId,
-        grantedTool
-      }
-    ]
-  };
-}
-
-function createSummonTriggerTarget(
-  player: Pick<BoardPlayerState, "characterId" | "id" | "spawnPosition">,
-  movement: MovementDescriptor,
-  startPosition: GridPosition,
-  path: GridPosition[],
-  position: GridPosition
-): SummonTriggerTarget {
-  return {
-    characterId: player.characterId,
-    id: player.id,
-    movement,
-    path,
-    position,
-    spawnPosition: player.spawnPosition,
-    startPosition
-  };
-}
-
-// Trigger outcomes mutate shared simulator state through one path so summon rules stay declarative.
 function applySummonTriggerResult(
   result: SummonTriggerResult,
   summon: BoardSummonState,
   remainingSummonIds: Set<string>,
-  summonMutations: SummonMutation[],
-  triggeredSummonEffects: TriggeredSummonEffect[]
+  resolution: SummonPhaseResolution
 ): void {
-  if (!result.consumeSummon || !remainingSummonIds.has(summon.instanceId)) {
-    triggeredSummonEffects.push(...result.triggeredSummonEffects);
-    return;
+  if (result.nextCharacterState) {
+    resolution.nextCharacterState = {
+      ...result.nextCharacterState
+    };
   }
 
-  remainingSummonIds.delete(summon.instanceId);
-  summonMutations.push({
-    kind: "remove",
-    instanceId: summon.instanceId
-  });
-  triggeredSummonEffects.push(...result.triggeredSummonEffects);
+  if (result.nextDirection) {
+    resolution.nextDirection = result.nextDirection;
+  }
+
+  if (typeof result.nextRemainingMovePoints === "number") {
+    resolution.nextRemainingMovePoints = result.nextRemainingMovePoints;
+  }
+
+  if (typeof result.nextToolDieSeed === "number") {
+    resolution.nextToolDieSeed = result.nextToolDieSeed;
+  }
+
+  if (result.nextTools) {
+    resolution.nextTools = result.nextTools;
+  }
+
+  if (result.nextTurnFlags) {
+    resolution.nextTurnFlags = [...result.nextTurnFlags];
+  }
+
+  if (result.consumeSummon && remainingSummonIds.has(summon.instanceId)) {
+    remainingSummonIds.delete(summon.instanceId);
+    resolution.summonMutations.push({
+      instanceId: summon.instanceId,
+      kind: "remove"
+    });
+  }
+
+  resolution.triggeredSummonEffects.push(...result.triggeredSummonEffects);
 }
 
-function collectSummonsAtPosition(
-  summons: BoardSummonState[],
-  remainingSummonIds: Set<string>,
-  position: GridPosition
-): BoardSummonState[] {
-  return summons.filter(
-    (summon) =>
-      remainingSummonIds.has(summon.instanceId) && positionsEqual(summon.position, position)
-  );
-}
-
-// Each phase checks the live summon set at one position and applies any matching summon hooks.
 function runSummonPhase(
-  phase: "onPass" | "onStart" | "onStop",
-  position: GridPosition,
-  target: SummonTriggerTarget,
-  context: ApplyMovementSummonEffectsContext,
-  remainingSummonIds: Set<string>,
-  summonMutations: SummonMutation[],
-  triggeredSummonEffects: TriggeredSummonEffect[],
-  state: { nextToolDieSeed: number; tools: TurnToolSnapshot[] }
-): void {
+  phase: "onPassThrough" | "onStop",
+  context: SummonPhaseContext
+): SummonPhaseResolution {
+  const resolution: SummonPhaseResolution = {
+    summonMutations: [],
+    triggeredSummonEffects: []
+  };
+  const remainingSummonIds = new Set(context.summons.map((summon) => summon.instanceId));
   const summonsAtPosition = collectSummonsAtPosition(
     context.summons,
-    remainingSummonIds,
-    position
+    context.position,
+    remainingSummonIds
   );
 
   for (const summon of summonsAtPosition) {
@@ -232,37 +240,34 @@ function runSummonPhase(
     }
 
     const result = trigger({
-      activeTool: context.activeTool,
-      movement: target.movement,
+      ...(context.direction ? { direction: context.direction } : {}),
+      movement: context.movement,
       player: {
-        ...target,
-        position
+        characterId: context.player.characterId,
+        characterState: context.player.characterState,
+        id: context.player.id,
+        position: context.position,
+        spawnPosition: context.player.spawnPosition,
+        turnFlags: [...context.player.turnFlags]
       },
+      position: context.position,
+      ...(typeof context.remainingMovePoints === "number"
+        ? { remainingMovePoints: context.remainingMovePoints }
+        : {}),
+      sourceId: context.sourceId,
       summon,
-      toolDieSeed: state.nextToolDieSeed,
-      tools: state.tools
+      toolDieSeed: resolution.nextToolDieSeed ?? context.toolDieSeed,
+      tools: resolution.nextTools ?? context.tools
     });
 
     if (!result) {
       continue;
     }
 
-    if (result.nextTools) {
-      state.tools = result.nextTools;
-    }
-
-    if (typeof result.nextToolDieSeed === "number") {
-      state.nextToolDieSeed = result.nextToolDieSeed;
-    }
-
-    applySummonTriggerResult(
-      result,
-      summon,
-      remainingSummonIds,
-      summonMutations,
-      triggeredSummonEffects
-    );
+    applySummonTriggerResult(result, summon, remainingSummonIds, resolution);
   }
+
+  return resolution;
 }
 
 // Summon occupancy checks keep deployment validation shared between preview and authority.
@@ -277,104 +282,24 @@ export function createSummonUpsertMutation(
   position: GridPosition
 ): SummonMutation {
   return {
-    kind: "upsert",
     instanceId,
-    summonId,
+    kind: "upsert",
     ownerId,
-    position
+    position,
+    summonId
   };
 }
 
-// Summon trigger resolution now follows the same movement phases as terrain-aware displacement.
-export function applyMovementSummonEffects(
-  context: ApplyMovementSummonEffectsContext
-): ApplyMovementSummonEffectsResolution {
-  const playersById = new Map(context.players.map((player) => [player.id, player]));
-  const remainingSummonIds = new Set(context.summons.map((summon) => summon.instanceId));
-  const summonMutations: SummonMutation[] = [];
-  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
-  const state = {
-    nextToolDieSeed: context.toolDieSeed,
-    tools: context.tools
-  };
+// Summon pass-through now fires immediately during displacement instead of replaying the full path later.
+export function resolvePassThroughSummonEffects(
+  context: SummonPhaseContext
+): SummonPhaseResolution {
+  return runSummonPhase("onPassThrough", context);
+}
 
-  const movementTargets: SummonTriggerTarget[] = [];
-
-  if (context.actorMovement) {
-    movementTargets.push(
-      createSummonTriggerTarget(
-        {
-          characterId: context.actor.characterId,
-          id: context.actor.id,
-          spawnPosition: context.actor.spawnPosition
-        },
-        context.actorMovement.movement,
-        context.actor.position,
-        context.actorMovement.path,
-        context.actorMovement.position
-      )
-    );
-  }
-
-  for (const affectedPlayer of context.affectedPlayers) {
-    const player = playersById.get(affectedPlayer.playerId);
-
-    if (!player) {
-      continue;
-    }
-
-    movementTargets.push(
-      createSummonTriggerTarget(
-        player,
-        affectedPlayer.movement,
-        affectedPlayer.startPosition,
-        affectedPlayer.path,
-        affectedPlayer.target
-      )
-    );
-  }
-
-  for (const target of movementTargets) {
-    runSummonPhase(
-      "onStart",
-      target.startPosition,
-      target,
-      context,
-      remainingSummonIds,
-      summonMutations,
-      triggeredSummonEffects,
-      state
-    );
-
-    for (const position of target.path) {
-      runSummonPhase(
-        "onPass",
-        position,
-        target,
-        context,
-        remainingSummonIds,
-        summonMutations,
-        triggeredSummonEffects,
-        state
-      );
-    }
-
-    runSummonPhase(
-      "onStop",
-      target.position,
-      target,
-      context,
-      remainingSummonIds,
-      summonMutations,
-      triggeredSummonEffects,
-      state
-    );
-  }
-
-  return {
-    tools: state.tools,
-    nextToolDieSeed: state.nextToolDieSeed,
-    summonMutations,
-    triggeredSummonEffects
-  };
+// Stop summons reuse the same live summon set and only fire when the displacement actually ends on a tile.
+export function resolveStopSummonEffects(
+  context: SummonPhaseContext
+): SummonPhaseResolution {
+  return runSummonPhase("onStop", context);
 }

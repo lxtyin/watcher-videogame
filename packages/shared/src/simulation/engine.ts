@@ -13,7 +13,7 @@ import {
 } from "../characterRuntime";
 import { PLAYER_COLORS } from "../constants";
 import { rollMovementDie, rollToolDie } from "../dice";
-import { resolveToolAction } from "../actions";
+import { resolveCurrentTileStop, resolveToolAction } from "../actions";
 import {
   createDebugToolInstance,
   createMovementToolInstance,
@@ -435,6 +435,42 @@ function refreshTurnStartActions(
   );
 }
 
+function applyTurnStartStop(state: SimulationMutableState, player: PlayerSnapshot): void {
+  const stopResolution = resolveCurrentTileStop(
+    {
+      activeTool: null,
+      actorId: player.id,
+      board: buildBoardDefinition(state.snapshot),
+      players: buildBoardPlayers(state.snapshot),
+      sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+      summons: buildBoardSummons(state.snapshot)
+    },
+    {
+      player: {
+        characterId: player.characterId,
+        characterState: cloneCharacterState(player.characterState),
+        id: player.id,
+        position: clonePosition(player.position),
+        spawnPosition: clonePosition(player.spawnPosition),
+        turnFlags: [...player.turnFlags]
+      },
+      toolDieSeed: state.toolDieSeed,
+      tools: [...player.tools]
+    }
+  );
+
+  player.position = clonePosition(stopResolution.actor.position);
+  applyCharacterState(player, stopResolution.actor.characterState);
+  applyPlayerTurnFlags(player, stopResolution.actor.turnFlags);
+  applyToolInventory(player, stopResolution.tools);
+  applyTileMutations(state.snapshot, stopResolution.tileMutations);
+  applySummonMutations(state.snapshot, stopResolution.summonMutations);
+  state.toolDieSeed = stopResolution.nextToolDieSeed;
+  state.snapshot.turnInfo.toolDieSeed = state.toolDieSeed;
+  pushTerrainEvents(state, player.id, stopResolution.triggeredTerrainEffects);
+  pushSummonEvents(state, stopResolution.triggeredSummonEffects);
+}
+
 function prepareTurnStartState(player: PlayerSnapshot) {
   const preparation = prepareCharacterTurnStart(player.characterId, player.characterState);
   applyCharacterState(player, preparation.nextCharacterState);
@@ -447,13 +483,13 @@ function enterActionPhaseWithRoll(
   moveRoll: number,
   rolledTool: TurnToolSnapshot | null
 ): void {
-  clearPlayerTurnResources(player);
   applyToolInventory(
     player,
     buildTurnActionTools(
       state,
       player,
       [
+        ...player.tools,
         createMovementToolInstance(createToolInstanceId(state, "movement"), moveRoll),
         ...(rolledTool ? [rolledTool] : [])
       ]
@@ -507,6 +543,7 @@ function beginTurnFor(
   }
 
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
+  applyTurnStartStop(state, player);
 }
 
 function getNextPlayerId(state: SimulationMutableState, currentPlayerId: string): string {
@@ -948,6 +985,7 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     if (activePlayer) {
       const preparation = prepareTurnStartState(activePlayer);
       refreshTurnStartActions(state, activePlayer, preparation.turnStartActions);
+      applyTurnStartStop(state, activePlayer);
     }
   }
 
