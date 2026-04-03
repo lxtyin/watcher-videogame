@@ -34,6 +34,7 @@ export interface SimulationPlayerDefinition {
   finishedTurnNumber?: number | null;
   id: string;
   name?: string;
+  petId?: string;
   position: GridPosition;
   spawnPosition?: GridPosition;
   tools?: SimulationToolLoadoutDefinition[];

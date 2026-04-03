@@ -825,3 +825,39 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
 - TODO:
   - decide whether room codes should remain raw Colyseus `roomId` values or switch to a shorter public alias later
   - consider extracting the room lifecycle out of `WatcherRoom` once lobby features grow further
+
+## 2026-04-03 Home Entry Art Refresh
+
+- Reworked the home route into a centered landing page.
+  - large title block
+  - shared player profile card for `playerName + petId`
+  - two large action cards for create / join
+- `Join room` now expands inline on the home page instead of navigating to a separate screen.
+- Added a dedicated create-room route state at `?screen=create`.
+  - centered map carousel
+  - shared-map thumbnail preview generated from the runtime board layout
+  - map label, mode, and description shown in one focused card
+- Promoted piece selection from a client-only fallback into real synced player data.
+  - added `petId` to shared snapshot, server schema, room join options, and client deserialization
+  - lobby, scene pieces, and race settlement thumbnails now all render from the same selected pet id
+- Expanded local profile persistence.
+  - `localStorage` now keeps both `playerName` and `petId`
+  - room session persistence also stores `petId` alongside `roomCode + reconnectionToken + playerName`
+- Updated docs:
+  - `docs/index.md`
+  - `docs/arch/房间与大厅流程.md`
+- Validation:
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`
+  - `npm.cmd run build`
+  - browser text smoke:
+    - `output/web-game/home-ui-refresh/summary.json`
+    - confirmed:
+      - home route stays on `home`
+      - join input is hidden by default and expands inline after clicking the join card
+      - create flow switches to the dedicated `create` route
+      - map switching updates the centered map page
+      - creating a room lands in `room` route with `roomPhase = lobby`
+- TODO:
+  - consider whether direct room-entry pages should also expose the same pet picker as the home profile card
+  - consider adding authored thumbnail art later if map count grows beyond procedural previews

@@ -66,6 +66,7 @@ import {
 
 interface JoinOptions {
   mapId?: string;
+  requestedPetId?: string;
   requestedPlayerName?: string;
 }
 
@@ -93,7 +94,7 @@ export class WatcherRoom extends Room<WatcherState> {
   // Room bootstrap wires the authoritative board state and all gameplay messages.
   override onCreate(options: CreateOptions = {}): void {
     this.autoDispose = false;
-    this.maxClients = 4;
+    this.maxClients = 8;
     this.setPatchRate(1000 / 15);
     this.setState(new WatcherState());
 
@@ -158,6 +159,9 @@ export class WatcherRoom extends Room<WatcherState> {
       if (options.requestedPlayerName?.trim()) {
         existingPlayer.name = options.requestedPlayerName.trim();
       }
+      if (options.requestedPetId?.trim()) {
+        existingPlayer.petId = options.requestedPetId.trim();
+      }
       this.pushEvent("turn_started", `${existingPlayer.name} reconnected to room ${this.state.roomCode}.`);
       return;
     }
@@ -169,6 +173,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     player.id = client.sessionId;
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
+    player.petId = options.requestedPetId?.trim() || "";
     player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.characterStateJson = "{}";

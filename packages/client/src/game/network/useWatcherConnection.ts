@@ -2,23 +2,32 @@ import { useCallback, useEffect, useRef } from "react";
 import type { Room } from "colyseus.js";
 import { Client } from "colyseus.js";
 import { WATCHER_ROOM_NAME, getToolAvailability, type GameMapId } from "@watcher/shared";
+import { getRandomPetId, resolvePetId } from "../content/pets";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
 
 interface CreateRoomInput {
   mapId: GameMapId;
+  petId: string;
   playerName: string;
 }
 
 interface JoinRoomInput {
+  petId: string;
   playerName: string;
   roomCode: string;
 }
 
 interface StoredRoomSession {
+  petId: string;
   playerName: string;
   reconnectionToken: string;
   roomCode: string;
+}
+
+interface StoredPlayerProfile {
+  petId: string;
+  playerName: string;
 }
 
 interface WatcherConnectionControls {
@@ -30,6 +39,7 @@ interface WatcherConnectionControls {
 }
 
 const PLAYER_NAME_STORAGE_KEY = "watcher.player_name";
+const PLAYER_PET_STORAGE_KEY = "watcher.player_pet";
 const ROOM_SESSION_STORAGE_KEY = "watcher.room_session";
 
 function getServerUrl(): string {
@@ -40,8 +50,16 @@ function normalizePlayerName(playerName: string): string {
   return playerName.trim();
 }
 
+function normalizePetId(petId: string): string {
+  return resolvePetId(petId);
+}
+
 function normalizeRoomCode(roomCode: string): string {
   return roomCode.trim();
+}
+
+function createRandomPlayerName(): string {
+  return `玩家-${Math.floor(100 + Math.random() * 900)}`;
 }
 
 function loadStoredPlayerName(): string {
@@ -52,21 +70,44 @@ function loadStoredPlayerName(): string {
   }
 }
 
+function loadStoredPetId(): string {
+  try {
+    return window.localStorage.getItem(PLAYER_PET_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function persistStoredPlayerProfile(profile: StoredPlayerProfile): void {
+  try {
+    window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, profile.playerName);
+    window.localStorage.setItem(PLAYER_PET_STORAGE_KEY, normalizePetId(profile.petId));
+  } catch {
+    // Prototype persistence is best-effort only.
+  }
+}
+
+export function getStoredPlayerProfile(): StoredPlayerProfile {
+  const profile = {
+    playerName: normalizePlayerName(loadStoredPlayerName()) || createRandomPlayerName(),
+    petId: normalizePetId(loadStoredPetId() || getRandomPetId())
+  };
+
+  persistStoredPlayerProfile(profile);
+  return profile;
+}
+
 export function getStoredPlayerName(): string {
-  return loadStoredPlayerName();
+  return getStoredPlayerProfile().playerName;
+}
+
+export function getStoredPetId(): string {
+  return getStoredPlayerProfile().petId;
 }
 
 export function hasStoredRoomSessionForRoom(roomCode: string): boolean {
   const storedSession = loadStoredRoomSession();
   return storedSession?.roomCode === normalizeRoomCode(roomCode);
-}
-
-function persistPlayerName(playerName: string): void {
-  try {
-    window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, playerName);
-  } catch {
-    // Prototype persistence is best-effort only.
-  }
 }
 
 function loadStoredRoomSession(): StoredRoomSession | null {
@@ -88,6 +129,9 @@ function loadStoredRoomSession(): StoredRoomSession | null {
     }
 
     return {
+      petId: normalizePetId(
+        typeof parsed.petId === "string" ? parsed.petId : getStoredPlayerProfile().petId
+      ),
       playerName: parsed.playerName,
       reconnectionToken: parsed.reconnectionToken,
       roomCode: parsed.roomCode
@@ -97,12 +141,13 @@ function loadStoredRoomSession(): StoredRoomSession | null {
   }
 }
 
-function persistRoomSession(room: Room, playerName: string): void {
+function persistRoomSession(room: Room, profile: StoredPlayerProfile): void {
   try {
     window.localStorage.setItem(
       ROOM_SESSION_STORAGE_KEY,
       JSON.stringify({
-        playerName,
+        petId: normalizePetId(profile.petId),
+        playerName: profile.playerName,
         reconnectionToken: room.reconnectionToken,
         roomCode: room.roomId
       } satisfies StoredRoomSession)
@@ -133,10 +178,10 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
   const reconnectAttemptedForRoomRef = useRef<string | null>(null);
 
   const bindRoom = useCallback(
-    (client: Client, room: Room, playerName: string) => {
+    (client: Client, room: Room, profile: StoredPlayerProfile) => {
       activeRoomRef.current = room;
-      persistPlayerName(playerName);
-      persistRoomSession(room, playerName);
+      persistStoredPlayerProfile(profile);
+      persistRoomSession(room, profile);
       setSession(client, room);
 
       room.onStateChange((state) => {
@@ -182,11 +227,14 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
   const connectToRoom = useCallback(
     async (
       connect: (client: Client) => Promise<Room>,
-      playerName: string
+      profile: StoredPlayerProfile
     ): Promise<Room | null> => {
-      const normalizedPlayerName = normalizePlayerName(playerName);
+      const normalizedProfile = {
+        playerName: normalizePlayerName(profile.playerName),
+        petId: normalizePetId(profile.petId)
+      };
 
-      if (!normalizedPlayerName) {
+      if (!normalizedProfile.playerName) {
         setLastError("Please enter a player name.");
         setConnectionStatus("error");
         return null;
@@ -204,7 +252,7 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
 
       try {
         const room = await connect(client);
-        bindRoom(client, room, normalizedPlayerName);
+        bindRoom(client, room, normalizedProfile);
         return room;
       } catch (error: unknown) {
         setConnectionStatus("error");
@@ -216,14 +264,15 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
   );
 
   const createRoom = useCallback(
-    async ({ mapId, playerName }: CreateRoomInput): Promise<string | null> => {
+    async ({ mapId, petId, playerName }: CreateRoomInput): Promise<string | null> => {
       const room = await connectToRoom(
         (client) =>
           client.create(WATCHER_ROOM_NAME, {
             mapId,
+            requestedPetId: normalizePetId(petId),
             requestedPlayerName: normalizePlayerName(playerName)
           }),
-        playerName
+        { playerName, petId }
       );
 
       return room?.roomId ?? null;
@@ -232,7 +281,7 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
   );
 
   const joinRoom = useCallback(
-    async ({ playerName, roomCode }: JoinRoomInput): Promise<boolean> => {
+    async ({ petId, playerName, roomCode }: JoinRoomInput): Promise<boolean> => {
       const normalizedRoomCode = normalizeRoomCode(roomCode);
 
       if (!normalizedRoomCode) {
@@ -244,9 +293,10 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
       const room = await connectToRoom(
         (client) =>
           client.joinById(normalizedRoomCode, {
+            requestedPetId: normalizePetId(petId),
             requestedPlayerName: normalizePlayerName(playerName)
           }),
-        playerName
+        { playerName, petId }
       );
 
       return room !== null;
@@ -268,7 +318,10 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
 
       const room = await connectToRoom(
         (client) => client.reconnect(storedSession.reconnectionToken),
-        storedSession.playerName
+        {
+          playerName: storedSession.playerName,
+          petId: storedSession.petId
+        }
       );
 
       return room !== null;

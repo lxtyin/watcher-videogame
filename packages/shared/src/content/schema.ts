@@ -102,7 +102,6 @@ export interface CharacterToolTransformContentDefinition {
 export interface CharacterContentDefinition {
   activeSkillLoadout: ToolLoadoutContentDefinition[];
   label: string;
-  passiveDescriptions: string[];
   summary: string;
   toolTransforms: CharacterToolTransformContentDefinition[];
   turnStartActionIds: readonly string[];

@@ -1,5 +1,5 @@
 interface PetModelAssetDefinition {
-  id: string;
+  id: PetId;
   publicPath: string;
   sourcePath: string;
 }
@@ -31,6 +31,8 @@ const PET_MODEL_NAMES = [
   "animal-tiger"
 ] as const;
 
+export type PetId = (typeof PET_MODEL_NAMES)[number];
+
 // Runtime asset paths stay together with their source references for future swaps or imports.
 export const PET_MODEL_ASSETS: PetModelAssetDefinition[] = PET_MODEL_NAMES.map((modelName) => ({
   id: modelName,
@@ -39,6 +41,7 @@ export const PET_MODEL_ASSETS: PetModelAssetDefinition[] = PET_MODEL_NAMES.map((
 }));
 
 export const PET_MODEL_PATHS = PET_MODEL_ASSETS.map((asset) => asset.publicPath);
+const PET_MODEL_ASSET_BY_ID = new Map(PET_MODEL_ASSETS.map((asset) => [asset.id, asset] as const));
 
 // Cube-pet models face the opposite way from the board's cardinal helper arrows.
 export const PET_MODEL_FORWARD_OFFSET_Y = Math.PI;
@@ -53,7 +56,39 @@ function hashText(value: string): number {
   return hash;
 }
 
-// Player ids pick a stable pseudo-random pet so sessions stay readable across reconnects.
-export function getPetModelPath(playerId: string): string {
-  return PET_MODEL_PATHS[hashText(playerId) % PET_MODEL_PATHS.length] ?? PET_MODEL_PATHS[0]!;
+function formatPetLabel(id: PetId): string {
+  return id
+    .replace("animal-", "")
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function getPetIds(): PetId[] {
+  return [...PET_MODEL_NAMES];
+}
+
+export function getRandomPetId(): PetId {
+  return PET_MODEL_NAMES[Math.floor(Math.random() * PET_MODEL_NAMES.length)] ?? PET_MODEL_NAMES[0];
+}
+
+export function resolvePetId(petId: string | null | undefined, fallbackSeed?: string): PetId {
+  if (petId && PET_MODEL_ASSET_BY_ID.has(petId as PetId)) {
+    return petId as PetId;
+  }
+
+  if (fallbackSeed) {
+    return PET_MODEL_NAMES[hashText(fallbackSeed) % PET_MODEL_NAMES.length] ?? PET_MODEL_NAMES[0];
+  }
+
+  return getRandomPetId();
+}
+
+export function getPetLabel(petId: string | null | undefined, fallbackSeed?: string): string {
+  return formatPetLabel(resolvePetId(petId, fallbackSeed));
+}
+
+// Pet ids are stable player-facing picks, while invalid ids fall back safely.
+export function getPetModelPath(petId: string | null | undefined, fallbackSeed?: string): string {
+  return PET_MODEL_ASSET_BY_ID.get(resolvePetId(petId, fallbackSeed))?.publicPath ?? PET_MODEL_PATHS[0]!;
 }

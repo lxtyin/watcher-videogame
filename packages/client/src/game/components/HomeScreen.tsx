@@ -1,139 +1,142 @@
-import { useMemo, useState } from "react";
-import {
-  DEFAULT_GAME_MAP_ID,
-  getGameMapDefinition,
-  getGameMapIds,
-  type GameMapId
-} from "@watcher/shared";
-
-interface CreateRoomInput {
-  mapId: GameMapId;
-  playerName: string;
-}
+import { useState } from "react";
+import { PlayerProfileCard } from "./PlayerProfileCard";
 
 interface JoinRoomInput {
+  petId: string;
   playerName: string;
   roomCode: string;
 }
 
 interface HomeScreenProps {
   busy: boolean;
-  initialPlayerName: string;
   lastError: string | null;
-  onCreateRoom: (input: CreateRoomInput) => Promise<void>;
   onJoinRoom: (input: JoinRoomInput) => Promise<void>;
+  onOpenCreateScreen: () => void;
+  onPetIdChange: (petId: string) => void;
+  onPlayerNameChange: (playerName: string) => void;
+  petId: string;
+  playerName: string;
 }
 
-function describeMapMode(mode: "free" | "race"): string {
-  return mode === "race" ? "竞速模式" : "自由模式";
+function CreateRoomIcon() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path
+        d="M12 28 32 12l20 16v22a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M24 54V34h16v20M32 21v14M25 28h14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
-// The home screen keeps create/join simple while exposing map choice before room creation.
+function JoinRoomIcon() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <rect
+        x="10"
+        y="16"
+        width="30"
+        height="32"
+        rx="8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        d="M37 32h17M47 22l10 10-10 10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// The landing page focuses on identity setup first, then a single create or join action.
 export function HomeScreen({
   busy,
-  initialPlayerName,
   lastError,
-  onCreateRoom,
-  onJoinRoom
+  onJoinRoom,
+  onOpenCreateScreen,
+  onPetIdChange,
+  onPlayerNameChange,
+  petId,
+  playerName
 }: HomeScreenProps) {
-  const [activeMode, setActiveMode] = useState<"create" | "join">("create");
-  const [createPlayerName, setCreatePlayerName] = useState(initialPlayerName);
-  const [joinPlayerName, setJoinPlayerName] = useState(initialPlayerName);
+  const [joinExpanded, setJoinExpanded] = useState(false);
   const [joinRoomCode, setJoinRoomCode] = useState("");
-  const [selectedMapId, setSelectedMapId] = useState<GameMapId>(DEFAULT_GAME_MAP_ID);
-  const mapIds = useMemo(() => getGameMapIds(), []);
 
   return (
-    <div className="home-shell">
-      <section className="home-hero">
+    <div className="landing-shell">
+      <div className="landing-title-block">
         <p className="eyebrow">Watcher Prototype</p>
         <h1>Watcher</h1>
-        <p className="lead">
-          先组房，再进局。房主选择地图，所有玩家准备完成后开始游戏；结算后还能回到同一房间继续下一局。
-        </p>
-      </section>
+      </div>
 
-      <section className="home-card">
-        <div className="home-mode-toggle">
+      <PlayerProfileCard
+        onPetIdChange={onPetIdChange}
+        onPlayerNameChange={onPlayerNameChange}
+        petId={petId}
+        playerName={playerName}
+      />
+
+      <div className="landing-action-grid">
+        <article className="landing-action-card landing-action-card--create">
           <button
             type="button"
-            data-testid="home-mode-create"
-            className={activeMode === "create" ? "selected" : ""}
-            onClick={() => setActiveMode("create")}
+            className="landing-action-hitbox"
+            data-testid="home-open-create"
+            onClick={onOpenCreateScreen}
+            disabled={busy}
           >
-            创建房间
+            <span className="landing-action-icon">
+              <CreateRoomIcon />
+            </span>
+            <strong>创建房间</strong>
           </button>
+        </article>
+
+        <article
+          className={`landing-action-card landing-action-card--join${joinExpanded ? " expanded" : ""}`}
+        >
           <button
             type="button"
-            data-testid="home-mode-join"
-            className={activeMode === "join" ? "selected" : ""}
-            onClick={() => setActiveMode("join")}
+            className="landing-action-hitbox"
+            data-testid="home-open-join"
+            onClick={() => setJoinExpanded((expanded) => !expanded)}
+            disabled={busy}
           >
-            加入房间
+            <span className="landing-action-icon">
+              <JoinRoomIcon />
+            </span>
+            <strong>加入房间</strong>
           </button>
-        </div>
 
-        {activeMode === "create" ? (
-          <form
-            className="home-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void onCreateRoom({
-                mapId: selectedMapId,
-                playerName: createPlayerName
-              });
-            }}
-          >
-            <label className="home-field">
-              <span>用户名</span>
-              <input
-                data-testid="create-player-name-input"
-                type="text"
-                value={createPlayerName}
-                onChange={(event) => setCreatePlayerName(event.target.value)}
-                placeholder="输入你的名字"
-                maxLength={24}
-              />
-            </label>
-
-            <div className="home-map-list">
-              {mapIds.map((mapId) => {
-                const definition = getGameMapDefinition(mapId);
-                const selected = selectedMapId === mapId;
-
-                return (
-                  <button
-                    key={mapId}
-                    type="button"
-                    data-testid={`create-map-option-${mapId}`}
-                    className={`home-map-card${selected ? " selected" : ""}`}
-                    onClick={() => setSelectedMapId(mapId)}
-                  >
-                    <strong>{definition.label}</strong>
-                    <span>{describeMapMode(definition.mode)}</span>
-                    <p>{definition.allowDebugTools ? "允许调试与自由试验" : "正式规则，关闭调试发牌"}</p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button type="submit" data-testid="create-room-submit" disabled={busy}>
-              {busy ? "正在创建..." : "创建并进入房间"}
-            </button>
-          </form>
-        ) : (
-          <form
-            className="home-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void onJoinRoom({
-                playerName: joinPlayerName,
-                roomCode: joinRoomCode
-              });
-            }}
-          >
-            <label className="home-field">
-              <span>房间号</span>
+          {joinExpanded ? (
+            <form
+              className="landing-join-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void onJoinRoom({
+                  petId,
+                  playerName,
+                  roomCode: joinRoomCode
+                });
+              }}
+            >
               <input
                 data-testid="join-room-code-input"
                 type="text"
@@ -141,28 +144,15 @@ export function HomeScreen({
                 onChange={(event) => setJoinRoomCode(event.target.value)}
                 placeholder="输入房间号"
               />
-            </label>
+              <button type="submit" data-testid="join-room-submit" disabled={busy}>
+                {busy ? "加入中..." : "加入"}
+              </button>
+            </form>
+          ) : null}
+        </article>
+      </div>
 
-            <label className="home-field">
-              <span>用户名</span>
-              <input
-                data-testid="join-player-name-input"
-                type="text"
-                value={joinPlayerName}
-                onChange={(event) => setJoinPlayerName(event.target.value)}
-                placeholder="输入你的名字"
-                maxLength={24}
-              />
-            </label>
-
-            <button type="submit" data-testid="join-room-submit" disabled={busy}>
-              {busy ? "正在加入..." : "加入房间"}
-            </button>
-          </form>
-        )}
-
-        {lastError ? <p className="error-copy home-error">{lastError}</p> : null}
-      </section>
+      {lastError ? <p className="error-copy home-error">{lastError}</p> : null}
     </div>
   );
 }

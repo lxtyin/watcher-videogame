@@ -4,14 +4,15 @@ import { Box3, Mesh, Vector3 } from "three";
 import { PET_MODEL_FORWARD_OFFSET_Y, PET_MODEL_PATHS, getPetModelPath } from "../content/pets";
 
 interface PetPieceProps {
-  playerId: string;
+  fallbackSeed?: string | undefined;
+  petId?: string | undefined;
   position: [number, number, number];
   rotationY: number;
 }
 
 // Cube-pet models are normalized to a shared board footprint before being rendered.
-export function PetPiece({ playerId, position, rotationY }: PetPieceProps) {
-  const modelPath = getPetModelPath(playerId);
+export function PetPiece({ fallbackSeed, petId, position, rotationY }: PetPieceProps) {
+  const modelPath = getPetModelPath(petId, fallbackSeed);
   const { scene } = useGLTF(modelPath);
 
   useEffect(() => {

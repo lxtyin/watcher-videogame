@@ -29,6 +29,7 @@ interface RoomTileState {
 interface RoomPlayerState {
   id: string;
   name: string;
+  petId: string;
   color: string;
   characterId: CharacterId;
   characterStateJson: string;
@@ -181,6 +182,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
     players: Array.from(roomState.players.values()).map((player) => ({
       id: player.id,
       name: player.name,
+      petId: player.petId ?? "",
       color: player.color,
       characterId: player.characterId,
       characterState: parseCharacterState(player.characterStateJson),

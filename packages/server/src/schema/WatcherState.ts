@@ -30,6 +30,7 @@ export class TurnToolState extends Schema {
 export class PlayerState extends Schema {
   @type("string") id = "";
   @type("string") name = "";
+  @type("string") petId = "";
   @type("string") color = "";
   @type("string") characterId: CharacterId = "late";
   @type("string") characterStateJson = "{}";

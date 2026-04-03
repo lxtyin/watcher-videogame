@@ -22,7 +22,6 @@ export interface CharacterDefinition {
   activeSkillLoadout: ToolLoadoutDefinition[];
   id: CharacterId;
   label: string;
-  passiveDescriptions: string[];
   summary: string;
   toolTransforms: CharacterToolTransformDefinition[];
   turnStartActionIds: readonly TurnStartActionId[];

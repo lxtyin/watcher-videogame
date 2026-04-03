@@ -4,10 +4,12 @@ import { PetPiece } from "./PetPiece";
 
 export function PetThumbnail({
   color,
-  playerId
+  fallbackSeed,
+  petId
 }: {
   color: string;
-  playerId: string;
+  fallbackSeed?: string;
+  petId?: string;
 }) {
   return (
     <div className="pet-thumbnail" style={{ "--player-accent": color } as CSSProperties}>
@@ -23,7 +25,12 @@ export function PetThumbnail({
             <circleGeometry args={[0.56, 40]} />
             <meshStandardMaterial color="#f5eedb" />
           </mesh>
-          <PetPiece playerId={playerId} position={[0, 0, 0]} rotationY={5 * Math.PI / 4} />
+          <PetPiece
+            fallbackSeed={fallbackSeed}
+            petId={petId}
+            position={[0, 0, 0]}
+            rotationY={5 * Math.PI / 4}
+          />
         </group>
       </Canvas>
     </div>

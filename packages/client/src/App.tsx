@@ -1,5 +1,7 @@
+import { DEFAULT_GAME_MAP_ID, type GameMapId } from "@watcher/shared";
 import { useEffect, useRef, useState } from "react";
 import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
+import { CreateRoomScreen } from "./game/components/CreateRoomScreen";
 import { HomeScreen } from "./game/components/HomeScreen";
 import { HudSidebar } from "./game/components/HudSidebar";
 import { RaceSettlementOverlay } from "./game/components/RaceSettlementOverlay";
@@ -8,30 +10,39 @@ import { useAnimationClock } from "./game/hooks/useAnimationClock";
 import { useAutomationBridge } from "./game/hooks/useAutomationBridge";
 import { useKeyboardInteraction } from "./game/hooks/useKeyboardInteraction";
 import {
-  getStoredPlayerName,
+  getStoredPlayerProfile,
   hasStoredRoomSessionForRoom,
+  persistStoredPlayerProfile,
   useWatcherConnection
 } from "./game/network/useWatcherConnection";
 import { useGameStore } from "./game/state/useGameStore";
 
 interface AppRoute {
   roomCode: string | null;
+  screen: "create" | "home";
 }
 
 function readAppRoute(): AppRoute {
   const url = new URL(window.location.href);
   return {
-    roomCode: url.searchParams.get("room")?.trim() || null
+    roomCode: url.searchParams.get("room")?.trim() || null,
+    screen: url.searchParams.get("screen") === "create" ? "create" : "home"
   };
 }
 
-function writeAppRoute(roomCode: string | null): void {
+function writeAppRoute(route: AppRoute): void {
   const url = new URL(window.location.href);
 
-  if (roomCode) {
-    url.searchParams.set("room", roomCode);
+  if (route.roomCode) {
+    url.searchParams.set("room", route.roomCode);
   } else {
     url.searchParams.delete("room");
+  }
+
+  if (!route.roomCode && route.screen === "create") {
+    url.searchParams.set("screen", "create");
+  } else {
+    url.searchParams.delete("screen");
   }
 
   window.history.pushState({}, "", url.toString());
@@ -40,6 +51,8 @@ function writeAppRoute(roomCode: string | null): void {
 // The app shell coordinates navigation between home, room entry, lobby, and active gameplay.
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
+  const [playerProfile, setPlayerProfile] = useState(() => getStoredPlayerProfile());
+  const [selectedCreateMapId, setSelectedCreateMapId] = useState<GameMapId>(DEFAULT_GAME_MAP_ID);
   const previousRoomCodeRef = useRef<string | null>(route.roomCode);
 
   useKeyboardInteraction();
@@ -80,14 +93,26 @@ export default function App() {
     previousRoomCodeRef.current = route.roomCode;
   }, [leaveRoom, room, route.roomCode]);
 
+  useEffect(() => {
+    persistStoredPlayerProfile(playerProfile);
+  }, [playerProfile]);
+
   const navigateHome = () => {
-    writeAppRoute(null);
-    setRoute({ roomCode: null });
+    const nextRoute = { roomCode: null, screen: "home" as const };
+    writeAppRoute(nextRoute);
+    setRoute(nextRoute);
+  };
+
+  const navigateToCreateScreen = () => {
+    const nextRoute = { roomCode: null, screen: "create" as const };
+    writeAppRoute(nextRoute);
+    setRoute(nextRoute);
   };
 
   const navigateToRoom = (roomCode: string) => {
-    writeAppRoute(roomCode);
-    setRoute({ roomCode });
+    const nextRoute = { roomCode, screen: "home" as const };
+    writeAppRoute(nextRoute);
+    setRoute(nextRoute);
   };
 
   const busy = connectionStatus === "connecting";
@@ -99,25 +124,47 @@ export default function App() {
     snapshot.settlementState === "complete";
 
   if (!route.roomCode) {
+    if (route.screen === "create") {
+      return (
+        <CreateRoomScreen
+          busy={busy}
+          lastError={lastError}
+          mapId={selectedCreateMapId}
+          onBack={navigateHome}
+          onCreateRoom={async () => {
+            const roomCode = await createRoom({
+              mapId: selectedCreateMapId,
+              petId: playerProfile.petId,
+              playerName: playerProfile.playerName
+            });
+
+            if (roomCode) {
+              navigateToRoom(roomCode);
+            }
+          }}
+          onMapIdChange={setSelectedCreateMapId}
+        />
+      );
+    }
+
     return (
       <HomeScreen
         busy={busy}
-        initialPlayerName={getStoredPlayerName()}
         lastError={lastError}
-        onCreateRoom={async ({ mapId, playerName }) => {
-          const roomCode = await createRoom({ mapId, playerName });
-
-          if (roomCode) {
-            navigateToRoom(roomCode);
-          }
-        }}
-        onJoinRoom={async ({ playerName, roomCode }) => {
-          const joined = await joinRoom({ playerName, roomCode });
+        onJoinRoom={async ({ petId, playerName, roomCode }) => {
+          const joined = await joinRoom({ petId, playerName, roomCode });
 
           if (joined) {
             navigateToRoom(roomCode.trim());
           }
         }}
+        onOpenCreateScreen={navigateToCreateScreen}
+        onPetIdChange={(petId) => setPlayerProfile((current) => ({ ...current, petId }))}
+        onPlayerNameChange={(playerName) =>
+          setPlayerProfile((current) => ({ ...current, playerName }))
+        }
+        petId={playerProfile.petId}
+        playerName={playerProfile.playerName}
       />
     );
   }
@@ -129,7 +176,7 @@ export default function App() {
       <RoomEntryScreen
         busy={roomEntryBusy}
         canReconnect={hasStoredRoomSessionForRoom(roomCode)}
-        initialPlayerName={getStoredPlayerName()}
+        initialPlayerName={playerProfile.playerName}
         lastError={lastError}
         onBackHome={() => {
           void leaveRoom().finally(() => {
@@ -137,7 +184,11 @@ export default function App() {
           });
         }}
         onJoinRoom={async ({ playerName, roomCode }) => {
-          const joined = await joinRoom({ playerName, roomCode });
+          const joined = await joinRoom({
+            petId: playerProfile.petId,
+            playerName,
+            roomCode
+          });
 
           if (joined) {
             navigateToRoom(roomCode.trim());

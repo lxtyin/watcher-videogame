@@ -317,7 +317,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
 
                 return (
                   <article key={player.id} className="lobby-player-card">
-                    <PetThumbnail color={player.color} playerId={player.id} />
+                    <PetThumbnail color={player.color} fallbackSeed={player.id} petId={player.petId} />
                     <div className="lobby-player-copy">
                       <div className="player-name-line">
                         <span
@@ -375,17 +375,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               {me ? <span>{me.isReady ? "已准备" : "待准备"}</span> : null}
             </div>
             <p className="character-summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
-            {roleDefinition?.passiveDescriptions.length ? (
-              <div className="character-passive-list">
-                {roleDefinition.passiveDescriptions.map((description, index) => (
-                  <p key={`${roleDefinition.id}-passive-${index}`} className="hint-copy">
-                    被动：{description}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="hint-copy">这个角色当前没有额外的被动说明。</p>
-            )}
           </section>
 
           <section className="controls-card">
@@ -408,9 +397,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 {me?.isReady ? "取消准备" : "准备"}
               </button>
             </div>
-            <p className="hint-copy">
-              不做账号系统时，当前原型会把用户名和重连凭证保存在本地浏览器里；刷新后会尽量恢复你的座位与角色，但更换设备或清空本地存储后仍需要重新加入。
-            </p>
           </section>
         </>
       ) : (
@@ -456,18 +442,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               </button>
             </div>
             <p className="character-summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
-            {roleDefinition?.passiveDescriptions.length ? (
-              <div className="character-passive-list">
-                {roleDefinition.passiveDescriptions.map((description, index) => (
-                  <p key={`${roleDefinition.id}-passive-${index}`} className="hint-copy">
-                    被动：{description}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="hint-copy">这个角色当前没有额外的被动说明。</p>
-            )}
-            <div className="role-skill-header">
+            {/* <div className="role-skill-header">
               <p className="section-title">主动技能</p>
               <span>{roleTools.length ? `${roleTools.length} 个` : "暂无"}</span>
             </div>
@@ -498,8 +473,77 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               </div>
             ) : (
               <p className="hint-copy">这个角色当前没有可点击的主动技能。</p>
+            )} */}
+          </section>
+          
+          <section className="player-observer-section">
+            <div className="role-skill-header">
+              <p className="section-title">其他玩家</p>
+              <span>{otherPlayers.length ? `${otherPlayers.length} 名` : "暂无"}</span>
+            </div>
+            {otherPlayers.length ? (
+              <div className="player-observer-list">
+                {otherPlayers.map((player) => {
+                  const isObservedActive = snapshot.turnInfo.currentPlayerId === player.id;
+                  const playerRole = getCharacterDefinition(player.characterId);
+
+                  return (
+                    <div
+                      key={player.id}
+                      className={["player-observer-card", isObservedActive ? "active" : ""]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <div className="player-observer-header">
+                        <div>
+                          <div className="player-name-line">
+                            <span
+                              className="player-swatch"
+                              style={{ "--player-accent": player.color } as CSSProperties}
+                            />
+                            <strong>{player.name}</strong>
+                          </div>
+                          <p className="hint-copy">
+                            {playerRole.label}
+                            {player.finishRank
+                              ? ` · 第 ${player.finishRank} 名 · 第 ${player.finishedTurnNumber} 回合到达`
+                              : ""}
+                          </p>
+                        </div>
+                        <span>{`(${player.position.x}, ${player.position.y})`}</span>
+                      </div>
+                      {player.tools.length ? (
+                        <div className="player-tool-chip-grid">
+                          {player.tools.map((tool) => {
+                            const availability = getToolAvailability(tool, player.tools);
+
+                            return (
+                              <span
+                                key={tool.instanceId}
+                                className={[
+                                  "player-tool-chip",
+                                  availability.usable ? "" : "disabled"
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                              >
+                                {describeToolButtonLabel(tool)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="hint-copy">这个回合当前没有工具。</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="hint-copy">房间里暂时还没有其他玩家。</p>
             )}
           </section>
+
 
           <section className="controls-card">
             <p className="section-title">回合控制</p>
@@ -570,7 +614,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             )}
           </section>
 
-          <section className="roll-card">
+          {/* <section className="roll-card">
             <p className="section-title">本回合骰面</p>
             <div className="roll-grid">
               <div className="info-card compact">
@@ -594,7 +638,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 <strong>{usableToolCount}</strong>
               </div>
             </div>
-          </section>
+          </section> */}
 
           <section className="tool-card">
             <div className="role-skill-header">
@@ -680,74 +724,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 使用 {selectedToolDefinition?.label}
               </button>
             ) : null}
-          </section>
-
-          <section className="player-observer-section">
-            <div className="role-skill-header">
-              <p className="section-title">其他玩家</p>
-              <span>{otherPlayers.length ? `${otherPlayers.length} 名` : "暂无"}</span>
-            </div>
-            {otherPlayers.length ? (
-              <div className="player-observer-list">
-                {otherPlayers.map((player) => {
-                  const isObservedActive = snapshot.turnInfo.currentPlayerId === player.id;
-                  const playerRole = getCharacterDefinition(player.characterId);
-
-                  return (
-                    <div
-                      key={player.id}
-                      className={["player-observer-card", isObservedActive ? "active" : ""]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
-                      <div className="player-observer-header">
-                        <div>
-                          <div className="player-name-line">
-                            <span
-                              className="player-swatch"
-                              style={{ "--player-accent": player.color } as CSSProperties}
-                            />
-                            <strong>{player.name}</strong>
-                          </div>
-                          <p className="hint-copy">
-                            {playerRole.label}
-                            {player.finishRank
-                              ? ` · 第 ${player.finishRank} 名 · 第 ${player.finishedTurnNumber} 回合到达`
-                              : ""}
-                          </p>
-                        </div>
-                        <span>{`(${player.position.x}, ${player.position.y})`}</span>
-                      </div>
-                      {player.tools.length ? (
-                        <div className="player-tool-chip-grid">
-                          {player.tools.map((tool) => {
-                            const availability = getToolAvailability(tool, player.tools);
-
-                            return (
-                              <span
-                                key={tool.instanceId}
-                                className={[
-                                  "player-tool-chip",
-                                  availability.usable ? "" : "disabled"
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                              >
-                                {describeToolButtonLabel(tool)}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="hint-copy">这个回合当前没有工具。</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="hint-copy">房间里暂时还没有其他玩家。</p>
-            )}
           </section>
 
           <section className="legend-card">

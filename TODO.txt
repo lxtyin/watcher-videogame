@@ -40,46 +40,18 @@
 
 
 下面做一些美术、交互优化：
- - 主页改成一个居中大标题、下面两个大方形卡片（创建房间、加入房间），可以加icon来美化，不需要多余的提示信息
- - 点击创建房间后，进入一个新的页面，通过滑动选择地图，仍然是居中布局，中间放地图的缩略图，上面写地图名，下面写地图模式和介绍；
- - 加入房间不需要新的页面，点击后出现输入框，输入房间号后点击加入
- - 进入房间后再在弹出框中写
+ - 主页改成一个居中大标题，下面有一个框可以设置用户名和棋子（给一个随机的初始值），再下面是两个大方形卡片（创建房间、加入房间），可以加icon来美化，不需要多余的提示信息
+ - 点击创建房间后，进入一个新的页面：通过左右滑动选择地图，仍然是居中布局，中间放地图的缩略图，上面写地图名，下面写地图模式和介绍；
+ - 加入房间不需要新的页面，点击加入卡片后出现输入框，输入房间号后点击加入。
 
-
+优化：
+ - 【房间玩家】栏加一个踢出按钮，房主点击即可立即踢出玩家
+ - 在回合外，也要显示其他玩家头顶的工具栏
+ - 在竞速模式中，玩家到达终点时，棋子执行旋转飞升动画，然后从地图中移除（不再影响局内）。该动画播放完成后再结束回合（进入下一个人的回合或游戏结算）
 
 
 未来TODO：
  - 优化<投弹>的交互逻辑：按住鼠标拖动选择地块，松开后再次按住才能选择方向；
  - 修<砌墙>bug，不能在有玩家/召唤物的位置放置
-
-
-
-【AI重构建议】
-
-这次我没有看到会立刻阻塞继续填内容的致命 correctness bug；主要风险集中在扩展路径上的高耦合、内容组织分散，以及缺少保护这些抽象边界的测试。
-
-Findings
-
-High 新增一个 Tool / Character / Summon / Effect 仍然需要跨多层同步改动，真正的“可扩展”还没有做到单点注册。ToolId / CharacterId / SummonId / PresentationEffectType 先在 types.ts 手写，再分别落到 tools.ts、actions.ts、characters.ts、actionUi.ts，前端场景里还要继续写特判，比如 BoardScene.tsx 和 BoardScene.tsx。建议把“ID 类型”改成从注册表推导，而不是手写 union；再把每个 Tool 拆成 definition + executor + preview/presentation hooks + client ui metadata 的插件对象，做到“新增内容时只注册，不到处改 switch/if”。
-
-High 规则层和房间层都已经出现“God module”迹象，后续内容越多，修改成本会呈指数上升。actions.ts 同时负责路径遍历、工具结算、地形后处理、召唤物、presentation 事件；各 Tool executor 也都堆在同一文件里，如 actions.ts 和 actions.ts。服务端 WatcherRoom.ts 既做 turn orchestration，又做 schema 映射、事件日志、debug grant、角色切换、presentation 发布。建议把 shared 拆成 rules/tools/*、rules/motion/*、rules/terrain/*、rules/finalize/*，把 server 拆成 TurnService、RoomStateMapper、EventLogPublisher，房间类只保留消息入口和生命周期。
-
-Medium 客户端主交互层也有同样的问题，BoardScene.tsx 同时承担了输入、预览、动画接管、地形渲染、召唤物渲染、特效渲染、debug bridge；App.tsx 同时承担连接初始化、自动化桥接、角色栏、工具栏、旁观信息、debug UI。这样做在原型期很快，但后面加更多地形、召唤物、特效、角色主动技能时，前端会变成最难改的地方。建议至少拆成 scene/entities、scene/previews、scene/effects、scene/interaction、hud/sidebar、debug/automation 六层。
-
-Medium 资产和内容配置目前“能跑”，但对未来内容作者并不友好。地图是 board.ts 里的字符阵列，宠物模型列表是 petModels.ts 的硬编码数组，Tool UI 又在 actionUi.ts 单独维护，原始美术资源还留在 resources/，运行时资源则复制到 packages/client/public/assets/。这对程序员可接受，但对“策划/美术自行扩展”并不顺滑。建议新增顶层 content/ 目录，把 boards/、tools/、characters/、summons/、effects/、assets/manifest 放进去，再用一个小的生成脚本产出 typed registry。
-
-Medium 现在缺少保护“共享规则 = 服务端权威 = 客户端预览”这条核心设计的 contract tests。根目录和 shared 包都只有 build/typecheck，没有 test 脚本，见 package.json 和 packages/shared/package.json。而当前预览链路又依赖 boardMath.ts 手动重建上下文，再调用同一个 resolveToolAction。建议尽快补三类测试：resolveToolAction golden cases、preview == authority 对照测试、content registry schema validation。
-
-Open Questions
-
-我这次 review 的前提是假设你希望继续保持“TS 代码即内容”的开发方式；如果你准备让策划/美术直接改配置，那就应该更激进地往 content/manifest + codegen 迁移。
-我也默认你接下来还会持续增加 Tool、角色、召唤物和 effect 类型；如果内容总量始终很小，当前结构还能再撑一阵，但会越来越难重构。
-Recommended Order
-
-先做“单一注册源”：defineTools / defineCharacters / defineSummons / defineEffects，让 ID 类型从注册表自动推导。
-再拆 shared/server 两个 God module：先拆 actions.ts，再拆 WatcherRoom.ts。
-最后做内容与资产整理：建立 content/ 和 asset manifest，把地图、模型列表、Tool UI 元数据从散落文件中收束起来。
-如果你愿意，我下一步可以直接按这个 review 给你落一版“第一阶段重构方案”，先把 Tool 注册和内容目录抽出来。
-
-
+ - 芙兰迪飞跃？（优化角色技能逻辑层）
 

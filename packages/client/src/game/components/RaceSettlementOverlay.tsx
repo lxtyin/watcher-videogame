@@ -46,7 +46,7 @@ export function RaceSettlementOverlay({
           {standings.map(({ finishedTurnNumber, player, rank }) => (
             <article key={player.id} className="settlement-row">
               <div className="settlement-rank">#{rank}</div>
-              <PetThumbnail color={player.color} playerId={player.id} />
+              <PetThumbnail color={player.color} fallbackSeed={player.id} petId={player.petId} />
               <div className="settlement-player-meta">
                 <strong>{player.name}</strong>
                 <span>{player.id}</span>

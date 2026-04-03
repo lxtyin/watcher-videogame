@@ -464,6 +464,360 @@ button:disabled {
   color: #586572;
 }
 
+.landing-shell,
+.create-room-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: 1.8rem;
+}
+
+.landing-title-block,
+.player-profile-card,
+.create-room-stage {
+  width: min(760px, 100%);
+  border-radius: 30px;
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid rgba(151, 120, 71, 0.16);
+  box-shadow: 0 24px 60px rgba(77, 52, 19, 0.14);
+}
+
+.landing-title-block {
+  padding: 1.3rem 1.6rem 0.35rem;
+  text-align: center;
+}
+
+.landing-title-block h1,
+.create-room-title {
+  margin: 0.3rem 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.5rem, 7vw, 5.8rem);
+  line-height: 0.92;
+}
+
+.player-profile-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.2rem;
+  padding: 1.2rem;
+}
+
+.player-profile-card__preview {
+  width: 118px;
+}
+
+.player-profile-card__preview .pet-thumbnail {
+  width: 118px;
+  height: 118px;
+}
+
+.player-profile-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.player-profile-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #3d4955;
+}
+
+.player-profile-card__field span,
+.player-profile-card__pet-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8f6a34;
+}
+
+.player-profile-card__pet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.player-profile-card__pet-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.player-profile-card__pet-name {
+  min-width: 7.5rem;
+  text-align: center;
+  color: #243244;
+}
+
+.icon-button,
+.chip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button {
+  min-width: 2.7rem;
+  min-height: 2.7rem;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.chip-button {
+  padding-inline: 0.9rem;
+}
+
+.landing-action-grid {
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.landing-action-card {
+  min-height: 248px;
+  padding: 0.85rem;
+  border-radius: 30px;
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid rgba(151, 120, 71, 0.16);
+  box-shadow: 0 24px 60px rgba(77, 52, 19, 0.14);
+}
+
+.landing-action-card.expanded {
+  min-height: 248px;
+}
+
+.landing-action-hitbox {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 250, 237, 0.98), rgba(243, 228, 192, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(151, 120, 71, 0.14);
+}
+
+.landing-action-card--create .landing-action-hitbox {
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.76), transparent 44%),
+    linear-gradient(180deg, rgba(255, 246, 214, 0.98), rgba(232, 190, 106, 0.92));
+}
+
+.landing-action-card--join .landing-action-hitbox {
+  min-height: 212px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.72), transparent 44%),
+    linear-gradient(180deg, rgba(240, 247, 244, 0.98), rgba(170, 208, 190, 0.94));
+}
+
+.landing-action-hitbox strong {
+  font-size: 1.25rem;
+}
+
+.landing-action-icon {
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #21324a;
+}
+
+.landing-action-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.landing-join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.landing-join-form input {
+  text-align: center;
+}
+
+.create-room-shell {
+  position: relative;
+}
+
+.create-room-back-button {
+  position: absolute;
+  top: 1.4rem;
+  left: 1.4rem;
+}
+
+.create-room-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 1.4rem 1.5rem 1.6rem;
+  text-align: center;
+}
+
+.create-room-title {
+  font-size: clamp(2.4rem, 4.8vw, 4.4rem);
+}
+
+.create-room-carousel {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+.create-room-arrow {
+  width: 3.3rem;
+  height: 3.3rem;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.create-room-preview-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.82), transparent 42%),
+    linear-gradient(180deg, rgba(248, 241, 221, 0.92), rgba(226, 210, 172, 0.92));
+  box-shadow:
+    inset 0 0 0 1px rgba(151, 120, 71, 0.14),
+    0 18px 30px rgba(77, 52, 19, 0.1);
+  transform: translateX(var(--drag-offset, 0px));
+  transition: transform 160ms ease;
+  touch-action: pan-y;
+}
+
+.create-room-preview-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: 30rem;
+}
+
+.create-room-preview-meta p {
+  margin: 0;
+  color: #42505e;
+  line-height: 1.58;
+}
+
+.create-room-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #29415c;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(151, 120, 71, 0.14);
+}
+
+.create-room-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.create-room-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(114, 99, 72, 0.22);
+  box-shadow: none;
+}
+
+.create-room-dot.selected {
+  background: #c8922b;
+}
+
+.create-room-submit {
+  min-width: min(280px, 100%);
+}
+
+.map-thumbnail {
+  width: min(100%, 420px);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: repeat(var(--map-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--map-rows), minmax(0, 1fr));
+  gap: 0.28rem;
+  padding: 0.8rem;
+  border-radius: 22px;
+  background: rgba(250, 244, 227, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(151, 120, 71, 0.14);
+}
+
+.map-thumbnail__tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: clamp(0.42rem, 1vw, 0.78rem);
+  font-weight: 700;
+  color: #2b3646;
+}
+
+.map-thumbnail__tile--floor {
+  background: linear-gradient(180deg, #efe4c0, #d7c38f);
+}
+
+.map-thumbnail__tile--wall {
+  background: linear-gradient(180deg, #7f7362, #5a5249);
+  color: #f6f2ea;
+}
+
+.map-thumbnail__tile--earthWall {
+  background: linear-gradient(180deg, #a87d48, #7f5a2f);
+  color: #f8ead3;
+}
+
+.map-thumbnail__tile--pit {
+  background: radial-gradient(circle, #3f352c 0%, #1f1a17 100%);
+  color: transparent;
+}
+
+.map-thumbnail__tile--lucky {
+  background: linear-gradient(180deg, #ffe792, #eab743);
+}
+
+.map-thumbnail__tile--conveyor {
+  background: linear-gradient(180deg, #bfd7ea, #7aa6c8);
+}
+
+.map-thumbnail__tile--start {
+  background: linear-gradient(180deg, #cfe9d6, #7fc08e);
+}
+
+.map-thumbnail__tile--goal {
+  background: linear-gradient(180deg, #ffd8b8, #f4904d);
+}
+
 .golden-playback-panel {
   display: flex;
   flex-direction: column;
@@ -635,9 +989,25 @@ button:disabled {
 
 @media (max-width: 920px) {
   .home-shell,
+  .landing-action-grid,
   .golden-playback-shell {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .player-profile-card,
+  .create-room-carousel {
+    grid-template-columns: 1fr;
+  }
+
+  .player-profile-card__preview {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .create-room-arrow {
+    display: none;
   }
 
   .golden-playback-panel {
@@ -1294,6 +1664,17 @@ button:disabled {
   .app-shell {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .landing-shell,
+  .create-room-shell {
+    justify-content: flex-start;
+  }
+
+  .landing-title-block,
+  .player-profile-card,
+  .create-room-stage {
+    width: 100%;
   }
 
   .hud-panel {

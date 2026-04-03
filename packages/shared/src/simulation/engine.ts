@@ -108,6 +108,7 @@ export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
       finishedTurnNumber: player.finishedTurnNumber,
       isConnected: player.isConnected,
       isReady: player.isReady,
+      petId: player.petId,
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tools: player.tools.map((tool) => ({
@@ -1053,6 +1054,7 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
   const players: PlayerSnapshot[] = sceneDefinition.players.map((player, index) => ({
     id: player.id,
     name: player.name ?? player.id,
+    petId: player.petId ?? "",
     color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
     characterId: player.characterId ?? "late",
     characterState: cloneCharacterState(player.characterState ?? {}),

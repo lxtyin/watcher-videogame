@@ -13,6 +13,7 @@ interface MapGridPosition {
 
 export interface GameMapContentDefinition {
   allowDebugTools: boolean;
+  description: string;
   label: string;
   layout: readonly string[];
   mode: GameMode;
@@ -33,6 +34,7 @@ export const RACE_GAME_MAP_ID = "race_sprint" as const;
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
   [DEFAULT_GAME_MAP_ID]: {
     label: "自由模式默认地图",
+    description: "保留调试入口的基础沙盒地图，适合自由试验工具、角色和地形联动。",
     mode: "free",
     allowDebugTools: true,
     layout: DEFAULT_BOARD_LAYOUT,
@@ -47,6 +49,7 @@ export const GAME_MAP_REGISTRY = defineGameMapRegistry({
   },
   [RACE_GAME_MAP_ID]: {
     label: "竞速模式测试地图",
+    description: "所有玩家共享出生点，沿着加速带与机关冲向终点，先到先得。",
     mode: "race",
     allowDebugTools: false,
     layout: RACE_BOARD_LAYOUT,

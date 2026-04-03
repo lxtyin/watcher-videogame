@@ -1196,7 +1196,8 @@ export function BoardScene() {
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
             <PetPiece
-              playerId={player.id}
+              fallbackSeed={player.id}
+              petId={player.petId}
               position={[0, pieceBaseY, 0]}
               rotationY={DIRECTION_ROTATION_Y[facingDirection]}
             />

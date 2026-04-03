@@ -95,6 +95,7 @@ export interface PlayerSnapshot {
   isConnected: boolean;
   isReady: boolean;
   name: string;
+  petId: string;
   position: GridPosition;
   spawnPosition: GridPosition;
   tools: TurnToolSnapshot[];
