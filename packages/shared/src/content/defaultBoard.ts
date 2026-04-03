@@ -25,6 +25,8 @@ export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   e: { type: "earthWall", durability: 2 },
   p: { type: "pit" },
   l: { type: "lucky" },
+  s: { type: "start" },
+  g: { type: "goal" },
   "^": { type: "conveyor", direction: "up" },
   v: { type: "conveyor", direction: "down" },
   "<": { type: "conveyor", direction: "left" },

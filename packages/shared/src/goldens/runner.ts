@@ -193,6 +193,8 @@ function summarizePlayers(
       {
         characterId: player.characterId,
         color: player.color,
+        finishRank: player.finishRank,
+        finishedTurnNumber: player.finishedTurnNumber,
         position: clonePosition(player.position),
         spawnPosition: clonePosition(player.spawnPosition),
         toolCount: player.tools.length,
@@ -208,6 +210,7 @@ function buildCaseStateSummary(
   snapshot: GameSnapshot
 ): GoldenCaseStateSummary {
   return {
+    allowDebugTools: snapshot.allowDebugTools,
     boardLayout: serializeGoldenBoardLayout(
       {
         width: snapshot.boardWidth,
@@ -220,12 +223,16 @@ function buildCaseStateSummary(
       caseDefinition.scene.symbols
     ),
     eventTypes: snapshot.eventLog.map((entry) => entry.type),
+    mapId: snapshot.mapId,
+    mapLabel: snapshot.mapLabel,
+    mode: snapshot.mode,
     latestPresentation: {
       toolId: snapshot.latestPresentation?.toolId ?? null,
       sequence: snapshot.latestPresentation?.sequence ?? null,
       eventKinds: snapshot.latestPresentation?.events.map((event) => event.kind) ?? []
     },
     players: summarizePlayers(snapshot.players),
+    settlementState: snapshot.settlementState,
     summons: snapshot.summons.map((summon) => ({
       ...summon,
       position: clonePosition(summon.position)
@@ -252,6 +259,21 @@ function compareExpectedPlayerState(
   if (expected.characterId && actual.characterId !== expected.characterId) {
     mismatches.push(
       `Player "${playerId}" character mismatch: expected ${expected.characterId}, got ${actual.characterId}.`
+    );
+  }
+
+  if (expected.finishRank !== undefined && actual.finishRank !== expected.finishRank) {
+    mismatches.push(
+      `Player "${playerId}" finish rank mismatch: expected ${String(expected.finishRank)}, got ${String(actual.finishRank)}.`
+    );
+  }
+
+  if (
+    expected.finishedTurnNumber !== undefined &&
+    actual.finishedTurnNumber !== expected.finishedTurnNumber
+  ) {
+    mismatches.push(
+      `Player "${playerId}" finished turn mismatch: expected ${String(expected.finishedTurnNumber)}, got ${String(actual.finishedTurnNumber)}.`
     );
   }
 
@@ -325,10 +347,42 @@ function compareCaseExpectation(
   const expectation = caseDefinition.expect;
 
   if (
+    expectation.allowDebugTools !== undefined &&
+    actual.allowDebugTools !== expectation.allowDebugTools
+  ) {
+    mismatches.push(
+      `allowDebugTools mismatch: expected ${String(expectation.allowDebugTools)}, got ${String(actual.allowDebugTools)}.`
+    );
+  }
+
+  if (
     expectation.boardLayout &&
     JSON.stringify(expectation.boardLayout) !== JSON.stringify(actual.boardLayout)
   ) {
     mismatches.push("Board layout mismatch.");
+  }
+
+  if (expectation.mapId !== undefined && actual.mapId !== expectation.mapId) {
+    mismatches.push(`Map id mismatch: expected ${expectation.mapId}, got ${actual.mapId}.`);
+  }
+
+  if (expectation.mapLabel !== undefined && actual.mapLabel !== expectation.mapLabel) {
+    mismatches.push(
+      `Map label mismatch: expected "${expectation.mapLabel}", got "${actual.mapLabel}".`
+    );
+  }
+
+  if (expectation.mode !== undefined && actual.mode !== expectation.mode) {
+    mismatches.push(`Mode mismatch: expected ${expectation.mode}, got ${actual.mode}.`);
+  }
+
+  if (
+    expectation.settlementState !== undefined &&
+    actual.settlementState !== expectation.settlementState
+  ) {
+    mismatches.push(
+      `Settlement state mismatch: expected ${expectation.settlementState}, got ${actual.settlementState}.`
+    );
   }
 
   if (expectation.players) {

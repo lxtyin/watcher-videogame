@@ -31,8 +31,7 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server })
 });
 
-gameServer.define(WATCHER_ROOM_NAME, WatcherRoom);
-
+gameServer.define(WATCHER_ROOM_NAME, WatcherRoom).filterBy(["mapId"]);
 await gameServer.listen(port);
 
 console.log(`Watcher server ready at ws://localhost:${port}`);

@@ -5,19 +5,22 @@ import {
   applyCharacterToolTransforms,
   applyCharacterTurnEndCleanup,
   buildCharacterTurnLoadoutRuntime,
+  buildGameMapRuntimeMetadata,
   cloneCharacterState,
   createToolInstance,
   createTurnStartActionSnapshot,
   FARTHER_PENDING_MOVE_BONUS_STATE_KEY,
   getCharacterDefinition,
   getCharacterIds,
+  getGameMapSpawnPosition,
+  getNextActiveRacePlayerId,
+  getNextFinishRank,
   getTotalMovementPoints,
   markCharacterMovedOutOfTurn,
   prepareCharacterTurnStart,
   PLAYER_COLORS,
-  PLAYER_SPAWNS,
   createDebugToolInstance,
-  createDefaultBoardDefinition,
+  createBoardDefinition,
   createMovementToolInstance,
   createRolledToolInstance,
   clearMovementTools,
@@ -29,6 +32,7 @@ import {
   resolveToolAction,
   rollMovementDie,
   rollToolDie,
+  resolveSettlementState,
   resolveCharacterTurnStartAction,
   type CharacterId,
   type CharacterStateMap,
@@ -60,7 +64,12 @@ import {
 } from "./roomStateMutations";
 
 interface JoinOptions {
+  mapId?: string;
   requestedPlayerName?: string;
+}
+
+interface CreateOptions {
+  mapId?: string;
 }
 
 function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
@@ -79,11 +88,18 @@ export class WatcherRoom extends Room<WatcherState> {
   private nextPresentationSequence = 1;
 
   // Room bootstrap wires the authoritative board state and all gameplay messages.
-  override onCreate(): void {
+  override onCreate(options: CreateOptions = {}): void {
     this.autoDispose = false;
     this.maxClients = 4;
     this.setPatchRate(1000 / 15);
     this.setState(new WatcherState());
+
+    const mapMetadata = buildGameMapRuntimeMetadata(options.mapId);
+    this.state.mapId = mapMetadata.mapId;
+    this.state.mapLabel = mapMetadata.mapLabel;
+    this.state.mode = mapMetadata.mode;
+    this.state.allowDebugTools = mapMetadata.allowDebugTools;
+    this.state.settlementState = "active";
 
     // The room owns board setup so every client joins the same authoritative map.
     this.seedBoard();
@@ -116,9 +132,9 @@ export class WatcherRoom extends Room<WatcherState> {
 
   // Joining players receive a spawn, empty turn resources, and possibly the first turn.
   override onJoin(client: Client, options: JoinOptions): void {
-    const spawnIndex = this.state.players.size % PLAYER_SPAWNS.length;
+    const spawnIndex = this.state.players.size;
     const characterIds = getCharacterIds();
-    const spawn = PLAYER_SPAWNS[spawnIndex] ?? PLAYER_SPAWNS[0]!;
+    const spawn = getGameMapSpawnPosition(this.state.mapId, spawnIndex);
     const player = new PlayerState();
 
     player.id = client.sessionId;
@@ -126,6 +142,8 @@ export class WatcherRoom extends Room<WatcherState> {
     player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.characterStateJson = "{}";
+    player.finishRank = 0;
+    player.finishedTurnNumber = 0;
     player.x = spawn.x;
     player.y = spawn.y;
     player.spawnX = spawn.x;
@@ -149,7 +167,6 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    const playerOrderBeforeLeave = this.getPlayerOrder();
     this.state.players.delete(client.sessionId);
 
     if (!this.state.players.size) {
@@ -163,12 +180,12 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     if (this.state.turnInfo.currentPlayerId === client.sessionId) {
-      const leavingIndex = playerOrderBeforeLeave.findIndex((playerId) => playerId === client.sessionId);
-      const nextIndex = leavingIndex >= 0 ? leavingIndex % this.state.players.size : 0;
-      const nextPlayer = Array.from(this.state.players.values() as Iterable<PlayerState>)[nextIndex];
+      const nextPlayerId = this.getNextPlayerId(client.sessionId);
 
-      if (nextPlayer) {
-        this.beginTurnFor(nextPlayer.id, true);
+      if (nextPlayerId) {
+        this.beginTurnFor(nextPlayerId, true);
+      } else if (this.isRaceMode()) {
+        this.enterSettlementState();
       }
     }
 
@@ -177,7 +194,10 @@ export class WatcherRoom extends Room<WatcherState> {
 
   // Board seeding mirrors the shared default layout into Colyseus schema state.
   private seedBoard(): void {
-    const board = createDefaultBoardDefinition();
+    const board = createBoardDefinition(this.state.mapId);
+
+    this.state.boardWidth = board.width;
+    this.state.boardHeight = board.height;
 
     for (const tile of board.tiles) {
       const tileState = new TileState();
@@ -233,7 +253,92 @@ export class WatcherRoom extends Room<WatcherState> {
     ]);
   }
 
-  private applyTurnStartStop(player: PlayerState): void {
+  private isRaceMode(): boolean {
+    return this.state.mode === "race";
+  }
+
+  private isPlayerFinished(player: PlayerState): boolean {
+    return player.finishRank > 0;
+  }
+
+  private enterSettlementState(): void {
+    this.state.turnInfo.currentPlayerId = "";
+    this.state.turnInfo.phase = "roll";
+    this.state.turnInfo.moveRoll = 0;
+    this.state.turnInfo.lastRolledToolId = "";
+    this.state.turnInfo.turnStartActionsJson = "[]";
+    this.state.settlementState = "complete";
+  }
+
+  private applyRaceGoalProgress(
+    actorId: string,
+    triggeredTerrainEffects: import("@watcher/shared").TriggeredTerrainEffect[]
+  ): {
+    actorFinished: boolean;
+    settlementComplete: boolean;
+  } {
+    if (!this.isRaceMode()) {
+      return {
+        actorFinished: false,
+        settlementComplete: false
+      };
+    }
+
+    let actorFinished = false;
+    const goalPlayerIds = [
+      ...new Set(
+        triggeredTerrainEffects
+          .filter((effect): effect is Extract<import("@watcher/shared").TriggeredTerrainEffect, { kind: "goal" }> => effect.kind === "goal")
+          .map((effect) => effect.playerId)
+      )
+    ];
+
+    for (const playerId of goalPlayerIds) {
+      const player = this.state.players.get(playerId);
+
+      if (!player || this.isPlayerFinished(player)) {
+        continue;
+      }
+
+      player.finishRank = getNextFinishRank(
+        Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
+          id: entry.id,
+          finishRank: entry.finishRank || null,
+          finishedTurnNumber: entry.finishedTurnNumber || null
+        }))
+      );
+      player.finishedTurnNumber = this.state.turnInfo.turnNumber;
+      actorFinished = actorFinished || player.id === actorId;
+      this.pushEvent(
+        "player_finished",
+        `${player.name} reached the goal on turn ${this.state.turnInfo.turnNumber} and finished #${player.finishRank}.`
+      );
+    }
+
+    const settlementState = resolveSettlementState(
+      this.state.mode,
+      Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
+        id: entry.id,
+        finishRank: entry.finishRank || null,
+        finishedTurnNumber: entry.finishedTurnNumber || null
+      }))
+    );
+    const settlementComplete = settlementState === "complete";
+
+    if (settlementComplete && this.state.settlementState !== "complete") {
+      this.enterSettlementState();
+      this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
+    } else {
+      this.state.settlementState = settlementState;
+    }
+
+    return {
+      actorFinished,
+      settlementComplete
+    };
+  }
+
+  private applyTurnStartStop(player: PlayerState): import("@watcher/shared").TriggeredTerrainEffect[] {
     const stopResolution = resolveCurrentTileStop(
       {
         activeTool: null,
@@ -268,6 +373,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
     pushTerrainEvents(this.state, player.id, stopResolution.triggeredTerrainEffects);
     pushSummonEvents(this.state, stopResolution.triggeredSummonEffects);
+    return stopResolution.triggeredTerrainEffects;
   }
 
   private normalizePlayerTools(player: PlayerState, tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
@@ -320,7 +426,13 @@ export class WatcherRoom extends Room<WatcherState> {
       applyCharacterTurnEndCleanup(player.characterId, this.getPlayerCharacterState(player))
     );
     clearPlayerTurnResources(player);
-    this.beginTurnFor(this.getNextPlayerId(player.id), true);
+    const nextPlayerId = this.getNextPlayerId(player.id);
+
+    if (nextPlayerId) {
+      this.beginTurnFor(nextPlayerId, true);
+    } else {
+      this.enterSettlementState();
+    }
   }
 
   // Starting a turn resets dice results and tool inventory for the chosen player.
@@ -345,7 +457,22 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     this.pushEvent("turn_started", `${player.name}'s turn started. Roll the dice.`);
-    this.applyTurnStartStop(player);
+    const triggeredTerrainEffects = this.applyTurnStartStop(player);
+    const goalProgress = this.applyRaceGoalProgress(player.id, triggeredTerrainEffects);
+
+    if (!goalProgress.actorFinished || goalProgress.settlementComplete) {
+      return;
+    }
+
+    clearPlayerTurnResources(player);
+    const nextPlayerId = this.getNextPlayerId(player.id);
+
+    if (nextPlayerId) {
+      this.beginTurnFor(nextPlayerId, true);
+    } else {
+      this.enterSettlementState();
+      this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
+    }
   }
 
   // Player order follows the current schema insertion order.
@@ -354,15 +481,27 @@ export class WatcherRoom extends Room<WatcherState> {
   }
 
   // Next-player lookup wraps around the active player list after removals.
-  private getNextPlayerId(currentPlayerId: string): string {
+  private getNextPlayerId(currentPlayerId: string): string | null {
+    if (this.isRaceMode()) {
+      return getNextActiveRacePlayerId(
+        this.getPlayerOrder(),
+        Array.from(this.state.players.values() as Iterable<PlayerState>).map((player) => ({
+          id: player.id,
+          finishRank: player.finishRank || null,
+          finishedTurnNumber: player.finishedTurnNumber || null
+        })),
+        currentPlayerId
+      );
+    }
+
     const playerOrder = this.getPlayerOrder();
     const currentIndex = playerOrder.findIndex((playerId) => playerId === currentPlayerId);
 
     if (currentIndex === -1) {
-      return playerOrder[0] ?? currentPlayerId;
+      return playerOrder[0] ?? null;
     }
 
-    return playerOrder[(currentIndex + 1) % playerOrder.length] ?? currentPlayerId;
+    return playerOrder[(currentIndex + 1) % playerOrder.length] ?? null;
   }
 
   // Action handlers reuse one turn guard so out-of-turn input never reaches the resolver.
@@ -585,6 +724,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     pushTerrainEvents(this.state, player.id, resolution.triggeredTerrainEffects);
     pushSummonEvents(this.state, resolution.triggeredSummonEffects);
+    const goalProgress = this.applyRaceGoalProgress(player.id, resolution.triggeredTerrainEffects);
 
     if (activeTool.toolId === "movement") {
       this.pushEvent(
@@ -593,6 +733,20 @@ export class WatcherRoom extends Room<WatcherState> {
       );
     } else {
       this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
+    }
+
+    if (goalProgress.actorFinished) {
+      clearPlayerTurnResources(player);
+
+      if (!goalProgress.settlementComplete) {
+        const nextPlayerId = this.getNextPlayerId(player.id);
+
+        if (nextPlayerId) {
+          this.beginTurnFor(nextPlayerId, true);
+        }
+      }
+
+      return;
     }
 
     if (!resolution.endsTurn) {
@@ -655,6 +809,11 @@ export class WatcherRoom extends Room<WatcherState> {
 
     if (this.state.turnInfo.phase !== "action") {
       this.pushEvent("move_blocked", `${player.name} must roll before granting a debug tool.`);
+      return;
+    }
+
+    if (!this.state.allowDebugTools) {
+      this.pushEvent("move_blocked", `${player.name} cannot use debug tools on this map.`);
       return;
     }
 

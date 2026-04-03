@@ -3,6 +3,7 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   type CharacterId,
+  type GameMode,
   type RolledToolId,
   type ToolId
 } from "@watcher/shared";
@@ -31,6 +32,8 @@ export class PlayerState extends Schema {
   @type("string") color = "";
   @type("string") characterId: CharacterId = "late";
   @type("string") characterStateJson = "{}";
+  @type("number") finishRank = 0;
+  @type("number") finishedTurnNumber = 0;
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") spawnX = 0;
@@ -65,6 +68,11 @@ export class EventLogEntryState extends Schema {
 }
 
 export class WatcherState extends Schema {
+  @type("string") mapId = "free_default";
+  @type("string") mapLabel = "";
+  @type("string") mode: GameMode = "free";
+  @type("boolean") allowDebugTools = true;
+  @type("string") settlementState = "active";
   @type("number") boardWidth = BOARD_WIDTH;
   @type("number") boardHeight = BOARD_HEIGHT;
   @type({ map: TileState }) board = new MapSchema<TileState>();

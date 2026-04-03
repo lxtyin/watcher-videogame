@@ -169,6 +169,25 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
         ]
       };
     }
+  },
+  goal: {
+    onStop: (context) => {
+      if (!context.player.isActor) {
+        return null;
+      }
+
+      return {
+        triggeredTerrainEffects: [
+          {
+            kind: "goal",
+            movement: context.movement,
+            playerId: context.player.id,
+            tileKey: context.tile.key,
+            position: context.player.position
+          }
+        ]
+      };
+    }
   }
 };
 

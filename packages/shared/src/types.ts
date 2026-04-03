@@ -20,9 +20,12 @@ export type Direction = ContentDirection;
 export type MovementType = ContentMovementType;
 export type MovementDisposition = ContentMovementDisposition;
 export type MovementTiming = "in_turn" | "out_of_turn";
+export type GameMode = "free" | "race";
+export type GameSettlementState = "active" | "complete";
 export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
+export type GameMapId = keyof typeof import("./content/maps").GAME_MAP_REGISTRY;
 export type RolledToolId = typeof import("./content/tools").TOOL_DIE_FACES[number]["toolId"];
 export type TurnStartActionId =
   keyof typeof import("./content/turnStartActions").TURN_START_ACTION_REGISTRY;
@@ -47,7 +50,9 @@ export type EventType =
   | "debug_granted"
   | "character_switched"
   | "summon_triggered"
-  | "character_action_used";
+  | "character_action_used"
+  | "player_finished"
+  | "match_finished";
 
 export interface GridPosition {
   x: number;
@@ -83,6 +88,8 @@ export interface PlayerSnapshot {
   characterId: CharacterId;
   characterState: CharacterStateMap;
   color: string;
+  finishRank: number | null;
+  finishedTurnNumber: number | null;
   id: string;
   name: string;
   position: GridPosition;
@@ -166,11 +173,16 @@ export interface ToolDefinition {
 }
 
 export interface GameSnapshot {
+  allowDebugTools: boolean;
   boardHeight: number;
   boardWidth: number;
   eventLog: EventLogEntry[];
   latestPresentation: SequencedActionPresentation | null;
+  mapId: GameMapId | "custom";
+  mapLabel: string;
+  mode: GameMode;
   players: PlayerSnapshot[];
+  settlementState: GameSettlementState;
   summons: SummonSnapshot[];
   tiles: TileDefinition[];
   turnInfo: TurnInfoSnapshot;
@@ -299,6 +311,13 @@ export interface ToolAvailability {
 }
 
 export type TriggeredTerrainEffect =
+  | {
+      kind: "goal";
+      movement: MovementDescriptor | null;
+      playerId: string;
+      position: GridPosition;
+      tileKey: string;
+    }
   | {
       kind: "pit";
       movement: MovementDescriptor | null;

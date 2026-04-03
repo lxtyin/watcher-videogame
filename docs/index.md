@@ -256,6 +256,31 @@ This keeps the next expansion path closer to:
   - `turn-start-lucky-grants-pre-roll-tool`
   - `turn-start-pit-respawns-before-roll`
 
+## 2026-04-02 Gameplay Modes
+
+- 当前原型开始区分“地图”和“玩法模式”。
+  - `free_default`
+    - 绑定 `free`
+    - 允许调试发牌
+    - 使用当前默认地图
+  - `race_sprint`
+    - 绑定 `race`
+    - 禁用调试发牌
+    - 使用新的竞速测试地图
+- 棋盘新增两种地形：
+  - `start`
+    - 主要用于标记竞速出生点
+  - `goal`
+    - 只会在玩家自己的回合 `onStop` 时触发到达
+- `race` 模式当前原型规则：
+  - 所有玩家共享一个出生点
+  - 到达终点时立即记录名次和到达回合
+  - 已完赛玩家会跳过后续回合轮转
+  - 所有玩家都到达后，客户端显示结算页
+- 左侧栏现在提供最小入口：
+  - 可以直接在自由模式和竞速地图之间切换
+  - 完整主页与房间流转保留到下一步再做
+
 ## 2026-04-01 Client Interaction Detail Update
 
 - 3D 场景现在支持长按查看说明卡。

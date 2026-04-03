@@ -13,6 +13,12 @@ import {
 } from "../characterRuntime";
 import { PLAYER_COLORS } from "../constants";
 import { rollMovementDie, rollToolDie } from "../dice";
+import {
+  buildGameMapRuntimeMetadata,
+  getNextActiveRacePlayerId,
+  getNextFinishRank,
+  resolveSettlementState
+} from "../gameplay";
 import { resolveCurrentTileStop, resolveToolAction } from "../actions";
 import {
   createDebugToolInstance,
@@ -97,6 +103,8 @@ export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
     players: snapshot.players.map((player) => ({
       ...player,
       characterState: cloneCharacterState(player.characterState),
+      finishRank: player.finishRank,
+      finishedTurnNumber: player.finishedTurnNumber,
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tools: player.tools.map((tool) => ({
@@ -155,6 +163,10 @@ function buildBoardSummons(snapshot: GameSnapshot): BoardSummonState[] {
 
 function findPlayer(snapshot: GameSnapshot, playerId: string): PlayerSnapshot | undefined {
   return snapshot.players.find((player) => player.id === playerId);
+}
+
+function isRaceMode(state: SimulationMutableState): boolean {
+  return state.snapshot.mode === "race";
 }
 
 function normalizePlayerTools(
@@ -358,6 +370,72 @@ function pushSummonEvents(
   }
 }
 
+function enterSettlementState(state: SimulationMutableState): void {
+  state.snapshot.turnInfo.currentPlayerId = "";
+  state.snapshot.turnInfo.phase = "roll";
+  state.snapshot.turnInfo.moveRoll = 0;
+  state.snapshot.turnInfo.lastRolledToolId = null;
+  state.snapshot.turnInfo.turnStartActions = [];
+  state.snapshot.settlementState = "complete";
+}
+
+function applyRaceGoalProgress(
+  state: SimulationMutableState,
+  actorId: string,
+  triggeredTerrainEffects: TriggeredTerrainEffect[]
+): {
+  actorFinished: boolean;
+  settlementComplete: boolean;
+} {
+  if (!isRaceMode(state)) {
+    return {
+      actorFinished: false,
+      settlementComplete: false
+    };
+  }
+
+  let actorFinished = false;
+  const goalPlayerIds = [
+    ...new Set(
+      triggeredTerrainEffects
+        .filter((effect): effect is Extract<TriggeredTerrainEffect, { kind: "goal" }> => effect.kind === "goal")
+        .map((effect) => effect.playerId)
+    )
+  ];
+
+  for (const playerId of goalPlayerIds) {
+    const player = findPlayer(state.snapshot, playerId);
+
+    if (!player || player.finishRank !== null) {
+      continue;
+    }
+
+    player.finishRank = getNextFinishRank(state.snapshot.players);
+    player.finishedTurnNumber = state.snapshot.turnInfo.turnNumber;
+    actorFinished = actorFinished || player.id === actorId;
+    pushEvent(
+      state,
+      "player_finished",
+      `${player.name} reached the goal on turn ${state.snapshot.turnInfo.turnNumber} and finished #${player.finishRank}.`
+    );
+  }
+
+  const settlementState = resolveSettlementState(state.snapshot.mode, state.snapshot.players);
+  const settlementComplete = settlementState === "complete";
+
+  if (settlementComplete && state.snapshot.settlementState !== "complete") {
+    enterSettlementState(state);
+    pushEvent(state, "match_finished", "All players reached the goal. Settlement is ready.");
+  } else {
+    state.snapshot.settlementState = settlementState;
+  }
+
+  return {
+    actorFinished,
+    settlementComplete
+  };
+}
+
 function publishActionPresentation(
   state: SimulationMutableState,
   presentation: ActionPresentation | null
@@ -435,7 +513,10 @@ function refreshTurnStartActions(
   );
 }
 
-function applyTurnStartStop(state: SimulationMutableState, player: PlayerSnapshot): void {
+function applyTurnStartStop(
+  state: SimulationMutableState,
+  player: PlayerSnapshot
+): TriggeredTerrainEffect[] {
   const stopResolution = resolveCurrentTileStop(
     {
       activeTool: null,
@@ -469,6 +550,7 @@ function applyTurnStartStop(state: SimulationMutableState, player: PlayerSnapsho
   state.snapshot.turnInfo.toolDieSeed = state.toolDieSeed;
   pushTerrainEvents(state, player.id, stopResolution.triggeredTerrainEffects);
   pushSummonEvents(state, stopResolution.triggeredSummonEffects);
+  return stopResolution.triggeredTerrainEffects;
 }
 
 function prepareTurnStartState(player: PlayerSnapshot) {
@@ -543,10 +625,34 @@ function beginTurnFor(
   }
 
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
-  applyTurnStartStop(state, player);
+  const triggeredTerrainEffects = applyTurnStartStop(state, player);
+  const goalProgress = applyRaceGoalProgress(state, player.id, triggeredTerrainEffects);
+
+  if (!goalProgress.actorFinished || goalProgress.settlementComplete) {
+    return;
+  }
+
+  clearPlayerTurnResources(player);
+  const nextPlayerId = getNextPlayerId(state, player.id);
+
+  if (nextPlayerId === player.id) {
+    enterSettlementState(state);
+    pushEvent(state, "match_finished", "All players reached the goal. Settlement is ready.");
+    return;
+  }
+
+  beginTurnFor(state, nextPlayerId, true);
 }
 
 function getNextPlayerId(state: SimulationMutableState, currentPlayerId: string): string {
+  if (isRaceMode(state)) {
+    return getNextActiveRacePlayerId(
+      state.playerOrder,
+      state.snapshot.players,
+      currentPlayerId
+    ) ?? currentPlayerId;
+  }
+
   const currentIndex = state.playerOrder.findIndex((playerId) => playerId === currentPlayerId);
 
   if (currentIndex < 0) {
@@ -759,6 +865,7 @@ function runUseToolCommand(
 
   pushTerrainEvents(state, player.id, resolution.triggeredTerrainEffects);
   pushSummonEvents(state, resolution.triggeredSummonEffects);
+  const goalProgress = applyRaceGoalProgress(state, player.id, resolution.triggeredTerrainEffects);
 
   if (activeTool.toolId === "movement") {
     pushEvent(
@@ -768,6 +875,23 @@ function runUseToolCommand(
     );
   } else {
     pushEvent(state, "tool_used", `${player.name} used ${getToolDefinition(activeTool.toolId).label}.`);
+  }
+
+  if (goalProgress.actorFinished) {
+    clearPlayerTurnResources(player);
+
+    if (!goalProgress.settlementComplete) {
+      const nextPlayerId = getNextPlayerId(state, player.id);
+
+      if (nextPlayerId !== player.id) {
+        beginTurnFor(state, nextPlayerId, true);
+      }
+    }
+
+    return {
+      status: "ok",
+      message: resolution.summary
+    };
   }
 
   if (!resolution.endsTurn) {
@@ -860,6 +984,10 @@ function runGrantDebugToolCommand(
     return buildBlockedOutcome(`${player.name} must roll before granting a debug tool.`);
   }
 
+  if (!state.snapshot.allowDebugTools) {
+    return buildBlockedOutcome("Debug tools are disabled on this map.");
+  }
+
   const definition = getToolDefinition(toolId);
 
   if (!definition.debugGrantable) {
@@ -905,6 +1033,15 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     throw new Error("Simulation scene must define at least one player.");
   }
 
+  const mapMetadata =
+    sceneDefinition.mapId === "custom"
+      ? {
+          allowDebugTools: sceneDefinition.allowDebugTools ?? false,
+          mapId: "custom" as const,
+          mapLabel: sceneDefinition.mapLabel ?? "自定义场景",
+          mode: sceneDefinition.mode ?? "free"
+        }
+      : buildGameMapRuntimeMetadata(sceneDefinition.mapId);
   const board = createBoardDefinitionFromGoldenLayout(
     sceneDefinition.layout,
     sceneDefinition.symbols
@@ -916,6 +1053,8 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
     characterId: player.characterId ?? "late",
     characterState: cloneCharacterState(player.characterState ?? {}),
+    finishRank: player.finishRank ?? null,
+    finishedTurnNumber: player.finishedTurnNumber ?? null,
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition ?? player.position),
     tools: [],
@@ -929,10 +1068,15 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     nextToolInstanceSerial: sceneDefinition.seeds?.nextToolInstanceSerial ?? 1,
     playerOrder: players.map((player) => player.id),
     snapshot: {
+      allowDebugTools: mapMetadata.allowDebugTools,
       boardWidth: board.width,
       boardHeight: board.height,
       tiles: board.tiles,
       players,
+      mapId: mapMetadata.mapId,
+      mapLabel: mapMetadata.mapLabel,
+      mode: mapMetadata.mode,
+      settlementState: sceneDefinition.settlementState ?? resolveSettlementState(mapMetadata.mode, players),
       summons: [],
       eventLog: [],
       latestPresentation: null,
@@ -985,7 +1129,17 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     if (activePlayer) {
       const preparation = prepareTurnStartState(activePlayer);
       refreshTurnStartActions(state, activePlayer, preparation.turnStartActions);
-      applyTurnStartStop(state, activePlayer);
+      const triggeredTerrainEffects = applyTurnStartStop(state, activePlayer);
+      const goalProgress = applyRaceGoalProgress(state, activePlayer.id, triggeredTerrainEffects);
+
+      if (goalProgress.actorFinished && !goalProgress.settlementComplete) {
+        clearPlayerTurnResources(activePlayer);
+        const nextPlayerId = getNextPlayerId(state, activePlayer.id);
+
+        if (nextPlayerId !== activePlayer.id) {
+          beginTurnFor(state, nextPlayerId, true);
+        }
+      }
     }
   }
 

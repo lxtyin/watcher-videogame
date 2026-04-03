@@ -520,6 +520,26 @@ button:disabled {
   .golden-case-card__grid {
     grid-template-columns: 1fr;
   }
+
+  .settlement-card__header,
+  .settlement-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .settlement-turn-meta {
+    text-align: left;
+  }
+
+  .settlement-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .settlement-actions button {
+    flex: 1 1 0;
+  }
 }
 
 .tool-detail strong,
@@ -616,6 +636,14 @@ button:disabled {
   background: #d5c6a1;
 }
 
+.legend-swatch.start {
+  background: #7dc8be;
+}
+
+.legend-swatch.goal {
+  background: #d97a70;
+}
+
 .legend-swatch.wall {
   background: #455062;
 }
@@ -642,6 +670,104 @@ button:disabled {
 
 .legend-swatch.active {
   background: #1f8f6a;
+}
+
+.pet-thumbnail {
+  width: 84px;
+  height: 84px;
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.72), transparent 56%),
+    linear-gradient(180deg, rgba(255, 248, 231, 0.94), rgba(238, 226, 201, 0.9));
+  box-shadow:
+    inset 0 0 0 1px rgba(151, 120, 71, 0.12),
+    0 12px 24px rgba(77, 52, 19, 0.12);
+}
+
+.settlement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.6rem;
+  background: rgba(27, 28, 24, 0.36);
+  backdrop-filter: blur(14px);
+}
+
+.settlement-card {
+  width: min(920px, 100%);
+  max-height: min(88dvh, 860px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.4rem;
+  overflow: auto;
+  border-radius: 28px;
+  background: rgba(255, 252, 246, 0.96);
+  box-shadow: 0 30px 80px rgba(25, 18, 9, 0.22);
+}
+
+.settlement-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settlement-card__header h2 {
+  margin: 0.35rem 0 0.5rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 2.2vw, 2.4rem);
+}
+
+.settlement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.settlement-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 22px;
+  background: rgba(248, 242, 231, 0.92);
+  border: 1px solid rgba(151, 120, 71, 0.14);
+}
+
+.settlement-rank {
+  min-width: 72px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #7a5a22;
+}
+
+.settlement-player-meta,
+.settlement-turn-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.settlement-player-meta span,
+.settlement-turn-meta span {
+  color: #65717c;
+  font-size: 0.9rem;
+}
+
+.settlement-turn-meta {
+  text-align: right;
+}
+
+.settlement-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
 }
 
 .log-card ul {

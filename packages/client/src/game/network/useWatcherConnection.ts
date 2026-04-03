@@ -1,13 +1,23 @@
 import { useEffect } from "react";
 import type { Room } from "colyseus.js";
 import { Client } from "colyseus.js";
-import { WATCHER_ROOM_NAME, getToolAvailability } from "@watcher/shared";
+import {
+  DEFAULT_GAME_MAP_ID,
+  WATCHER_ROOM_NAME,
+  getToolAvailability,
+  resolveGameMapId
+} from "@watcher/shared";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
 
 // Player names stay lightweight and local because identity is not a prototype focus yet.
 function createPlayerName(): string {
   return `Scout-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function getRequestedMapId(): string {
+  const url = new URL(window.location.href);
+  return resolveGameMapId(url.searchParams.get("map") ?? DEFAULT_GAME_MAP_ID);
 }
 
 // Connection setup mirrors room state into the local store and keeps selection in sync.
@@ -25,12 +35,14 @@ export function useWatcherConnection(): void {
 
     const serverUrl = import.meta.env.VITE_SERVER_URL ?? "ws://localhost:2567";
     const client = new Client(serverUrl);
+    const requestedMapId = getRequestedMapId();
 
     setConnectionStatus("connecting");
 
     // The client never computes room state locally. It only mirrors server snapshots.
     void client
       .joinOrCreate(WATCHER_ROOM_NAME, {
+        mapId: requestedMapId,
         requestedPlayerName: createPlayerName()
       })
       .then((room) => {

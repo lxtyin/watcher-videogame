@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
+  DEFAULT_GAME_MAP_ID,
+  RACE_GAME_MAP_ID,
   TOOL_DEFINITIONS,
   TURN_START_ACTION_DEFINITIONS,
   describeToolButtonLabel,
@@ -36,6 +38,26 @@ const TURN_PHASE_LABELS = {
 } as const;
 
 const DEBUG_TOOL_OPTIONS = getDebugGrantableToolIds();
+
+function navigateToMap(mapId: string): void {
+  const url = new URL(window.location.href);
+
+  if (mapId === DEFAULT_GAME_MAP_ID) {
+    url.searchParams.delete("map");
+  } else {
+    url.searchParams.set("map", mapId);
+  }
+
+  window.location.assign(url.toString());
+}
+
+function describeModeLabel(mode: "free" | "race" | undefined): string {
+  if (mode === "race") {
+    return "竞速模式";
+  }
+
+  return "自由模式";
+}
 
 function describeInteractionHint(
   isMyTurn: boolean,
@@ -144,13 +166,16 @@ export function HudSidebar() {
       ? getToolChoiceDefinitions(selectedTool.toolId)
       : [];
   const usableToolCount = me?.tools.filter((tool) => getToolAvailability(tool, me.tools).usable).length ?? 0;
-  const interactionHint = describeInteractionHint(
-    isMyTurn,
-    activePhase,
-    selectedTool,
-    me?.tools ?? [],
-    turnStartActions.length
-  );
+  const interactionHint =
+    snapshot?.settlementState === "complete"
+      ? "本局竞速已经全部完赛，可以查看结算页，或继续留在房间里回看棋盘。"
+      : describeInteractionHint(
+          isMyTurn,
+          activePhase,
+          selectedTool,
+          me?.tools ?? [],
+          turnStartActions.length
+        );
 
   useEffect(() => {
     if (!toolNotice) {
@@ -211,6 +236,35 @@ export function HudSidebar() {
         </span>
         <p>{interactionHint}</p>
         {lastError ? <p className="error-copy">{lastError}</p> : null}
+      </section>
+
+      <section className="controls-card">
+        <div className="role-skill-header">
+          <div>
+            <p className="section-title">玩法地图</p>
+            <strong>{snapshot?.mapLabel ?? "等待地图加载"}</strong>
+          </div>
+          <span>{describeModeLabel(snapshot?.mode)}</span>
+        </div>
+        <div className="tool-grid">
+          <button
+            type="button"
+            onClick={() => navigateToMap(DEFAULT_GAME_MAP_ID)}
+            disabled={snapshot?.mapId === DEFAULT_GAME_MAP_ID}
+          >
+            自由模式
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateToMap(RACE_GAME_MAP_ID)}
+            disabled={snapshot?.mapId === RACE_GAME_MAP_ID}
+          >
+            竞速地图
+          </button>
+        </div>
+        <p className="hint-copy">
+          每张地图会绑定一种玩法模式。这一步先提供竞速地图入口，完整主页和房间流转下一步再接。
+        </p>
       </section>
 
       <section className="info-grid">
@@ -337,29 +391,35 @@ export function HudSidebar() {
         ) : (
           <p className="hint-copy">当前角色没有额外的回合开始技能。</p>
         )}
-        <div className="debug-grant-row">
-          <select
-            value={debugToolId}
-            onChange={(event) => setDebugToolId(event.target.value as ToolId)}
-            disabled={!isMyTurn || activePhase !== "action"}
-            data-testid="debug-tool-select"
-          >
-            {DEBUG_TOOL_OPTIONS.map((toolId) => (
-              <option key={toolId} value={toolId}>
-                {TOOL_DEFINITIONS[toolId].label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            data-testid="grant-debug-tool-button"
-            onClick={() => grantDebugTool(debugToolId)}
-            disabled={!isMyTurn || activePhase !== "action"}
-          >
-            获取调试工具
-          </button>
-        </div>
-        <p className="hint-copy">调试：行动阶段可以从下拉列表里直接发放任意已实现工具。</p>
+        {snapshot?.allowDebugTools ? (
+          <>
+            <div className="debug-grant-row">
+              <select
+                value={debugToolId}
+                onChange={(event) => setDebugToolId(event.target.value as ToolId)}
+                disabled={!isMyTurn || activePhase !== "action"}
+                data-testid="debug-tool-select"
+              >
+                {DEBUG_TOOL_OPTIONS.map((toolId) => (
+                  <option key={toolId} value={toolId}>
+                    {TOOL_DEFINITIONS[toolId].label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                data-testid="grant-debug-tool-button"
+                onClick={() => grantDebugTool(debugToolId)}
+                disabled={!isMyTurn || activePhase !== "action"}
+              >
+                获取调试工具
+              </button>
+            </div>
+            <p className="hint-copy">调试：行动阶段可以从下拉列表里直接发放任意已实现工具。</p>
+          </>
+        ) : (
+          <p className="hint-copy">当前地图关闭了调试发牌，所有玩家按正式规则竞速到终点。</p>
+        )}
         <p className="hint-copy">主要操作都在棋子头顶完成。键盘辅助：`R` 掷骰，`E` 结束回合，方向键执行当前定向工具。</p>
       </section>
 
@@ -500,7 +560,12 @@ export function HudSidebar() {
                         />
                         <strong>{player.name}</strong>
                       </div>
-                      <p className="hint-copy">{playerRole.label}</p>
+                      <p className="hint-copy">
+                        {playerRole.label}
+                        {player.finishRank
+                          ? ` · 第 ${player.finishRank} 名 · 第 ${player.finishedTurnNumber} 回合到达`
+                          : ""}
+                      </p>
                     </div>
                     <span>{`(${player.position.x}, ${player.position.y})`}</span>
                   </div>
@@ -538,6 +603,14 @@ export function HudSidebar() {
         <div className="legend-row">
           <span className="legend-swatch floor" />
           普通地块
+        </div>
+        <div className="legend-row">
+          <span className="legend-swatch start" />
+          出生点，竞速模式所有玩家共享起点
+        </div>
+        <div className="legend-row">
+          <span className="legend-swatch goal" />
+          终点，只会在自己的回合停留时触发到达
         </div>
         <div className="legend-row">
           <span className="legend-swatch wall" />

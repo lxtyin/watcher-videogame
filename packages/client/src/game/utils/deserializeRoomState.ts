@@ -2,6 +2,7 @@ import type {
   CharacterId,
   CharacterStateMap,
   Direction,
+  GameMode,
   GameSnapshot,
   PlayerTurnFlag,
   RolledToolId,
@@ -19,7 +20,7 @@ interface RoomTileState {
   key: string;
   x: number;
   y: number;
-  type: "floor" | "wall" | "earthWall" | "pit" | "lucky" | "conveyor";
+  type: "floor" | "wall" | "earthWall" | "pit" | "lucky" | "conveyor" | "start" | "goal";
   durability: number;
   direction: Direction | "";
 }
@@ -30,6 +31,8 @@ interface RoomPlayerState {
   color: string;
   characterId: CharacterId;
   characterStateJson: string;
+  finishRank: number;
+  finishedTurnNumber: number;
   x: number;
   y: number;
   spawnX: number;
@@ -79,14 +82,20 @@ interface RoomEventLogEntry {
     | "debug_granted"
     | "character_switched"
     | "summon_triggered"
-    | "character_action_used";
+    | "character_action_used"
+    | "player_finished"
+    | "match_finished";
   message: string;
   createdAt: number;
 }
 
 interface RoomStateShape {
+  allowDebugTools: boolean;
   boardWidth: number;
   boardHeight: number;
+  mapId: string;
+  mapLabel: string;
+  mode: GameMode;
   board: SchemaCollection<RoomTileState>;
   summons: SchemaCollection<RoomSummonState>;
   players: SchemaCollection<RoomPlayerState>;
@@ -94,6 +103,7 @@ interface RoomStateShape {
   eventLog: Iterable<RoomEventLogEntry>;
   latestPresentationSequence: number;
   latestPresentationJson: string;
+  settlementState: "active" | "complete";
 }
 
 // Colyseus schema objects are flattened into plain data for React and Zustand consumption.
@@ -136,8 +146,12 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
   };
 
   return {
+    allowDebugTools: roomState.allowDebugTools,
     boardWidth: roomState.boardWidth,
     boardHeight: roomState.boardHeight,
+    mapId: roomState.mapId as GameSnapshot["mapId"],
+    mapLabel: roomState.mapLabel,
+    mode: roomState.mode,
     tiles: Array.from(roomState.board.values()).map((tile) => ({
       key: tile.key,
       x: tile.x,
@@ -161,6 +175,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       color: player.color,
       characterId: player.characterId,
       characterState: parseCharacterState(player.characterStateJson),
+      finishRank: player.finishRank > 0 ? player.finishRank : null,
+      finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,
       position: {
         x: player.x,
         y: player.y
@@ -196,6 +212,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       message: entry.message,
       createdAt: entry.createdAt
     })),
+    settlementState: roomState.settlementState,
     latestPresentation: parseLatestPresentation()
   };
 }

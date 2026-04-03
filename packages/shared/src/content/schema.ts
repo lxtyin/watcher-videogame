@@ -4,7 +4,11 @@ export type TileType =
   | "earthWall"
   | "pit"
   | "lucky"
-  | "conveyor";
+  | "conveyor"
+  | "start"
+  | "goal";
+
+export type GameMode = "free" | "race";
 
 export type TurnPhase = "roll" | "action";
 export type Direction = "up" | "down" | "left" | "right";

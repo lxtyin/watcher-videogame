@@ -2,6 +2,8 @@ import type { LayoutSymbolDefinition } from "../content/defaultBoard";
 import type {
   CharacterStateMap,
   CharacterId,
+  GameMapId,
+  GameMode,
   GameSnapshot,
   GrantDebugToolPayload,
   GridPosition,
@@ -28,6 +30,8 @@ export interface SimulationPlayerDefinition {
   characterId?: CharacterId;
   characterState?: CharacterStateMap;
   color?: string;
+  finishRank?: number | null;
+  finishedTurnNumber?: number | null;
   id: string;
   name?: string;
   position: GridPosition;
@@ -51,9 +55,14 @@ export interface SimulationSeedState {
 }
 
 export interface SimulationSceneDefinition {
+  allowDebugTools?: boolean;
   layout: readonly string[];
+  mapId?: GameMapId | "custom";
+  mapLabel?: string;
+  mode?: GameMode;
   players: SimulationPlayerDefinition[];
   seeds?: Partial<SimulationSeedState>;
+  settlementState?: GameSnapshot["settlementState"];
   summons?: SimulationSummonDefinition[];
   symbols?: Partial<Record<string, LayoutSymbolDefinition>>;
   turn?: Partial<TurnInfoSnapshot>;

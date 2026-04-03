@@ -56,6 +56,18 @@ const TILE_INSPECTION_DEFINITIONS: Record<TileType, TileInspectionDefinition> = 
     accent: "#d6bf70",
     description: "停留在上方时会额外投掷一次工具骰，每回合限一次。"
   },
+  start: {
+    title: "出生点",
+    thumbnailToken: "起",
+    accent: "#7dc8be",
+    description: "竞速模式的共享起点。玩家会从这里出发，回到主页后也会默认回到自由模式地图。"
+  },
+  goal: {
+    title: "终点",
+    thumbnailToken: "终",
+    accent: "#d97a70",
+    description: "只有在自己的回合停留时才会触发到达。所有玩家都到达后会进入结算页面。"
+  },
   conveyor: {
     title: "加速带",
     thumbnailToken: "带",

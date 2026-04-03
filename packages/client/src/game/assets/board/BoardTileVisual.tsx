@@ -3,8 +3,10 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { toWorldPosition } from "../../utils/boardMath";
 import type { TilePreviewVariant } from "../../interaction/previewState";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
+import { GoalTileAsset } from "./GoalTileAsset";
 import { LuckyBlockAsset } from "./LuckyBlockAsset";
 import { PitDecorationAsset } from "./PitDecorationAsset";
+import { StartTileAsset } from "./StartTileAsset";
 import { BlastPreviewTileAsset } from "../previews/BlastPreviewTileAsset";
 import { TilePreviewAsset } from "../previews/TilePreviewAsset";
 
@@ -19,7 +21,9 @@ const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   earthWall: { color: "#bc7441", height: 0.7 },
   pit: { color: "#8b705f", height: 0.22 },
   lucky: { color: "#d6bf70", height: 0.22 },
-  conveyor: { color: "#b8c7cd", height: 0.22 }
+  conveyor: { color: "#b8c7cd", height: 0.22 },
+  start: { color: "#9fd9d3", height: 0.22 },
+  goal: { color: "#e59e96", height: 0.22 }
 };
 
 // Board tiles compose a base block plus optional content assets and preview overlays.
@@ -52,6 +56,8 @@ export function BoardTileVisual({
       </mesh>
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
       {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
+      {tile.type === "start" ? <StartTileAsset /> : null}
+      {tile.type === "goal" ? <GoalTileAsset /> : null}
       {tile.type === "conveyor" && tile.direction ? (
         <ConveyorArrowAsset direction={tile.direction} />
       ) : null}

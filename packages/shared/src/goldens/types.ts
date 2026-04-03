@@ -5,6 +5,7 @@ import type {
   CharacterStateMap,
   Direction,
   EventType,
+  GameMode,
   GameSnapshot,
   GridPosition,
   PlayerTurnFlag,
@@ -110,6 +111,8 @@ export type GoldenCaseStep =
 
 export interface GoldenExpectedPlayerState {
   characterId?: CharacterId;
+  finishRank?: number | null;
+  finishedTurnNumber?: number | null;
   position?: GridPosition;
   spawnPosition?: GridPosition;
   toolCount?: number;
@@ -130,10 +133,15 @@ export interface GoldenPresentationExpectation {
 }
 
 export interface GoldenCaseExpectation {
+  allowDebugTools?: boolean;
   boardLayout?: readonly string[];
   eventTypes?: EventType[];
   latestPresentation?: GoldenPresentationExpectation;
+  mapId?: GameSnapshot["mapId"];
+  mapLabel?: string;
+  mode?: GameMode;
   players?: Record<string, GoldenExpectedPlayerState>;
+  settlementState?: GameSnapshot["settlementState"];
   summons?: GoldenExpectedSummonState[];
   summonCount?: number;
   turnInfo?: Partial<TurnInfoSnapshot>;
@@ -151,6 +159,8 @@ export interface GoldenCaseDefinition {
 export interface GoldenCasePlayerSummary {
   characterId: CharacterId;
   color: string;
+  finishRank: number | null;
+  finishedTurnNumber: number | null;
   position: GridPosition;
   spawnPosition: GridPosition;
   toolCount: number;
@@ -165,10 +175,15 @@ export interface GoldenCasePresentationSummary {
 }
 
 export interface GoldenCaseStateSummary {
+  allowDebugTools: boolean;
   boardLayout: string[];
   eventTypes: EventType[];
   latestPresentation: GoldenCasePresentationSummary;
+  mapId: GameSnapshot["mapId"];
+  mapLabel: string;
+  mode: GameMode;
   players: Record<string, GoldenCasePlayerSummary>;
+  settlementState: GameSnapshot["settlementState"];
   summons: SummonSnapshot[];
   turnInfo: TurnInfoSnapshot;
 }
