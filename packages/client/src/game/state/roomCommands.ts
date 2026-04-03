@@ -4,6 +4,7 @@ import type {
   Direction,
   GameSnapshot,
   GridPosition,
+  SetReadyCommandPayload,
   ToolId,
   TurnStartActionId
 } from "@watcher/shared";
@@ -39,6 +40,30 @@ export function sendSetCharacter(room: Room | null, characterId: CharacterId): v
   }
 
   room.send("setCharacter", { characterId });
+}
+
+export function sendSetReady(room: Room | null, payload: SetReadyCommandPayload): void {
+  if (!room) {
+    return;
+  }
+
+  room.send("setReady", payload);
+}
+
+export function sendStartGame(room: Room | null): void {
+  if (!room) {
+    return;
+  }
+
+  room.send("startGame");
+}
+
+export function sendReturnToRoom(room: Room | null): void {
+  if (!room) {
+    return;
+  }
+
+  room.send("returnToRoom");
 }
 
 export function sendGrantDebugTool(room: Room | null, toolId: ToolId): void {

@@ -770,3 +770,58 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
 - TODO:
   - replace the temporary sidebar map switch with a proper home / room flow
   - consider extracting the race-finish orchestration out of both room and simulator into one shared helper
+
+## 2026-04-03 Home And Room Flow
+
+- Replaced the temporary map-switch entry with a real home and room loop.
+  - home route: `/`
+  - room route: `/?room=<roomCode>`
+- Client connection flow now lives behind explicit commands in `packages/client/src/game/network/useWatcherConnection.ts`.
+  - create room
+  - join room by room code
+  - reconnect from local storage
+  - leave room explicitly
+- Added a best-effort persistence strategy without accounts:
+  - store the latest player name in `localStorage`
+  - store `roomCode + reconnectionToken + playerName` in `localStorage`
+  - attempt `client.reconnect()` when opening the room route again
+- Extended room state across shared snapshot, server schema, and client deserialization:
+  - `roomCode`
+  - `roomPhase`
+  - `hostPlayerId`
+  - `players[].isReady`
+  - `players[].isConnected`
+- `WatcherRoom` no longer starts gameplay on first join.
+  - players now enter `lobby`
+  - host starts the match after all connected players are ready
+  - room locks during gameplay
+  - race settlement can reopen the same room and unlock it again
+- Sidebar flow now branches by room phase.
+  - lobby:
+    - room info
+    - player cards
+    - ready toggle
+    - host start button
+    - character switching before match start
+  - in-game:
+    - existing turn HUD
+    - tool list
+    - observer tool list
+- Added new docs:
+  - `docs/arch/房间与大厅流程.md`
+  - updated `docs/index.md`
+- Validation:
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`
+  - `npm.cmd run build`
+  - browser text smoke:
+    - `output/web-game/home-room-flow/summary.json`
+    - confirmed:
+      - home can create a room
+      - second client can join by room code
+      - both clients can ready in the lobby
+      - host can start and transition to `in_game`
+      - refresh preserves the original player seat through reconnect
+- TODO:
+  - decide whether room codes should remain raw Colyseus `roomId` values or switch to a shorter public alias later
+  - consider extracting the room lifecycle out of `WatcherRoom` once lobby features grow further

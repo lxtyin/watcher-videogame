@@ -4,6 +4,7 @@ import {
   BOARD_WIDTH,
   type CharacterId,
   type GameMode,
+  type RoomPhase,
   type RolledToolId,
   type ToolId
 } from "@watcher/shared";
@@ -34,6 +35,8 @@ export class PlayerState extends Schema {
   @type("string") characterStateJson = "{}";
   @type("number") finishRank = 0;
   @type("number") finishedTurnNumber = 0;
+  @type("boolean") isConnected = true;
+  @type("boolean") isReady = false;
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") spawnX = 0;
@@ -71,6 +74,9 @@ export class WatcherState extends Schema {
   @type("string") mapId = "free_default";
   @type("string") mapLabel = "";
   @type("string") mode: GameMode = "free";
+  @type("string") roomCode = "";
+  @type("string") roomPhase: RoomPhase = "lobby";
+  @type("string") hostPlayerId = "";
   @type("boolean") allowDebugTools = true;
   @type("string") settlementState = "active";
   @type("number") boardWidth = BOARD_WIDTH;

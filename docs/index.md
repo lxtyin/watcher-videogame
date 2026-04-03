@@ -209,6 +209,25 @@ This keeps the next expansion path closer to:
 2. Implement or extend rules in focused executor / interaction modules.
 3. Attach client-facing visuals or HUD metadata without reopening large entry files.
 
+## 2026-04-03 Home And Room Flow
+
+- The prototype now has a real home and room lifecycle instead of auto-joining straight into gameplay.
+- New entry points:
+  - `/`
+    - home
+    - create room
+    - join room
+  - `/?room=<roomCode>`
+    - room page
+    - lobby / in-game / settlement return flow
+- New room doc:
+  - `docs/arch/房间与大厅流程.md`
+- Current persistence approach without accounts:
+  - keep the latest player name in `localStorage`
+  - keep `roomCode + reconnectionToken + playerName` in `localStorage`
+  - use Colyseus `allowReconnection()` on the server
+  - use `client.reconnect()` on refresh in the browser
+
 ## 2026-04-01 Movement Trigger Update
 
 - Shared movement semantics now explicitly distinguish:

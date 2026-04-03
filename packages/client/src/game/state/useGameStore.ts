@@ -15,9 +15,12 @@ import {
   sendDirectionalToolIfUsable,
   sendEndTurn,
   sendGrantDebugTool,
+  sendReturnToRoom,
   sendInstantToolIfUsable,
   sendRollDice,
   sendSetCharacter,
+  sendSetReady,
+  sendStartGame,
   sendTileDirectionToolIfUsable,
   sendTileTargetToolIfUsable,
   sendUseTurnStartAction
@@ -60,6 +63,9 @@ interface GameStore {
   rollDice: () => void;
   useTurnStartAction: (actionId: TurnStartActionId) => void;
   endTurn: () => void;
+  setReady: (isReady: boolean) => void;
+  startGame: () => void;
+  returnToRoom: () => void;
   setCharacter: (characterId: CharacterId) => void;
   grantDebugTool: (toolId: ToolId) => void;
   useInstantTool: (toolInstanceId?: string | null) => void;
@@ -256,6 +262,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   endTurn: () => {
     sendEndTurn(get().room);
+  },
+  setReady: (isReady) => {
+    sendSetReady(get().room, { isReady });
+  },
+  startGame: () => {
+    sendStartGame(get().room);
+  },
+  returnToRoom: () => {
+    sendReturnToRoom(get().room);
   },
   setCharacter: (characterId) => {
     sendSetCharacter(get().room, characterId);

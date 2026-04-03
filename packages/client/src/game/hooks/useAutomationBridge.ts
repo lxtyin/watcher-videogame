@@ -27,6 +27,7 @@ export function useAutomationBridge(): void {
         activePresentationElapsedMs
       );
       const payload = {
+        route: window.location.search.includes("room=") ? "room" : "home",
         mode: state.connectionStatus,
         coordinateSystem: "origin=(0,0) at the top-left of the board, x grows right, y grows down",
         sessionId: state.sessionId,

@@ -22,6 +22,7 @@ export type MovementDisposition = ContentMovementDisposition;
 export type MovementTiming = "in_turn" | "out_of_turn";
 export type GameMode = "free" | "race";
 export type GameSettlementState = "active" | "complete";
+export type RoomPhase = "lobby" | "in_game" | "settlement";
 export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
@@ -91,6 +92,8 @@ export interface PlayerSnapshot {
   finishRank: number | null;
   finishedTurnNumber: number | null;
   id: string;
+  isConnected: boolean;
+  isReady: boolean;
   name: string;
   position: GridPosition;
   spawnPosition: GridPosition;
@@ -177,11 +180,14 @@ export interface GameSnapshot {
   boardHeight: number;
   boardWidth: number;
   eventLog: EventLogEntry[];
+  hostPlayerId: string | null;
   latestPresentation: SequencedActionPresentation | null;
   mapId: GameMapId | "custom";
   mapLabel: string;
   mode: GameMode;
   players: PlayerSnapshot[];
+  roomCode: string;
+  roomPhase: RoomPhase;
   settlementState: GameSettlementState;
   summons: SummonSnapshot[];
   tiles: TileDefinition[];
@@ -206,6 +212,10 @@ export interface GrantDebugToolPayload {
 
 export interface SetCharacterCommandPayload {
   characterId: CharacterId;
+}
+
+export interface SetReadyCommandPayload {
+  isReady: boolean;
 }
 
 export interface MovementActor {

@@ -4,6 +4,7 @@ import type {
   Direction,
   GameMode,
   GameSnapshot,
+  RoomPhase,
   PlayerTurnFlag,
   RolledToolId,
   SequencedActionPresentation,
@@ -35,6 +36,8 @@ interface RoomPlayerState {
   finishedTurnNumber: number;
   x: number;
   y: number;
+  isConnected: boolean;
+  isReady: boolean;
   spawnX: number;
   spawnY: number;
   turnFlags: Iterable<PlayerTurnFlag>;
@@ -93,9 +96,12 @@ interface RoomStateShape {
   allowDebugTools: boolean;
   boardWidth: number;
   boardHeight: number;
+  hostPlayerId: string;
   mapId: string;
   mapLabel: string;
   mode: GameMode;
+  roomCode: string;
+  roomPhase: RoomPhase;
   board: SchemaCollection<RoomTileState>;
   summons: SchemaCollection<RoomSummonState>;
   players: SchemaCollection<RoomPlayerState>;
@@ -149,9 +155,12 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
     allowDebugTools: roomState.allowDebugTools,
     boardWidth: roomState.boardWidth,
     boardHeight: roomState.boardHeight,
+    hostPlayerId: roomState.hostPlayerId || null,
     mapId: roomState.mapId as GameSnapshot["mapId"],
     mapLabel: roomState.mapLabel,
     mode: roomState.mode,
+    roomCode: roomState.roomCode,
+    roomPhase: roomState.roomPhase,
     tiles: Array.from(roomState.board.values()).map((tile) => ({
       key: tile.key,
       x: tile.x,
@@ -177,6 +186,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       characterState: parseCharacterState(player.characterStateJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
       finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,
+      isConnected: player.isConnected,
+      isReady: player.isReady,
       position: {
         x: player.x,
         y: player.y

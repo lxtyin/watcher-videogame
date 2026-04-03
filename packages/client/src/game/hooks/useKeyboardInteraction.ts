@@ -27,6 +27,19 @@ export function useKeyboardInteraction(): void {
   useEffect(() => {
     // One handler keeps keyboard shortcuts aligned with the current selected tool.
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      if (!snapshot || snapshot.roomPhase !== "in_game") {
+        return;
+      }
+
       const direction = MOVEMENT_KEYS[event.key];
       const selectedToolState = getSelectedToolState(
         snapshot,

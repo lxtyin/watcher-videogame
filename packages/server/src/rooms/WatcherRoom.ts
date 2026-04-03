@@ -38,10 +38,11 @@ import {
   type CharacterStateMap,
   type GrantDebugToolPayload,
   type SetCharacterCommandPayload,
+  type SetReadyCommandPayload,
   type ToolId,
   type ToolLoadoutDefinition,
-  type UseTurnStartActionCommandPayload,
   type TurnToolSnapshot,
+  type UseTurnStartActionCommandPayload,
   type UseToolCommandPayload
 } from "@watcher/shared";
 import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
@@ -72,6 +73,8 @@ interface CreateOptions {
   mapId?: string;
 }
 
+const RECONNECTION_WINDOW_SECONDS = 45;
+
 function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
   const usedColors = new Set(Array.from(players).map((player) => player.color));
   const availableColors = PLAYER_COLORS.filter((color) => !usedColors.has(color));
@@ -98,11 +101,15 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.mapId = mapMetadata.mapId;
     this.state.mapLabel = mapMetadata.mapLabel;
     this.state.mode = mapMetadata.mode;
+    this.state.roomCode = this.roomId;
+    this.state.roomPhase = "lobby";
+    this.state.hostPlayerId = "";
     this.state.allowDebugTools = mapMetadata.allowDebugTools;
     this.state.settlementState = "active";
 
     // The room owns board setup so every client joins the same authoritative map.
     this.seedBoard();
+    this.resetTurnState(1);
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     this.onMessage("rollDice", (client) => {
@@ -128,10 +135,33 @@ export class WatcherRoom extends Room<WatcherState> {
     this.onMessage("setCharacter", (client, payload: SetCharacterCommandPayload) => {
       this.handleSetCharacter(client, payload);
     });
+
+    this.onMessage("setReady", (client, payload: SetReadyCommandPayload) => {
+      this.handleSetReady(client, payload);
+    });
+
+    this.onMessage("startGame", (client) => {
+      this.handleStartGame(client);
+    });
+
+    this.onMessage("returnToRoom", (client) => {
+      this.handleReturnToRoom(client);
+    });
   }
 
-  // Joining players receive a spawn, empty turn resources, and possibly the first turn.
+  // Joining players enter the lobby first, while reconnects reclaim the previous seat.
   override onJoin(client: Client, options: JoinOptions): void {
+    const existingPlayer = this.state.players.get(client.sessionId);
+
+    if (existingPlayer) {
+      existingPlayer.isConnected = true;
+      if (options.requestedPlayerName?.trim()) {
+        existingPlayer.name = options.requestedPlayerName.trim();
+      }
+      this.pushEvent("turn_started", `${existingPlayer.name} reconnected to room ${this.state.roomCode}.`);
+      return;
+    }
+
     const spawnIndex = this.state.players.size;
     const characterIds = getCharacterIds();
     const spawn = getGameMapSpawnPosition(this.state.mapId, spawnIndex);
@@ -144,6 +174,8 @@ export class WatcherRoom extends Room<WatcherState> {
     player.characterStateJson = "{}";
     player.finishRank = 0;
     player.finishedTurnNumber = 0;
+    player.isConnected = true;
+    player.isReady = false;
     player.x = spawn.x;
     player.y = spawn.y;
     player.spawnX = spawn.x;
@@ -151,45 +183,47 @@ export class WatcherRoom extends Room<WatcherState> {
 
     clearPlayerTurnResources(player);
     this.state.players.set(client.sessionId, player);
-
-    if (!this.state.turnInfo.currentPlayerId) {
-      this.beginTurnFor(client.sessionId, false);
-    } else {
-      this.pushEvent("turn_started", `${player.name} joined the room.`);
-    }
+    this.state.hostPlayerId ||= client.sessionId;
+    this.pushEvent("turn_started", `${player.name} joined room ${this.state.roomCode}.`);
   }
 
-  // Leaving players are removed cleanly, and the turn advances if the active player exits.
-  override onLeave(client: Client): void {
+  // Disconnects reserve the seat briefly so refreshes can reconnect without losing state.
+  override async onLeave(client: Client, consented: boolean): Promise<void> {
     const leavingPlayer = this.state.players.get(client.sessionId);
 
     if (!leavingPlayer) {
       return;
     }
 
-    this.state.players.delete(client.sessionId);
+    leavingPlayer.isConnected = false;
+    leavingPlayer.isReady = false;
 
-    if (!this.state.players.size) {
-      this.state.turnInfo.currentPlayerId = "";
-      this.state.turnInfo.phase = "roll";
-      this.state.turnInfo.moveRoll = 0;
-      this.state.turnInfo.lastRolledToolId = "";
-      this.state.turnInfo.turnStartActionsJson = "[]";
-      this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-      return;
-    }
+    if (!consented) {
+      this.pushEvent("turn_started", `${leavingPlayer.name} disconnected. Waiting to reconnect.`);
 
-    if (this.state.turnInfo.currentPlayerId === client.sessionId) {
-      const nextPlayerId = this.getNextPlayerId(client.sessionId);
+      try {
+        await this.allowReconnection(client, RECONNECTION_WINDOW_SECONDS);
+        const reconnectedPlayer = this.state.players.get(client.sessionId);
 
-      if (nextPlayerId) {
-        this.beginTurnFor(nextPlayerId, true);
-      } else if (this.isRaceMode()) {
-        this.enterSettlementState();
+        if (reconnectedPlayer) {
+          reconnectedPlayer.isConnected = true;
+          this.pushEvent(
+            "turn_started",
+            `${reconnectedPlayer.name} returned to room ${this.state.roomCode}.`
+          );
+        }
+        return;
+      } catch {
+        // Timed-out seats fall through to the normal removal path.
       }
     }
 
-    this.pushEvent("turn_started", `${leavingPlayer.name} left the room.`);
+    this.removePlayer(
+      client.sessionId,
+      consented
+        ? `${leavingPlayer.name} left room ${this.state.roomCode}.`
+        : `${leavingPlayer.name} did not reconnect in time and was removed.`
+    );
   }
 
   // Board seeding mirrors the shared default layout into Colyseus schema state.
@@ -198,6 +232,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     this.state.boardWidth = board.width;
     this.state.boardHeight = board.height;
+    this.state.board.clear();
 
     for (const tile of board.tiles) {
       const tileState = new TileState();
@@ -238,6 +273,140 @@ export class WatcherRoom extends Room<WatcherState> {
     applyCharacterState(player, characterState);
   }
 
+  private resetTurnState(turnNumber: number): void {
+    this.state.turnInfo.currentPlayerId = "";
+    this.state.turnInfo.phase = "roll";
+    this.state.turnInfo.moveRoll = 0;
+    this.state.turnInfo.lastRolledToolId = "";
+    this.state.turnInfo.turnStartActionsJson = "[]";
+    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
+    this.state.turnInfo.turnNumber = turnNumber;
+  }
+
+  private clearEventLog(): void {
+    while (this.state.eventLog.length > 0) {
+      this.state.eventLog.pop();
+    }
+  }
+
+  private clearPresentationState(): void {
+    this.state.latestPresentationSequence = 0;
+    this.state.latestPresentationJson = "";
+    this.nextPresentationSequence = 1;
+  }
+
+  private clearSummonsState(): void {
+    this.state.summons.clear();
+  }
+
+  private resetMatchRuntimeState(): void {
+    this.moveDieSeed = 11;
+    this.toolDieSeed = 1;
+    this.nextToolInstanceSerial = 1;
+    this.clearSummonsState();
+    this.clearPresentationState();
+    this.seedBoard();
+    this.state.settlementState = "active";
+  }
+
+  private resetPlayersForCurrentMap(clearReady: boolean): void {
+    const playerOrder = this.getPlayerOrder();
+
+    playerOrder.forEach((playerId, index) => {
+      const player = this.state.players.get(playerId);
+
+      if (!player) {
+        return;
+      }
+
+      const spawn = getGameMapSpawnPosition(this.state.mapId, index);
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.spawnX = spawn.x;
+      player.spawnY = spawn.y;
+      player.finishRank = 0;
+      player.finishedTurnNumber = 0;
+      player.characterStateJson = "{}";
+
+      if (clearReady) {
+        player.isReady = false;
+      }
+
+      clearPlayerTurnResources(player);
+    });
+  }
+
+  private resetRoomToLobbyState(): void {
+    this.state.roomPhase = "lobby";
+    this.resetMatchRuntimeState();
+    this.resetPlayersForCurrentMap(true);
+    this.resetTurnState(1);
+    this.clearEventLog();
+    void this.unlock();
+  }
+
+  private reassignHostIfNeeded(): void {
+    if (this.state.hostPlayerId && this.state.players.has(this.state.hostPlayerId)) {
+      return;
+    }
+
+    this.state.hostPlayerId = this.getPlayerOrder()[0] ?? "";
+  }
+
+  private removePlayer(playerId: string, message: string): void {
+    const wasActivePlayer = this.state.turnInfo.currentPlayerId === playerId;
+    this.state.players.delete(playerId);
+    this.reassignHostIfNeeded();
+
+    if (!this.state.players.size) {
+      this.resetRoomToLobbyState();
+      this.state.hostPlayerId = "";
+      this.clearEventLog();
+      return;
+    }
+
+    if (this.state.roomPhase === "in_game" && wasActivePlayer) {
+      const nextPlayerId = this.getNextPlayerId(playerId);
+
+      if (nextPlayerId) {
+        this.beginTurnFor(nextPlayerId, true);
+      } else if (this.isRaceMode()) {
+        this.enterSettlementState();
+      } else {
+        this.resetTurnState(this.state.turnInfo.turnNumber);
+      }
+    }
+
+    this.pushEvent("turn_started", message);
+  }
+
+  private getConnectedPlayers(): PlayerState[] {
+    return Array.from(this.state.players.values() as Iterable<PlayerState>).filter(
+      (player) => player.isConnected
+    );
+  }
+
+  private areAllConnectedPlayersReady(): boolean {
+    const connectedPlayers = this.getConnectedPlayers();
+
+    return connectedPlayers.length > 0 && connectedPlayers.every((player) => player.isReady);
+  }
+
+  private startMatch(): void {
+    this.state.roomPhase = "in_game";
+    this.resetMatchRuntimeState();
+    this.resetPlayersForCurrentMap(true);
+    this.resetTurnState(1);
+    this.clearEventLog();
+    void this.lock();
+
+    const firstPlayerId = this.getPlayerOrder()[0];
+
+    if (firstPlayerId) {
+      this.beginTurnFor(firstPlayerId, false);
+    }
+  }
+
   // Character loadouts are added at roll time, while passive transforms are reused on every inventory write.
   private buildTurnActionTools(player: PlayerState, baseTools: TurnToolSnapshot[]): TurnToolSnapshot[] {
     const runtimeLoadout = buildCharacterTurnLoadoutRuntime(
@@ -262,11 +431,8 @@ export class WatcherRoom extends Room<WatcherState> {
   }
 
   private enterSettlementState(): void {
-    this.state.turnInfo.currentPlayerId = "";
-    this.state.turnInfo.phase = "roll";
-    this.state.turnInfo.moveRoll = 0;
-    this.state.turnInfo.lastRolledToolId = "";
-    this.state.turnInfo.turnStartActionsJson = "[]";
+    this.state.roomPhase = "settlement";
+    this.resetTurnState(this.state.turnInfo.turnNumber);
     this.state.settlementState = "complete";
   }
 
@@ -512,12 +678,77 @@ export class WatcherRoom extends Room<WatcherState> {
       return null;
     }
 
+    if (this.state.roomPhase !== "in_game") {
+      this.pushEvent("move_blocked", `${player.name} cannot act before the game starts.`);
+      return null;
+    }
+
     if (this.state.turnInfo.currentPlayerId !== client.sessionId) {
       this.pushEvent("move_blocked", `${player.name} tried to act out of turn.`);
       return null;
     }
 
     return player;
+  }
+
+  private handleSetReady(client: Client, payload: SetReadyCommandPayload): void {
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.state.roomPhase !== "lobby") {
+      this.pushEvent("move_blocked", `${player.name} cannot change ready state right now.`);
+      return;
+    }
+
+    player.isReady = payload.isReady;
+    this.pushEvent(
+      "turn_started",
+      payload.isReady ? `${player.name} is ready.` : `${player.name} is no longer ready.`
+    );
+  }
+
+  private handleStartGame(client: Client): void {
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.state.roomPhase !== "lobby") {
+      this.pushEvent("move_blocked", `${player.name} cannot start the match right now.`);
+      return;
+    }
+
+    if (this.state.hostPlayerId !== client.sessionId) {
+      this.pushEvent("move_blocked", `${player.name} is not the host.`);
+      return;
+    }
+
+    if (!this.areAllConnectedPlayersReady()) {
+      this.pushEvent("move_blocked", `${player.name} cannot start until everyone is ready.`);
+      return;
+    }
+
+    this.startMatch();
+  }
+
+  private handleReturnToRoom(client: Client): void {
+    const player = this.state.players.get(client.sessionId);
+
+    if (!player) {
+      return;
+    }
+
+    if (this.state.roomPhase !== "settlement") {
+      this.pushEvent("move_blocked", `${player.name} can only return after settlement.`);
+      return;
+    }
+
+    this.resetRoomToLobbyState();
+    this.pushEvent("turn_started", `${player.name} reopened room ${this.state.roomCode}.`);
   }
 
   // Rolling creates the per-turn Movement tool and one additional rolled tool.
@@ -774,19 +1005,39 @@ export class WatcherRoom extends Room<WatcherState> {
 
   // Character switching is treated as a turn-setup choice so passive/loadout semantics stay deterministic.
   private handleSetCharacter(client: Client, payload: SetCharacterCommandPayload): void {
-    const player = this.ensureActivePlayer(client);
+    const player = this.state.players.get(client.sessionId);
 
     if (!player) {
       return;
     }
 
-    if (this.state.turnInfo.phase !== "roll") {
-      this.pushEvent("move_blocked", `${player.name} can only switch character before rolling.`);
+    if (!getCharacterIds().includes(payload.characterId)) {
+      this.pushEvent("move_blocked", `${player.name} tried to switch to an unknown character.`);
       return;
     }
 
-    if (!getCharacterIds().includes(payload.characterId)) {
-      this.pushEvent("move_blocked", `${player.name} tried to switch to an unknown character.`);
+    if (this.state.roomPhase === "lobby") {
+      player.characterId = payload.characterId;
+      this.applyPlayerCharacterState(player, {});
+      this.pushEvent(
+        "character_switched",
+        `${player.name} selected ${getCharacterDefinition(payload.characterId).label}.`
+      );
+      return;
+    }
+
+    if (this.state.roomPhase !== "in_game") {
+      this.pushEvent("move_blocked", `${player.name} cannot switch character right now.`);
+      return;
+    }
+
+    if (this.state.turnInfo.currentPlayerId !== client.sessionId) {
+      this.pushEvent("move_blocked", `${player.name} tried to act out of turn.`);
+      return;
+    }
+
+    if (this.state.turnInfo.phase !== "roll") {
+      this.pushEvent("move_blocked", `${player.name} can only switch character before rolling.`);
       return;
     }
 
