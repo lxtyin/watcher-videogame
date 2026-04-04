@@ -1,74 +1,28 @@
 import { type Client, Room } from "colyseus";
 import type { Delayed } from "@colyseus/timer";
 import {
-  type ActionPresentation,
-  adjustMovementTools,
-  appendPresentationEvents,
-  applyCharacterToolTransforms,
-  applyCharacterTurnEndCleanup,
-  buildCharacterTurnLoadoutRuntime,
   buildGameMapRuntimeMetadata,
-  cloneCharacterState,
-  createToolInstance,
-  createTurnStartActionSnapshot,
-  FARTHER_PENDING_MOVE_BONUS_STATE_KEY,
+  createBoardDefinition,
+  createGameOrchestrator,
+  createInitialGameRuntimeState,
   getCharacterDefinition,
   getCharacterIds,
   getGameMapSpawnPosition,
-  getNextActiveRacePlayerId,
-  getNextFinishRank,
-  getTotalMovementPoints,
-  markCharacterMovedOutOfTurn,
-  prepareCharacterTurnStart,
+  type GameOrchestrator,
+  type GameRuntimeState,
   PLAYER_COLORS,
-  createDebugToolInstance,
-  createBoardDefinition,
-  createPlayerMotionEvent,
-  createMovementToolInstance,
-  createRolledToolInstance,
-  createStateTransitionEvent,
-  clearMovementTools,
-  findToolInstance,
-  getToolDefinition,
-  getToolParam,
-  type PlayerTurnFlag,
-  resolveCurrentTileStop,
-  resolveToolAction,
-  rollMovementDie,
-  rollToolDie,
-  resolveSettlementState,
-  resolveCharacterTurnStartAction,
-  type CharacterId,
-  type CharacterStateMap,
   type GrantDebugToolPayload,
   type KickPlayerCommandPayload,
-  type PlayerStateTransition,
   type SetCharacterCommandPayload,
   type SetReadyCommandPayload,
-  type ToolId,
-  type ToolLoadoutDefinition,
-  type TurnToolSnapshot,
+  type SimulationCommand,
   type UseTurnStartActionCommandPayload,
   type UseToolCommandPayload
 } from "@watcher/shared";
 import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
-import { pushRoomEvent, pushSummonEvents, pushTerrainEvents } from "./roomEventLog";
-import {
-  parseCharacterState,
-  createBoardDefinitionFromState,
-  createBoardPlayersFromState,
-  createBoardSummonsFromState,
-  createPlayerToolsFromState
-} from "./roomStateMappers";
-import {
-  applyCharacterState,
-  applyAffectedPlayerMoves,
-  applyPlayerTurnFlags,
-  applySummonMutations,
-  applyTileMutations,
-  applyToolInventory,
-  clearPlayerTurnResources
-} from "./roomStateMutations";
+import { pushRoomEvent } from "./roomEventLog";
+import { createGameSnapshotFromState } from "./roomStateMappers";
+import { applyGameSnapshotToState, clearPlayerTurnResources } from "./roomStateMutations";
 
 interface JoinOptions {
   mapId?: string;
@@ -92,14 +46,10 @@ function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
 }
 
 export class WatcherRoom extends Room<WatcherState> {
-  private moveDieSeed = 11;
-  private toolDieSeed = 1;
-  private nextToolInstanceSerial = 1;
-  private nextPresentationSequence = 1;
   private pendingKickMessages = new Map<string, string>();
-  private pendingRaceAdvance: Delayed | null = null;
+  private pendingRaceAdvanceTimer: Delayed | null = null;
+  private runtimeState = createInitialGameRuntimeState();
 
-  // Room bootstrap wires the authoritative board state and all gameplay messages.
   override onCreate(options: CreateOptions = {}): void {
     this.autoDispose = false;
     this.maxClients = 8;
@@ -116,10 +66,8 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.allowDebugTools = mapMetadata.allowDebugTools;
     this.state.settlementState = "active";
 
-    // The room owns board setup so every client joins the same authoritative map.
     this.seedBoard();
     this.resetTurnState(1);
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
 
     this.onMessage("rollDice", (client) => {
       this.handleRollDice(client);
@@ -162,7 +110,6 @@ export class WatcherRoom extends Room<WatcherState> {
     });
   }
 
-  // Joining players enter the lobby first, while reconnects reclaim the previous seat.
   override onJoin(client: Client, options: JoinOptions): void {
     const existingPlayer = this.state.players.get(client.sessionId);
 
@@ -205,7 +152,6 @@ export class WatcherRoom extends Room<WatcherState> {
     this.pushEvent("turn_started", `${player.name} joined room ${this.state.roomCode}.`);
   }
 
-  // Disconnects reserve the seat briefly so refreshes can reconnect without losing state.
   override async onLeave(client: Client, consented: boolean): Promise<void> {
     const leavingPlayer = this.state.players.get(client.sessionId);
     const kickedMessage = this.pendingKickMessages.get(client.sessionId) ?? null;
@@ -252,7 +198,6 @@ export class WatcherRoom extends Room<WatcherState> {
     );
   }
 
-  // Board seeding mirrors the shared default layout into Colyseus schema state.
   private seedBoard(): void {
     const board = createBoardDefinition(this.state.mapId);
 
@@ -272,96 +217,8 @@ export class WatcherRoom extends Room<WatcherState> {
     }
   }
 
-  // Presentation payloads are serialized once so clients can replay the same semantic timeline.
-  private publishActionPresentation(presentation: ActionPresentation | null): void {
-    if (!presentation) {
-      return;
-    }
-
-    this.state.latestPresentationSequence = this.nextPresentationSequence;
-    this.nextPresentationSequence += 1;
-    this.state.latestPresentationJson = JSON.stringify(presentation);
-  }
-
   private findClientBySessionId(sessionId: string): Client | null {
     return this.clients.find((client) => client.sessionId === sessionId) ?? null;
-  }
-
-  private createRaceFinishPresentation(
-    playerId: string,
-    position: { x: number; y: number },
-    presentation: ActionPresentation | null
-  ): ActionPresentation {
-    const finishStartMs = presentation?.durationMs ?? 0;
-    const finishMotionEvent = createPlayerMotionEvent(
-      `race-finish:${playerId}`,
-      playerId,
-      [position, position],
-      "finish",
-      finishStartMs
-    );
-    const playerTransition: PlayerStateTransition = {
-      playerId,
-      before: {
-        playerId,
-        boardVisible: true
-      },
-      after: {
-        playerId,
-        boardVisible: false
-      }
-    };
-    const hideEvent = createStateTransitionEvent(
-      `race-finish-hide:${playerId}`,
-      [],
-      [],
-      [playerTransition],
-      finishStartMs + (finishMotionEvent?.durationMs ?? 0)
-    );
-
-    return appendPresentationEvents(
-      presentation,
-      playerId,
-      presentation?.toolId ?? "movement",
-      [finishMotionEvent, hideEvent].filter(
-        (event): event is NonNullable<typeof event> => event !== null
-      )
-    ) ?? {
-      actorId: playerId,
-      toolId: "movement",
-      durationMs: 0,
-      events: []
-    };
-  }
-
-  private scheduleRaceAdvance(delayMs: number, advance: () => void): void {
-    this.clearPendingRaceAdvance();
-
-    if (delayMs <= 0) {
-      advance();
-      return;
-    }
-
-    this.pendingRaceAdvance = this.clock.setTimeout(() => {
-      this.pendingRaceAdvance = null;
-      advance();
-    }, delayMs);
-  }
-
-  private createLoadoutTool(loadout: ToolLoadoutDefinition): TurnToolSnapshot {
-    return createToolInstance(this.createToolInstanceId(loadout.toolId), loadout.toolId, {
-      ...(loadout.charges !== undefined ? { charges: loadout.charges } : {}),
-      ...(loadout.params ? { params: loadout.params } : {}),
-      ...(loadout.source ? { source: loadout.source } : {})
-    });
-  }
-
-  private getPlayerCharacterState(player: PlayerState): CharacterStateMap {
-    return parseCharacterState(player.characterStateJson);
-  }
-
-  private applyPlayerCharacterState(player: PlayerState, characterState: CharacterStateMap): void {
-    applyCharacterState(player, characterState);
   }
 
   private resetTurnState(turnNumber: number): void {
@@ -370,7 +227,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
     this.state.turnInfo.turnStartActionsJson = "[]";
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
+    this.state.turnInfo.toolDieSeed = this.runtimeState.toolDieSeed;
     this.state.turnInfo.turnNumber = turnNumber;
   }
 
@@ -383,31 +240,28 @@ export class WatcherRoom extends Room<WatcherState> {
   private clearPresentationState(): void {
     this.state.latestPresentationSequence = 0;
     this.state.latestPresentationJson = "";
-    this.nextPresentationSequence = 1;
   }
 
   private clearSummonsState(): void {
     this.state.summons.clear();
   }
 
+  private clearPendingRaceAdvanceTimer(): void {
+    if (!this.pendingRaceAdvanceTimer) {
+      return;
+    }
+
+    this.pendingRaceAdvanceTimer.clear();
+    this.pendingRaceAdvanceTimer = null;
+  }
+
   private resetMatchRuntimeState(): void {
-    this.moveDieSeed = 11;
-    this.toolDieSeed = 1;
-    this.nextToolInstanceSerial = 1;
-    this.clearPendingRaceAdvance();
+    this.runtimeState = createInitialGameRuntimeState();
+    this.clearPendingRaceAdvanceTimer();
     this.clearSummonsState();
     this.clearPresentationState();
     this.seedBoard();
     this.state.settlementState = "active";
-  }
-
-  private clearPendingRaceAdvance(): void {
-    if (!this.pendingRaceAdvance) {
-      return;
-    }
-
-    this.pendingRaceAdvance.clear();
-    this.pendingRaceAdvance = null;
   }
 
   private resetPlayersForCurrentMap(clearReady: boolean): void {
@@ -455,6 +309,74 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.hostPlayerId = this.getPlayerOrder()[0] ?? "";
   }
 
+  private cloneRuntimeState(runtime: GameRuntimeState): GameRuntimeState {
+    return {
+      ...runtime,
+      pendingAdvance: runtime.pendingAdvance ? { ...runtime.pendingAdvance } : null
+    };
+  }
+
+  private applyRuntimeState(runtime: GameRuntimeState): void {
+    this.runtimeState = this.cloneRuntimeState(runtime);
+  }
+
+  private createRoomOrchestrator(): GameOrchestrator {
+    return createGameOrchestrator({
+      snapshot: createGameSnapshotFromState(this.state),
+      runtime: this.runtimeState
+    });
+  }
+
+  private schedulePendingAdvanceIfNeeded(): void {
+    this.clearPendingRaceAdvanceTimer();
+
+    if (!this.runtimeState.pendingAdvance || this.state.roomPhase !== "in_game") {
+      return;
+    }
+
+    const delayMs = createGameSnapshotFromState(this.state).latestPresentation?.durationMs ?? 0;
+
+    if (delayMs <= 0) {
+      this.advanceSharedTurn();
+      return;
+    }
+
+    this.pendingRaceAdvanceTimer = this.clock.setTimeout(() => {
+      this.pendingRaceAdvanceTimer = null;
+      this.advanceSharedTurn();
+    }, delayMs);
+  }
+
+  private applyOrchestrationResult(orchestrator: GameOrchestrator): void {
+    applyGameSnapshotToState(this.state, orchestrator.getSnapshot());
+    this.applyRuntimeState(orchestrator.getRuntimeState());
+    this.schedulePendingAdvanceIfNeeded();
+  }
+
+  private runGameOrchestration(
+    execute: (orchestrator: GameOrchestrator) => void
+  ): void {
+    const orchestrator = this.createRoomOrchestrator();
+    execute(orchestrator);
+    this.applyOrchestrationResult(orchestrator);
+  }
+
+  private advanceSharedTurn(): void {
+    if (this.state.roomPhase !== "in_game") {
+      return;
+    }
+
+    this.runGameOrchestration((orchestrator) => {
+      orchestrator.advanceTurn();
+    });
+  }
+
+  private dispatchInGameCommand(command: SimulationCommand): void {
+    this.runGameOrchestration((orchestrator) => {
+      orchestrator.dispatch(command);
+    });
+  }
+
   private removePlayer(
     playerId: string,
     message: string,
@@ -463,7 +385,7 @@ export class WatcherRoom extends Room<WatcherState> {
     const wasActivePlayer = this.state.turnInfo.currentPlayerId === playerId;
 
     if (wasActivePlayer) {
-      this.clearPendingRaceAdvance();
+      this.clearPendingRaceAdvanceTimer();
     }
 
     this.state.players.delete(playerId);
@@ -477,18 +399,14 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     if (this.state.roomPhase === "in_game" && wasActivePlayer) {
-      const nextPlayerId = this.getNextPlayerId(playerId);
-
-      if (nextPlayerId) {
-        this.beginTurnFor(nextPlayerId, true);
-      } else if (this.isRaceMode()) {
-        this.enterSettlementState();
-      } else {
-        this.resetTurnState(this.state.turnInfo.turnNumber);
-      }
+      this.advanceSharedTurn();
     }
 
     this.pushEvent(eventType, message);
+  }
+
+  private getPlayerOrder(): string[] {
+    return Array.from(this.state.players.values() as Iterable<PlayerState>).map((player) => player.id);
   }
 
   private getConnectedPlayers(): PlayerState[] {
@@ -510,310 +428,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.resetTurnState(1);
     this.clearEventLog();
     void this.lock();
-
-    const firstPlayerId = this.getPlayerOrder()[0];
-
-    if (firstPlayerId) {
-      this.beginTurnFor(firstPlayerId, false);
-    }
-  }
-
-  // Character loadouts are added at roll time, while passive transforms are reused on every inventory write.
-  private buildTurnActionTools(player: PlayerState, baseTools: TurnToolSnapshot[]): TurnToolSnapshot[] {
-    const runtimeLoadout = buildCharacterTurnLoadoutRuntime(
-      player.characterId,
-      this.getPlayerCharacterState(player)
-    );
-
-    this.applyPlayerCharacterState(player, runtimeLoadout.nextCharacterState);
-
-    return applyCharacterToolTransforms(player.characterId, [
-      ...baseTools,
-      ...runtimeLoadout.loadout.map((loadout) => this.createLoadoutTool(loadout))
-    ]);
-  }
-
-  private isRaceMode(): boolean {
-    return this.state.mode === "race";
-  }
-
-  private isPlayerFinished(player: PlayerState): boolean {
-    return player.finishRank > 0;
-  }
-
-  private enterSettlementState(): void {
-    this.state.roomPhase = "settlement";
-    this.resetTurnState(this.state.turnInfo.turnNumber);
-    this.state.settlementState = "complete";
-  }
-
-  private applyRaceGoalProgress(
-    actorId: string,
-    triggeredTerrainEffects: import("@watcher/shared").TriggeredTerrainEffect[]
-  ): {
-    actorFinished: boolean;
-    settlementComplete: boolean;
-  } {
-    if (!this.isRaceMode()) {
-      return {
-        actorFinished: false,
-        settlementComplete: false
-      };
-    }
-
-    let actorFinished = false;
-    const goalPlayerIds = [
-      ...new Set(
-        triggeredTerrainEffects
-          .filter((effect): effect is Extract<import("@watcher/shared").TriggeredTerrainEffect, { kind: "goal" }> => effect.kind === "goal")
-          .map((effect) => effect.playerId)
-      )
-    ];
-
-    for (const playerId of goalPlayerIds) {
-      const player = this.state.players.get(playerId);
-
-      if (!player || this.isPlayerFinished(player)) {
-        continue;
-      }
-
-      player.finishRank = getNextFinishRank(
-        Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
-          id: entry.id,
-          finishRank: entry.finishRank || null,
-          finishedTurnNumber: entry.finishedTurnNumber || null
-        }))
-      );
-      player.finishedTurnNumber = this.state.turnInfo.turnNumber;
-      player.boardVisible = false;
-      actorFinished = actorFinished || player.id === actorId;
-      this.pushEvent(
-        "player_finished",
-        `${player.name} reached the goal on turn ${this.state.turnInfo.turnNumber} and finished #${player.finishRank}.`
-      );
-    }
-
-    const settlementState = resolveSettlementState(
-      this.state.mode,
-      Array.from(this.state.players.values() as Iterable<PlayerState>).map((entry) => ({
-        id: entry.id,
-        finishRank: entry.finishRank || null,
-        finishedTurnNumber: entry.finishedTurnNumber || null
-      }))
-    );
-    const settlementComplete = settlementState === "complete";
-
-    this.state.settlementState = settlementState;
-
-    return {
-      actorFinished,
-      settlementComplete
-    };
-  }
-
-  private schedulePostFinishAdvance(
-    player: PlayerState,
-    delayMs: number,
-    settlementComplete: boolean
-  ): void {
-    clearPlayerTurnResources(player);
-    this.scheduleRaceAdvance(delayMs, () => {
-      const nextPlayerId = settlementComplete ? null : this.getNextPlayerId(player.id);
-
-      if (settlementComplete || !nextPlayerId) {
-        this.enterSettlementState();
-        this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
-        return;
-      }
-
-      this.beginTurnFor(nextPlayerId, true);
-    });
-  }
-
-  private applyTurnStartStop(player: PlayerState): import("@watcher/shared").TriggeredTerrainEffect[] {
-    const stopResolution = resolveCurrentTileStop(
-      {
-        activeTool: null,
-        actorId: player.id,
-        board: createBoardDefinitionFromState(this.state),
-        players: createBoardPlayersFromState(this.state),
-        sourceId: `turn-start:${player.id}:${this.state.turnInfo.turnNumber}`,
-        summons: createBoardSummonsFromState(this.state)
-      },
-      {
-        player: {
-          characterId: player.characterId,
-          characterState: cloneCharacterState(this.getPlayerCharacterState(player)),
-          id: player.id,
-          position: { x: player.x, y: player.y },
-          spawnPosition: { x: player.spawnX, y: player.spawnY },
-          turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
-        },
-        toolDieSeed: this.toolDieSeed,
-        tools: createPlayerToolsFromState(player)
-      }
-    );
-
-    player.x = stopResolution.actor.position.x;
-    player.y = stopResolution.actor.position.y;
-    this.applyPlayerCharacterState(player, stopResolution.actor.characterState);
-    applyPlayerTurnFlags(player, stopResolution.actor.turnFlags);
-    applyToolInventory(player, stopResolution.tools, (tools) => this.normalizePlayerTools(player, tools));
-    applyTileMutations(this.state, stopResolution.tileMutations);
-    applySummonMutations(this.state, stopResolution.summonMutations);
-    this.toolDieSeed = stopResolution.nextToolDieSeed;
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-    pushTerrainEvents(this.state, player.id, stopResolution.triggeredTerrainEffects);
-    pushSummonEvents(this.state, stopResolution.triggeredSummonEffects);
-    return stopResolution.triggeredTerrainEffects;
-  }
-
-  private normalizePlayerTools(player: PlayerState, tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
-    return applyCharacterToolTransforms(player.characterId, tools);
-  }
-
-  private refreshTurnStartActions(player: PlayerState, actionIds: readonly import("@watcher/shared").TurnStartActionId[]): void {
-    this.state.turnInfo.turnStartActionsJson = JSON.stringify(
-      actionIds.map((actionId) => createTurnStartActionSnapshot(actionId, player.characterId))
-    );
-  }
-
-  private prepareTurnStartState(player: PlayerState) {
-    const preparation = prepareCharacterTurnStart(
-      player.characterId,
-      this.getPlayerCharacterState(player)
-    );
-
-    this.applyPlayerCharacterState(player, preparation.nextCharacterState);
-    return preparation;
-  }
-
-  private enterActionPhaseWithRoll(
-    player: PlayerState,
-    moveRoll: number,
-    rolledTool: TurnToolSnapshot | null
-  ): void {
-    applyToolInventory(
-      player,
-      this.buildTurnActionTools(player, [
-        ...createPlayerToolsFromState(player),
-        createMovementToolInstance(this.createToolInstanceId("movement"), moveRoll),
-        ...(rolledTool ? [rolledTool] : [])
-      ]),
-      (tools) => this.normalizePlayerTools(player, tools)
-    );
-
-    this.state.turnInfo.phase = "action";
-    this.state.turnInfo.moveRoll = moveRoll;
-    this.state.turnInfo.lastRolledToolId =
-      (rolledTool?.toolId as typeof this.state.turnInfo.lastRolledToolId) ?? "";
-    this.state.turnInfo.turnStartActionsJson = "[]";
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-  }
-
-  private finishTurn(player: PlayerState): void {
-    this.pushEvent("turn_ended", `${player.name} ended the turn.`);
-    this.applyPlayerCharacterState(
-      player,
-      applyCharacterTurnEndCleanup(player.characterId, this.getPlayerCharacterState(player))
-    );
-    clearPlayerTurnResources(player);
-    const nextPlayerId = this.getNextPlayerId(player.id);
-
-    if (nextPlayerId) {
-      this.beginTurnFor(nextPlayerId, true);
-    } else {
-      this.enterSettlementState();
-    }
-  }
-
-  // Starting a turn resets dice results and tool inventory for the chosen player.
-  private beginTurnFor(playerId: string, shouldAdvanceTurnNumber: boolean): void {
-    const player = this.state.players.get(playerId);
-
-    if (!player) {
-      return;
-    }
-
-    const preparation = this.prepareTurnStartState(player);
-    clearPlayerTurnResources(player);
-    this.state.turnInfo.currentPlayerId = playerId;
-    this.state.turnInfo.phase = "roll";
-    this.state.turnInfo.moveRoll = 0;
-    this.state.turnInfo.lastRolledToolId = "";
-    this.refreshTurnStartActions(player, preparation.turnStartActions);
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-
-    if (shouldAdvanceTurnNumber) {
-      this.state.turnInfo.turnNumber += 1;
-    }
-
-    this.pushEvent("turn_started", `${player.name}'s turn started. Roll the dice.`);
-    const triggeredTerrainEffects = this.applyTurnStartStop(player);
-    const goalProgress = this.applyRaceGoalProgress(player.id, triggeredTerrainEffects);
-
-    if (!goalProgress.actorFinished) {
-      return;
-    }
-
-    const finishPresentation = this.createRaceFinishPresentation(player.id, { x: player.x, y: player.y }, null);
-    this.publishActionPresentation(finishPresentation);
-    this.schedulePostFinishAdvance(player, finishPresentation.durationMs, goalProgress.settlementComplete);
-  }
-
-  // Player order follows the current schema insertion order.
-  private getPlayerOrder(): string[] {
-    return Array.from(this.state.players.values() as Iterable<PlayerState>).map((player) => player.id);
-  }
-
-  // Next-player lookup wraps around the active player list after removals.
-  private getNextPlayerId(currentPlayerId: string): string | null {
-    if (this.isRaceMode()) {
-      return getNextActiveRacePlayerId(
-        this.getPlayerOrder(),
-        Array.from(this.state.players.values() as Iterable<PlayerState>).map((player) => ({
-          id: player.id,
-          finishRank: player.finishRank || null,
-          finishedTurnNumber: player.finishedTurnNumber || null
-        })),
-        currentPlayerId
-      );
-    }
-
-    const playerOrder = this.getPlayerOrder();
-    const currentIndex = playerOrder.findIndex((playerId) => playerId === currentPlayerId);
-
-    if (currentIndex === -1) {
-      return playerOrder[0] ?? null;
-    }
-
-    return playerOrder[(currentIndex + 1) % playerOrder.length] ?? null;
-  }
-
-  // Action handlers reuse one turn guard so out-of-turn input never reaches the resolver.
-  private ensureActivePlayer(client: Client): PlayerState | null {
-    const player = this.state.players.get(client.sessionId);
-
-    if (!player) {
-      return null;
-    }
-
-    if (this.state.roomPhase !== "in_game") {
-      this.pushEvent("move_blocked", `${player.name} cannot act before the game starts.`);
-      return null;
-    }
-
-    if (this.state.turnInfo.currentPlayerId !== client.sessionId) {
-      this.pushEvent("move_blocked", `${player.name} tried to act out of turn.`);
-      return null;
-    }
-
-    if (this.pendingRaceAdvance) {
-      this.pushEvent("move_blocked", `${player.name} must wait for the finish animation to resolve.`);
-      return null;
-    }
-
-    return player;
+    this.advanceSharedTurn();
   }
 
   private handleSetReady(client: Client, payload: SetReadyCommandPayload): void {
@@ -913,254 +528,39 @@ export class WatcherRoom extends Room<WatcherState> {
     void targetClient.leave(4001);
   }
 
-  // Rolling creates the per-turn Movement tool and one additional rolled tool.
   private handleRollDice(client: Client): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "roll") {
-      this.pushEvent("move_blocked", `${player.name} cannot roll right now.`);
-      return;
-    }
-
-    const moveRoll = rollMovementDie(this.moveDieSeed);
-    this.moveDieSeed = moveRoll.nextSeed;
-
-    const toolRoll = rollToolDie(this.toolDieSeed);
-    this.toolDieSeed = toolRoll.nextSeed;
-    this.enterActionPhaseWithRoll(
-      player,
-      moveRoll.value,
-      createRolledToolInstance(this.createToolInstanceId(toolRoll.value.toolId), toolRoll.value)
-    );
-
-    this.pushEvent(
-      "dice_rolled",
-      `${player.name} rolled Movement ${moveRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
-    );
+    this.dispatchInGameCommand({
+      kind: "rollDice",
+      actorId: client.sessionId
+    });
   }
 
   private handleUseTurnStartAction(
     client: Client,
     payload: UseTurnStartActionCommandPayload
   ): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "roll") {
-      this.pushEvent("move_blocked", `${player.name} can only use this action before rolling.`);
-      return;
-    }
-
-    const availableActions = JSON.parse(this.state.turnInfo.turnStartActionsJson) as Array<{
-      actionId: UseTurnStartActionCommandPayload["actionId"];
-    }>;
-
-    if (!availableActions.some((action) => action.actionId === payload.actionId)) {
-      this.pushEvent("move_blocked", `${player.name} cannot use that roll-phase action right now.`);
-      return;
-    }
-
-    const resolution = resolveCharacterTurnStartAction(
-      player.characterId,
-      this.getPlayerCharacterState(player),
-      payload.actionId
-    );
-
-    if (!resolution) {
-      this.pushEvent("move_blocked", `${player.name} cannot use that roll-phase action right now.`);
-      return;
-    }
-
-    this.applyPlayerCharacterState(player, resolution.nextCharacterState);
-    this.pushEvent("character_action_used", `${player.name} used ${payload.actionId}.`);
-
-    if (resolution.endTurn) {
-      this.finishTurn(player);
-      return;
-    }
-
-    if (resolution.skipToolDie) {
-      const moveRoll = rollMovementDie(this.moveDieSeed);
-      this.moveDieSeed = moveRoll.nextSeed;
-      this.enterActionPhaseWithRoll(player, moveRoll.value, null);
-      this.pushEvent(
-        "dice_rolled",
-        `${player.name} rolled Movement ${moveRoll.value} and skipped the tool die.`
-      );
-    }
-  }
-
-  // Tool usage delegates rule resolution to the shared layer, then mirrors the result into schema state.
-  private handleUseTool(client: Client, payload: UseToolCommandPayload): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "action") {
-      this.pushEvent("move_blocked", `${player.name} must roll dice first.`);
-      return;
-    }
-
-    const tools = createPlayerToolsFromState(player);
-    const activeTool = findToolInstance(tools, payload.toolInstanceId);
-
-    if (!activeTool) {
-      this.pushEvent("move_blocked", `${player.name} does not have that tool this turn.`);
-      return;
-    }
-
-    const toolDefinition = getToolDefinition(activeTool.toolId);
-
-    if (toolDefinition.targetMode === "direction" && !payload.direction) {
-      this.pushEvent("move_blocked", `${toolDefinition.label} needs a direction.`);
-      return;
-    }
-
-    if (toolDefinition.targetMode === "tile" && !payload.targetPosition) {
-      this.pushEvent("move_blocked", `${toolDefinition.label} needs a target tile.`);
-      return;
-    }
-
-    if (toolDefinition.targetMode === "choice" && !payload.choiceId) {
-      this.pushEvent("move_blocked", `${toolDefinition.label} needs a choice.`);
-      return;
-    }
-
-    if (toolDefinition.targetMode === "tile_direction" && (!payload.targetPosition || !payload.direction)) {
-      this.pushEvent("move_blocked", `${toolDefinition.label} needs both a tile and a direction.`);
-      return;
-    }
-
-    const resolution = resolveToolAction({
-      board: createBoardDefinitionFromState(this.state),
-      actor: {
-        id: player.id,
-        characterId: player.characterId,
-        characterState: cloneCharacterState(this.getPlayerCharacterState(player)),
-        position: { x: player.x, y: player.y },
-        spawnPosition: { x: player.spawnX, y: player.spawnY },
-        turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[]
-      },
-      activeTool,
-      toolDieSeed: this.toolDieSeed,
-      tools,
-      summons: createBoardSummonsFromState(this.state),
-      ...(payload.direction ? { direction: payload.direction } : {}),
-      ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
-      ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
-      players: createBoardPlayersFromState(this.state)
+    this.dispatchInGameCommand({
+      kind: "useTurnStartAction",
+      actorId: client.sessionId,
+      payload
     });
-
-    if (resolution.kind === "blocked") {
-      this.pushEvent(
-        "move_blocked",
-        `${player.name} cannot use ${toolDefinition.label}: ${resolution.reason}.`
-      );
-      return;
-    }
-
-    player.x = resolution.actor.position.x;
-    player.y = resolution.actor.position.y;
-    this.applyPlayerCharacterState(player, resolution.actor.characterState);
-    applyPlayerTurnFlags(player, resolution.actor.turnFlags);
-
-    applyToolInventory(player, resolution.tools, (tools) => this.normalizePlayerTools(player, tools));
-    applyTileMutations(this.state, resolution.tileMutations);
-    applySummonMutations(this.state, resolution.summonMutations);
-    applyAffectedPlayerMoves(
-      this.state,
-      resolution.affectedPlayers,
-      applyPlayerTurnFlags,
-      applyCharacterState
-    );
-
-    for (const affectedPlayer of resolution.affectedPlayers) {
-      if (affectedPlayer.playerId === player.id) {
-        continue;
-      }
-
-      const movedPlayer = this.state.players.get(affectedPlayer.playerId);
-
-      if (!movedPlayer) {
-        continue;
-      }
-
-      this.applyPlayerCharacterState(
-        movedPlayer,
-        markCharacterMovedOutOfTurn(
-          movedPlayer.characterId,
-          this.getPlayerCharacterState(movedPlayer)
-        )
-      );
-    }
-
-    this.toolDieSeed = resolution.nextToolDieSeed;
-    this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-
-    if (
-      resolution.tileMutations.some(
-        (mutation) => mutation.nextType === "floor"
-      )
-    ) {
-      this.pushEvent("earth_wall_broken", `${player.name} broke an earth wall while moving.`);
-    }
-
-    pushTerrainEvents(this.state, player.id, resolution.triggeredTerrainEffects);
-    pushSummonEvents(this.state, resolution.triggeredSummonEffects);
-    const goalProgress = this.applyRaceGoalProgress(player.id, resolution.triggeredTerrainEffects);
-    const finalPresentation = goalProgress.actorFinished
-      ? this.createRaceFinishPresentation(player.id, { x: player.x, y: player.y }, resolution.presentation)
-      : resolution.presentation;
-
-    this.publishActionPresentation(finalPresentation);
-
-    if (activeTool.toolId === "movement") {
-      this.pushEvent(
-        "piece_moved",
-        `${player.name} used Movement ${payload.direction} to (${player.x}, ${player.y}).`
-      );
-    } else {
-      this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
-    }
-
-    if (goalProgress.actorFinished) {
-      this.schedulePostFinishAdvance(player, finalPresentation?.durationMs ?? 0, goalProgress.settlementComplete);
-      return;
-    }
-
-    if (!resolution.endsTurn) {
-      return;
-    }
-
-    this.finishTurn(player);
   }
 
-  // Ending a turn clears transient resources and advances authority to the next player.
+  private handleUseTool(client: Client, payload: UseToolCommandPayload): void {
+    this.dispatchInGameCommand({
+      kind: "useTool",
+      actorId: client.sessionId,
+      payload
+    });
+  }
+
   private handleEndTurn(client: Client): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "action") {
-      this.pushEvent("move_blocked", `${player.name} must roll before ending the turn.`);
-      return;
-    }
-
-    this.finishTurn(player);
+    this.dispatchInGameCommand({
+      kind: "endTurn",
+      actorId: client.sessionId
+    });
   }
 
-  // Character switching is treated as a turn-setup choice so passive/loadout semantics stay deterministic.
   private handleSetCharacter(client: Client, payload: SetCharacterCommandPayload): void {
     const player = this.state.players.get(client.sessionId);
 
@@ -1175,7 +575,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     if (this.state.roomPhase === "lobby") {
       player.characterId = payload.characterId;
-      this.applyPlayerCharacterState(player, {});
+      player.characterStateJson = "{}";
       this.pushEvent(
         "character_switched",
         `${player.name} selected ${getCharacterDefinition(payload.characterId).label}.`
@@ -1188,71 +588,21 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
-    if (this.state.turnInfo.currentPlayerId !== client.sessionId) {
-      this.pushEvent("move_blocked", `${player.name} tried to act out of turn.`);
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "roll") {
-      this.pushEvent("move_blocked", `${player.name} can only switch character before rolling.`);
-      return;
-    }
-
-    player.characterId = payload.characterId;
-    this.applyPlayerCharacterState(player, {});
-    this.refreshTurnStartActions(player, [...getCharacterDefinition(payload.characterId).turnStartActionIds]);
-    this.pushEvent(
-      "character_switched",
-      `${player.name} switched to ${getCharacterDefinition(payload.characterId).label}.`
-    );
+    this.dispatchInGameCommand({
+      kind: "setCharacter",
+      actorId: client.sessionId,
+      payload
+    });
   }
 
-  // Debug grants append a chosen tool to the current turn without touching the dice flow.
   private handleGrantDebugTool(client: Client, payload: GrantDebugToolPayload): void {
-    const player = this.ensureActivePlayer(client);
-
-    if (!player) {
-      return;
-    }
-
-    if (this.state.turnInfo.phase !== "action") {
-      this.pushEvent("move_blocked", `${player.name} must roll before granting a debug tool.`);
-      return;
-    }
-
-    if (!this.state.allowDebugTools) {
-      this.pushEvent("move_blocked", `${player.name} cannot use debug tools on this map.`);
-      return;
-    }
-
-    const definition = getToolDefinition(payload.toolId);
-
-    if (!definition.debugGrantable) {
-      this.pushEvent("move_blocked", `${definition.label} cannot be debug-granted right now.`);
-      return;
-    }
-
-    const grantedTool =
-      payload.toolId === "movement"
-        ? createMovementToolInstance(this.createToolInstanceId("movement"), 4)
-        : createDebugToolInstance(this.createToolInstanceId(payload.toolId), payload.toolId);
-
-    applyToolInventory(
-      player,
-      [...createPlayerToolsFromState(player), grantedTool],
-      (tools) => this.normalizePlayerTools(player, tools)
-    );
-    this.pushEvent("debug_granted", `${player.name} debug gained ${definition.label}.`);
+    this.dispatchInGameCommand({
+      kind: "grantDebugTool",
+      actorId: client.sessionId,
+      payload
+    });
   }
 
-  // Tool instance ids stay unique within the room so client selection remains stable.
-  private createToolInstanceId(toolId: ToolId): string {
-    const serial = this.nextToolInstanceSerial;
-    this.nextToolInstanceSerial += 1;
-    return `${toolId}-${serial}`;
-  }
-
-  // Event logging keeps the synced room feed short so state patches stay lightweight.
   private pushEvent(type: Parameters<typeof pushRoomEvent>[1], message: string): void {
     pushRoomEvent(this.state, type, message);
   }

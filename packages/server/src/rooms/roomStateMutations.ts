@@ -1,11 +1,13 @@
 import type {
   AffectedPlayerMove,
   CharacterStateMap,
+  GameSnapshot,
   SummonMutation,
   TileMutation,
   TurnToolSnapshot
 } from "@watcher/shared";
 import {
+  EventLogEntryState,
   PlayerState,
   SummonState,
   TileState,
@@ -121,4 +123,137 @@ export function applyAffectedPlayerMoves(
       applyCharacterStatePatch(player, affectedPlayer.characterState);
     }
   }
+}
+
+export function applyGameSnapshotToState(
+  state: WatcherState,
+  snapshot: GameSnapshot
+): void {
+  state.allowDebugTools = snapshot.allowDebugTools;
+  state.boardWidth = snapshot.boardWidth;
+  state.boardHeight = snapshot.boardHeight;
+  state.hostPlayerId = snapshot.hostPlayerId ?? "";
+  state.mapId = snapshot.mapId;
+  state.mapLabel = snapshot.mapLabel;
+  state.mode = snapshot.mode;
+  state.roomCode = snapshot.roomCode;
+  state.roomPhase = snapshot.roomPhase;
+  state.settlementState = snapshot.settlementState;
+
+  const activeTileKeys = new Set(snapshot.tiles.map((tile) => tile.key));
+  for (const key of Array.from(state.board.keys())) {
+    if (!activeTileKeys.has(key)) {
+      state.board.delete(key);
+    }
+  }
+
+  for (const tile of snapshot.tiles) {
+    const tileState = state.board.get(tile.key) ?? new TileState();
+    tileState.key = tile.key;
+    tileState.x = tile.x;
+    tileState.y = tile.y;
+    tileState.type = tile.type;
+    tileState.durability = tile.durability;
+    tileState.direction = tile.direction ?? "";
+    state.board.set(tile.key, tileState);
+  }
+
+  const activeSummonIds = new Set(snapshot.summons.map((summon) => summon.instanceId));
+  for (const summonId of Array.from(state.summons.keys())) {
+    if (!activeSummonIds.has(summonId)) {
+      state.summons.delete(summonId);
+    }
+  }
+
+  for (const summon of snapshot.summons) {
+    const summonState = state.summons.get(summon.instanceId) ?? new SummonState();
+    summonState.instanceId = summon.instanceId;
+    summonState.summonId = summon.summonId;
+    summonState.ownerId = summon.ownerId;
+    summonState.x = summon.position.x;
+    summonState.y = summon.position.y;
+    state.summons.set(summon.instanceId, summonState);
+  }
+
+  const activePlayerIds = new Set(snapshot.players.map((player) => player.id));
+  for (const playerId of Array.from(state.players.keys())) {
+    if (!activePlayerIds.has(playerId)) {
+      state.players.delete(playerId);
+    }
+  }
+
+  for (const player of snapshot.players) {
+    const playerState = state.players.get(player.id) ?? new PlayerState();
+    playerState.id = player.id;
+    playerState.name = player.name;
+    playerState.petId = player.petId;
+    playerState.color = player.color;
+    playerState.boardVisible = player.boardVisible;
+    playerState.characterId = player.characterId;
+    playerState.characterStateJson = JSON.stringify(player.characterState);
+    playerState.finishRank = player.finishRank ?? 0;
+    playerState.finishedTurnNumber = player.finishedTurnNumber ?? 0;
+    playerState.isConnected = player.isConnected;
+    playerState.isReady = player.isReady;
+    playerState.x = player.position.x;
+    playerState.y = player.position.y;
+    playerState.spawnX = player.spawnPosition.x;
+    playerState.spawnY = player.spawnPosition.y;
+
+    while (playerState.turnFlags.length > 0) {
+      playerState.turnFlags.pop();
+    }
+    for (const turnFlag of player.turnFlags) {
+      playerState.turnFlags.push(turnFlag);
+    }
+
+    while (playerState.tools.length > 0) {
+      playerState.tools.pop();
+    }
+    for (const tool of player.tools) {
+      const toolState = new TurnToolState();
+      toolState.instanceId = tool.instanceId;
+      toolState.toolId = tool.toolId;
+      toolState.charges = tool.charges;
+      toolState.paramsJson = JSON.stringify(tool.params);
+      toolState.source = tool.source;
+      playerState.tools.push(toolState);
+    }
+
+    state.players.set(player.id, playerState);
+  }
+
+  state.turnInfo.currentPlayerId = snapshot.turnInfo.currentPlayerId;
+  state.turnInfo.phase = snapshot.turnInfo.phase;
+  state.turnInfo.turnNumber = snapshot.turnInfo.turnNumber;
+  state.turnInfo.moveRoll = snapshot.turnInfo.moveRoll;
+  state.turnInfo.lastRolledToolId = snapshot.turnInfo.lastRolledToolId ?? "";
+  state.turnInfo.turnStartActionsJson = JSON.stringify(snapshot.turnInfo.turnStartActions);
+  state.turnInfo.toolDieSeed = snapshot.turnInfo.toolDieSeed;
+
+  while (state.eventLog.length > 0) {
+    state.eventLog.pop();
+  }
+  for (const event of snapshot.eventLog) {
+    const entry = new EventLogEntryState();
+    entry.id = event.id;
+    entry.type = event.type;
+    entry.message = event.message;
+    entry.createdAt = event.createdAt;
+    state.eventLog.push(entry);
+  }
+
+  if (!snapshot.latestPresentation) {
+    state.latestPresentationSequence = 0;
+    state.latestPresentationJson = "";
+    return;
+  }
+
+  state.latestPresentationSequence = snapshot.latestPresentation.sequence;
+  state.latestPresentationJson = JSON.stringify({
+    actorId: snapshot.latestPresentation.actorId,
+    toolId: snapshot.latestPresentation.toolId,
+    durationMs: snapshot.latestPresentation.durationMs,
+    events: snapshot.latestPresentation.events
+  });
 }

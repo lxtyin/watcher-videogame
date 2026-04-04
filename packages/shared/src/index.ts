@@ -6,6 +6,7 @@ export * from "./constants";
 export * from "./dice";
 export * from "./effects";
 export * from "./goldens";
+export * from "./gameOrchestration";
 export * from "./gameplay";
 export * from "./simulation";
 export * from "./rules/actionPresentation";

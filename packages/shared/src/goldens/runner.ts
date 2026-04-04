@@ -82,6 +82,16 @@ function buildBlockedOutcome(message: string) {
   };
 }
 
+function settlePendingTurnAdvance(
+  simulation: ReturnType<typeof createGameSimulation>
+): GameSnapshot {
+  while (simulation.hasPendingAdvance()) {
+    simulation.advanceTurn();
+  }
+
+  return simulation.getSnapshot();
+}
+
 // Golden steps stay data-friendly, then resolve into the simulator's high-level commands.
 function executeGoldenStep(
   snapshot: GameSnapshot,
@@ -91,41 +101,53 @@ function executeGoldenStep(
   outcome: { message: string; reason?: string; status: "blocked" | "ok" };
   snapshot: GameSnapshot;
 } {
+  let execution:
+    | {
+        outcome: { message: string; reason?: string; status: "blocked" | "ok" };
+        snapshot: GameSnapshot;
+      }
+    | null = null;
+
   switch (step.kind) {
     case "rollDice":
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "rollDice",
         actorId: step.actorId
       });
+      break;
     case "useTurnStartAction":
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "useTurnStartAction",
         actorId: step.actorId,
         payload: {
           actionId: step.actionId
         }
       });
+      break;
     case "endTurn":
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "endTurn",
         actorId: step.actorId
       });
+      break;
     case "setCharacter":
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "setCharacter",
         actorId: step.actorId,
         payload: {
           characterId: step.characterId
         }
       });
+      break;
     case "grantDebugTool":
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "grantDebugTool",
         actorId: step.actorId,
         payload: {
           toolId: step.toolId
         }
       });
+      break;
     case "useTool": {
       const actor = snapshot.players.find((player) => player.id === step.actorId);
 
@@ -145,7 +167,7 @@ function executeGoldenStep(
         };
       }
 
-      return simulation.dispatch({
+      execution = simulation.dispatch({
         kind: "useTool",
         actorId: step.actorId,
         payload: {
@@ -155,8 +177,21 @@ function executeGoldenStep(
           ...(step.targetPosition ? { targetPosition: clonePosition(step.targetPosition) } : {})
         }
       });
+      break;
     }
   }
+
+  if (!execution) {
+    return {
+      outcome: buildBlockedOutcome(`Unsupported step kind: ${(step as { kind: string }).kind}.`),
+      snapshot
+    };
+  }
+
+  return {
+    outcome: execution.outcome,
+    snapshot: settlePendingTurnAdvance(simulation)
+  };
 }
 
 function handleStepExpectation(

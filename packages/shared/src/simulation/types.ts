@@ -70,6 +70,22 @@ export interface SimulationSceneDefinition {
   turn?: Partial<TurnInfoSnapshot>;
 }
 
+export interface GamePendingAdvance {
+  kind: "race_finish";
+  nextPlayerId: string | null;
+  shouldAdvanceTurnNumber: boolean;
+}
+
+export interface GameRuntimeState extends SimulationSeedState {
+  eventSerial: number;
+  pendingAdvance: GamePendingAdvance | null;
+}
+
+export interface GameOrchestrationState {
+  runtime: GameRuntimeState;
+  snapshot: GameSnapshot;
+}
+
 export interface SimulationRollDiceCommand {
   actorId: string;
   kind: "rollDice";
@@ -124,6 +140,9 @@ export interface SimulationDispatchResult {
 }
 
 export interface GameSimulation {
+  advanceTurn: () => SimulationDispatchResult;
   dispatch: (command: SimulationCommand) => SimulationDispatchResult;
   getSnapshot: () => GameSnapshot;
+  getRuntimeState: () => GameRuntimeState;
+  hasPendingAdvance: () => boolean;
 }
