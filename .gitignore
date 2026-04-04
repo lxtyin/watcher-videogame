@@ -6,3 +6,4 @@ test-results/
 output/
 resources/
 dist/
+packages/client/.env
