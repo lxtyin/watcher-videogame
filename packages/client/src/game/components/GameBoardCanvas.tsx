@@ -1,9 +1,10 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { MOUSE } from "three";
+import { MOUSE, TOUCH } from "three";
 import { BoardScene } from "./BoardScene";
 
 const DISABLED_MOUSE_BUTTON = -1 as MOUSE;
+const DISABLED_TOUCH_ACTION = -1 as TOUCH;
 
 // The canvas owns camera behavior so board interactions can stay focused on gameplay input.
 export function GameBoardCanvas() {
@@ -24,6 +25,10 @@ export function GameBoardCanvas() {
             LEFT: DISABLED_MOUSE_BUTTON,
             MIDDLE: MOUSE.ROTATE,
             RIGHT: DISABLED_MOUSE_BUTTON
+          }}
+          touches={{
+            ONE: DISABLED_TOUCH_ACTION,
+            TWO: TOUCH.DOLLY_ROTATE
           }}
         />
         <BoardScene />

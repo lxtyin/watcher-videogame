@@ -53,6 +53,7 @@ export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
   const [playerProfile, setPlayerProfile] = useState(() => getStoredPlayerProfile());
   const [selectedCreateMapId, setSelectedCreateMapId] = useState<GameMapId>(DEFAULT_GAME_MAP_ID);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const previousRoomCodeRef = useRef<string | null>(route.roomCode);
 
   useKeyboardInteraction();
@@ -207,18 +208,38 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <HudSidebar
-        onLeaveRoom={() => {
-          void leaveRoom().finally(() => {
-            navigateHome();
-          });
-        }}
-      />
+    <div className={["app-shell", sidebarCollapsed ? "sidebar-collapsed" : ""].filter(Boolean).join(" ")}>
+      <button
+        type="button"
+        className="app-shell__sidebar-toggle"
+        data-testid="sidebar-toggle-button"
+        aria-expanded={!sidebarCollapsed}
+        aria-label={sidebarCollapsed ? "展开左侧栏" : "收起左侧栏"}
+        onClick={() => setSidebarCollapsed((current) => !current)}
+      >
+        {sidebarCollapsed ? "展开左栏" : "收起左栏"}
+      </button>
+
+      <div className="app-sidebar-slot">
+        <HudSidebar
+          onLeaveRoom={() => {
+            void leaveRoom().finally(() => {
+              navigateHome();
+            });
+          }}
+        />
+      </div>
 
       <main className="scene-panel">
         <GameBoardCanvas />
       </main>
+
+      <div className="rotate-device-overlay" aria-hidden="true">
+        <div className="rotate-device-card">
+          <strong>请横屏游玩</strong>
+          <span>横屏后左侧栏会保留在左边，双指可旋转和缩放视角。</span>
+        </div>
+      </div>
 
       {toolNotice ? (
         <div className="ui-notice" role="status" aria-live="polite">

@@ -28,6 +28,16 @@ Client: `http://localhost:5173`
 
 Server: `ws://localhost:2567`
 
+## Deploy
+
+To deploy on a server:
+```powershell
+echo "VITE_SERVER_URL=ws://<YOU PUBLIC IP>:2567" > packages/client/.env
+
+npm.cmd install
+npm.cmd run dev
+```
+
 ## Controls
 
 - `WASD` / arrow keys: move the active piece
