@@ -1361,6 +1361,18 @@ button:disabled {
   pointer-events: none;
 }
 
+.scene-action-ring.read-only {
+  opacity: 0.88;
+}
+
+.scene-action-ring.read-only .scene-action-ring__arc {
+  border-color: rgba(255, 248, 231, 0.26);
+}
+
+.scene-action-ring.read-only .scene-action-ring__caption {
+  background: rgba(24, 32, 46, 0.68);
+}
+
 .scene-action-ring__arc {
   position: absolute;
   left: 24px;
@@ -1446,6 +1458,22 @@ button:disabled {
 .scene-action-button.disabled:hover,
 .scene-action-button.disabled:focus-visible {
   transform: translate(-50%, -50%) scale(1);
+}
+
+.scene-action-ring.read-only .scene-action-button {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.scene-action-ring.read-only .scene-action-button:hover,
+.scene-action-ring.read-only .scene-action-button:focus-visible,
+.scene-action-ring.read-only .scene-action-button.selected,
+.scene-action-ring.read-only .scene-action-button.selected:hover,
+.scene-action-ring.read-only .scene-action-button.selected:focus-visible {
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 18px 28px color-mix(in srgb, var(--scene-accent) 20%, rgba(16, 19, 27, 0.18) 80%),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .scene-action-button__token {

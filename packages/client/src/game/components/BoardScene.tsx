@@ -27,6 +27,7 @@ import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset"
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
 import {
+  resolveDisplayedPlayers,
   resolveDisplayedSummons,
   resolveDisplayedTiles
 } from "../animation/displayState";
@@ -308,6 +309,10 @@ export function BoardScene() {
     () => (snapshot ? resolveDisplayedTiles(snapshot, pendingStateTransitions) : []),
     [pendingStateTransitions, snapshot]
   );
+  const displayedPlayers = useMemo(
+    () => (snapshot ? resolveDisplayedPlayers(snapshot, pendingStateTransitions) : []),
+    [pendingStateTransitions, snapshot]
+  );
   const displayedSummons = useMemo(
     () => (snapshot ? resolveDisplayedSummons(snapshot, pendingStateTransitions) : []),
     [pendingStateTransitions, snapshot]
@@ -321,7 +326,7 @@ export function BoardScene() {
 
     const groupedPlayers = new Map<string, PlayerSnapshot[]>();
 
-    for (const player of snapshot.players) {
+    for (const player of displayedPlayers.filter((entry) => entry.boardVisible)) {
       const displayedPosition = displayedPlayerPositions[player.id] ?? player.position;
       const key = toPositionKey({
         x: Math.round(displayedPosition.x),
@@ -353,13 +358,15 @@ export function BoardScene() {
     }
 
     return layout;
-  }, [cellEntrySerialByPlayer, displayedPlayerPositions, snapshot]);
+  }, [cellEntrySerialByPlayer, displayedPlayerPositions, displayedPlayers, snapshot]);
   const renderedPlayers = useMemo(() => {
     if (!snapshot) {
       return [];
     }
 
-    return [...snapshot.players].sort((left, right) => {
+    return displayedPlayers
+      .filter((player) => player.boardVisible)
+      .sort((left, right) => {
       const leftLayout = playerStackLayout.get(left.id) ?? { count: 1, index: 0 };
       const rightLayout = playerStackLayout.get(right.id) ?? { count: 1, index: 0 };
 
@@ -374,9 +381,9 @@ export function BoardScene() {
         return rightSerial - leftSerial;
       }
 
-      return left.id.localeCompare(right.id);
-    });
-  }, [cellEntrySerialByPlayer, playerStackLayout, snapshot]);
+        return left.id.localeCompare(right.id);
+      });
+  }, [cellEntrySerialByPlayer, displayedPlayers, playerStackLayout, snapshot]);
   const facingById = useMemo(() => {
     const nextFacingById = { ...facingByIdRef.current };
 
@@ -840,7 +847,7 @@ export function BoardScene() {
     window.watcher_scene_debug = {
       inspectionCard,
       displayedPlayers: Object.fromEntries(
-        snapshot.players.map((player) => {
+        displayedPlayers.map((player) => {
           const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
           const stackAnimation = stackAnimationByIdRef.current[player.id];
           const animatedStackIndex = stackAnimation
@@ -855,6 +862,7 @@ export function BoardScene() {
             player.id,
             {
               ...(displayedPlayerPositions[player.id] ?? player.position),
+              boardVisible: player.boardVisible,
               color: player.color,
               isActive: player.id === snapshot.turnInfo.currentPlayerId,
               stackSerial: cellEntrySerialByPlayer[player.id] ?? 0,
@@ -884,6 +892,7 @@ export function BoardScene() {
     };
   }, [
     cellEntrySerialByPlayer,
+    displayedPlayers,
     displayedPlayerPositions,
     displayedSummons,
     displayedTiles,
@@ -923,7 +932,9 @@ export function BoardScene() {
   }
 
   const currentPlayer =
-    snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
+    displayedPlayers.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
+    snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
+    null;
   const currentPlayerDisplayedPosition = currentPlayer
     ? displayedPlayerPositions[currentPlayer.id] ?? currentPlayer.position
     : null;
@@ -1134,6 +1145,9 @@ export function BoardScene() {
           (activeMotion?.position.lift ?? 0);
         const pieceTopY = pieceBaseY + 0.96;
         const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
+        const pieceRotationY =
+          DIRECTION_ROTATION_Y[facingDirection] +
+          (activeMotion?.motionStyle === "finish" ? activeMotion.progress * Math.PI * 6 : 0);
         const activeRingColor = mixSceneColor(player.color, "#fff4ce", 0.5);
         const directionArrowPosition: [number, number, number] =
           isMe &&
@@ -1153,30 +1167,35 @@ export function BoardScene() {
             position={[x, 0, z]}
             renderOrder={20 + Math.round(animatedStackIndex * 10)}
           >
-            {isMe && snapshot.turnInfo.currentPlayerId === sessionId ? (
+            {isActive ? (
               <SceneActionRing
-                hidden={isAiming}
+                hidden={isAiming && isMe}
+                interactive={isMe}
                 tools={player.tools}
                 turnStartActions={snapshot.turnInfo.turnStartActions}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
-                selectedToolInstanceId={selectedToolInstanceId}
-                onEndTurn={endTurn}
+                selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
+                onEndTurn={isMe ? endTurn : () => {}}
                 onPressAimTool={(toolInstanceId, clientX, clientY) => {
+                  if (!isMe) {
+                    return;
+                  }
+
                   const tool = findToolInstance(player.tools, toolInstanceId);
 
                   if (tool && isAimTool(tool.toolId)) {
                     beginAim(tool, clientX, clientY);
                   }
                 }}
-                onRollDice={rollDice}
-                onSelectTool={setSelectedToolInstanceId}
-                onShowUnavailableToolNotice={showToolNotice}
-                onUseChoiceTool={useChoiceTool}
-                onUseInstantTool={useInstantTool}
-                onUseTurnStartAction={useTurnStartAction}
+                onRollDice={isMe ? rollDice : () => {}}
+                onSelectTool={isMe ? setSelectedToolInstanceId : () => {}}
+                onShowUnavailableToolNotice={isMe ? showToolNotice : () => {}}
+                onUseChoiceTool={isMe ? useChoiceTool : () => {}}
+                onUseInstantTool={isMe ? useInstantTool : () => {}}
+                onUseTurnStartAction={isMe ? useTurnStartAction : () => {}}
               />
             ) : null}
             {isMe && canShowDirectionArrows && (selectedDirectionalTool || selectedTileDirectionTool) ? (
@@ -1199,7 +1218,7 @@ export function BoardScene() {
               fallbackSeed={player.id}
               petId={player.petId}
               position={[0, pieceBaseY, 0]}
-              rotationY={DIRECTION_ROTATION_Y[facingDirection]}
+              rotationY={pieceRotationY}
             />
           </group>
         );

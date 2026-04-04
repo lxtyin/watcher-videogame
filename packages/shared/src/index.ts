@@ -8,6 +8,7 @@ export * from "./effects";
 export * from "./goldens";
 export * from "./gameplay";
 export * from "./simulation";
+export * from "./rules/actionPresentation";
 export * from "./content/maps";
 export * from "./summons";
 export * from "./terrain";

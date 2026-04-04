@@ -50,6 +50,14 @@ export function sendSetReady(room: Room | null, payload: SetReadyCommandPayload)
   room.send("setReady", payload);
 }
 
+export function sendKickPlayer(room: Room | null, playerId: string): void {
+  if (!room) {
+    return;
+  }
+
+  room.send("kickPlayer", { playerId });
+}
+
 export function sendStartGame(room: Room | null): void {
   if (!room) {
     return;

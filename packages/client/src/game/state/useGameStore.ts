@@ -14,6 +14,7 @@ import {
   sendChoiceToolIfUsable,
   sendDirectionalToolIfUsable,
   sendEndTurn,
+  sendKickPlayer,
   sendGrantDebugTool,
   sendReturnToRoom,
   sendInstantToolIfUsable,
@@ -64,6 +65,7 @@ interface GameStore {
   useTurnStartAction: (actionId: TurnStartActionId) => void;
   endTurn: () => void;
   setReady: (isReady: boolean) => void;
+  kickPlayer: (playerId: string) => void;
   startGame: () => void;
   returnToRoom: () => void;
   setCharacter: (characterId: CharacterId) => void;
@@ -265,6 +267,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   setReady: (isReady) => {
     sendSetReady(get().room, { isReady });
+  },
+  kickPlayer: (playerId) => {
+    sendKickPlayer(get().room, playerId);
   },
   startGame: () => {
     sendStartGame(get().room);

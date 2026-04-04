@@ -3,6 +3,7 @@ import type {
   ActionPresentationEvent,
   Direction,
   GridPosition,
+  PlayerStateTransition,
   PresentationEffectType,
   PresentationMotionStyle,
   PresentationProjectileType,
@@ -22,6 +23,7 @@ export interface ActivePlayerMotionPlayback {
   motionStyle: PresentationMotionStyle;
   playerId: string;
   position: SampledGridPosition;
+  progress: number;
 }
 
 export interface ActiveProjectilePlayback {
@@ -48,6 +50,7 @@ export interface ActionPresentationPlaybackState {
 
 export interface PendingStateTransitionPlayback {
   eventId: string;
+  playerTransitions: PlayerStateTransition[];
   sequence: number;
   startMs: number;
   summonTransitions: SummonStateTransition[];
@@ -152,12 +155,15 @@ export function evaluateActionPresentation(
       playerMotions[event.playerId] = {
         playerId: event.playerId,
         motionStyle: event.motionStyle,
+        progress,
         position: sampleGridPath(
           event.positions,
           progress,
           event.motionStyle === "arc"
             ? 0.7 + Math.max(0, event.positions.length - 2) * 0.08
-            : 0
+            : event.motionStyle === "finish"
+              ? 1.75
+              : 0
         )
       };
       continue;
@@ -246,6 +252,7 @@ function collectPendingStateTransitionsFromPresentation(
 
     pendingTransitions.push({
       eventId: event.id,
+      playerTransitions: event.playerTransitions ?? [],
       sequence: presentation.sequence,
       startMs: event.startMs,
       tileTransitions: event.tileTransitions,

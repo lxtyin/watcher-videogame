@@ -136,6 +136,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const useTurnStartAction = useGameStore((state) => state.useTurnStartAction);
   const endTurn = useGameStore((state) => state.endTurn);
   const setReady = useGameStore((state) => state.setReady);
+  const kickPlayer = useGameStore((state) => state.kickPlayer);
   const startGame = useGameStore((state) => state.startGame);
   const setCharacter = useGameStore((state) => state.setCharacter);
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
@@ -357,6 +358,17 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                           onClick={() => setCharacter(nextCharacterId)}
                         >
                           切换到 {nextRoleDefinition.label}
+                        </button>
+                      </div>
+                    ) : isHost ? (
+                      <div className="lobby-player-actions">
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          data-testid={`kick-player-${player.id}`}
+                          onClick={() => kickPlayer(player.id)}
+                        >
+                          踢出玩家
                         </button>
                       </div>
                     ) : null}

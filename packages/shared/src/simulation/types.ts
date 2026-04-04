@@ -27,6 +27,7 @@ export interface SimulationToolLoadoutDefinition {
 }
 
 export interface SimulationPlayerDefinition {
+  boardVisible?: boolean;
   characterId?: CharacterId;
   characterState?: CharacterStateMap;
   color?: string;

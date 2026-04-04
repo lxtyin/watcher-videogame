@@ -93,7 +93,7 @@ declare const GAME_MAP_REGISTRY: {
         readonly description: "所有玩家共享出生点，沿着加速带与机关冲向终点，先到先得。";
         readonly mode: "race";
         readonly allowDebugTools: false;
-        readonly layout: readonly ["#########", "#s..>...#", "#.##v#..#", "#..l.#.g#", "#..#.^..#", "#..#....#", "#..e....#", "#....<..#", "#########"];
+        readonly layout: readonly ["########################", "#s..v..............ee..#", "#....#.............###.#", "#..lp###.....#.l..##.g.#", "#e.#........#......###.#", "#..#.....###...........#", "#.ee...................#", "#....^................p#", "########################"];
         readonly symbols: {
             readonly [x: string]: LayoutSymbolDefinition | undefined;
         };
@@ -490,7 +490,7 @@ type ToolParameterId = ToolParameterId$1;
 type ToolParameterValueMap = ToolParameterValueMap$1;
 type CharacterStateValue = boolean | number | string;
 type CharacterStateMap = Partial<Record<string, CharacterStateValue>>;
-type EventType = "piece_moved" | "move_blocked" | "earth_wall_broken" | "turn_started" | "dice_rolled" | "tool_used" | "turn_ended" | "terrain_triggered" | "player_respawned" | "debug_granted" | "character_switched" | "summon_triggered" | "character_action_used" | "player_finished" | "match_finished";
+type EventType = "piece_moved" | "move_blocked" | "earth_wall_broken" | "turn_started" | "dice_rolled" | "tool_used" | "turn_ended" | "terrain_triggered" | "player_respawned" | "debug_granted" | "character_switched" | "summon_triggered" | "character_action_used" | "player_kicked" | "player_finished" | "match_finished";
 interface GridPosition {
     x: number;
     y: number;
@@ -517,6 +517,7 @@ interface TurnStartActionSnapshot {
     characterId: CharacterId;
 }
 interface PlayerSnapshot {
+    boardVisible: boolean;
     characterId: CharacterId;
     characterState: CharacterStateMap;
     color: string;
@@ -553,7 +554,7 @@ interface EventLogEntry {
     message: string;
     type: EventType;
 }
-type PresentationMotionStyle = "ground" | "arc";
+type PresentationMotionStyle = "ground" | "arc" | "finish";
 type PresentationProjectileType = "basketball" | "rocket";
 type PresentationEffectType = keyof typeof EFFECT_REGISTRY;
 interface TurnToolSnapshot {
@@ -634,6 +635,9 @@ interface SetCharacterCommandPayload {
 interface SetReadyCommandPayload {
     isReady: boolean;
 }
+interface KickPlayerCommandPayload {
+    playerId: string;
+}
 interface MovementActor {
     characterId: CharacterId;
     characterState: CharacterStateMap;
@@ -659,6 +663,7 @@ type MovementResolution = {
     target: GridPosition;
 };
 interface BoardPlayerState {
+    boardVisible: boolean;
     characterId: CharacterId;
     characterState: CharacterStateMap;
     id: string;
@@ -823,8 +828,18 @@ interface SummonStateTransition {
     before: SummonPresentationState | null;
     instanceId: string;
 }
+interface PlayerPresentationState {
+    boardVisible: boolean;
+    playerId: string;
+}
+interface PlayerStateTransition {
+    after: PlayerPresentationState;
+    before: PlayerPresentationState;
+    playerId: string;
+}
 interface StateTransitionPresentationEvent extends ActionPresentationEventBase {
     kind: "state_transition";
+    playerTransitions: PlayerStateTransition[];
     summonTransitions: SummonStateTransition[];
     tileTransitions: TileStateTransition[];
 }
@@ -1023,6 +1038,7 @@ interface SimulationToolLoadoutDefinition {
     toolId: ToolId;
 }
 interface SimulationPlayerDefinition {
+    boardVisible?: boolean;
     characterId?: CharacterId;
     characterState?: CharacterStateMap;
     color?: string;
@@ -1303,6 +1319,16 @@ declare function areAllRacePlayersFinished(players: FinishedPlayerLike[]): boole
 declare function resolveSettlementState(mode: GameMode, players: FinishedPlayerLike[]): GameSettlementState;
 declare function getNextActiveRacePlayerId(playerOrder: string[], players: FinishedPlayerLike[], currentPlayerId: string): string | null;
 
+declare const ROCKET_BLAST_DELAY_MS = 40;
+declare function createPresentation(actorId: string, toolId: ToolId, events: ActionPresentationEvent[]): ActionPresentation | null;
+declare function createPlayerMotionEvent(eventId: string, playerId: string, positions: GridPosition[], motionStyle: PresentationMotionStyle, startMs?: number): ActionPresentationEvent | null;
+declare function createProjectileEvent(eventId: string, ownerId: string, projectileType: PresentationProjectileType, positions: GridPosition[], startMs?: number): ActionPresentationEvent | null;
+declare function createEffectEvent(eventId: string, effectType: PresentationEffectType, position: GridPosition, tiles: GridPosition[], startMs?: number, durationMs?: number): ActionPresentationEvent;
+declare function createStateTransitionEvent(eventId: string, tileTransitions: TileStateTransition[], summonTransitions: SummonStateTransition[], playerTransitions?: PlayerStateTransition[], startMs?: number): ActionPresentationEvent | null;
+declare function appendPresentationEvents(presentation: ActionPresentation | null, actorId: string, toolId: ToolId, events: ActionPresentationEvent[]): ActionPresentation | null;
+declare function getMotionArrivalStartMs(positions: GridPosition[], motionStyle: PresentationMotionStyle, targetPosition: GridPosition, startMs?: number): number | null;
+declare function buildMotionPositions(startPosition: GridPosition, path: GridPosition[]): GridPosition[];
+
 interface SummonTriggerTarget {
     characterId: CharacterId;
     characterState: CharacterStateMap;
@@ -1451,4 +1477,4 @@ declare const TURN_START_ACTION_DEFINITIONS: Record<"blazePrepareBomb" | "volaty
 declare function getTurnStartActionDefinition(actionId: TurnStartActionId): TurnStartActionDefinition;
 declare function createTurnStartActionSnapshot(actionId: TurnStartActionId, characterId: CharacterId): TurnStartActionSnapshot;
 
-export { type ActionContextBase, type ActionPresentation, type ActionPresentationEvent, type ActionPresentationEventBase, type ActionResolution, type AffectedPlayerMove, BASE_MOVEMENT_ACTIONS_PER_TURN, BLAZE_BOMB_PREPARED_STATE_KEY, BOARD_HEIGHT, BOARD_WIDTH, type BoardDefinition, type BoardPlayerState, type BoardSummonState, CHAIN_HOOK_READY_STATE_KEY, CHAIN_MOVED_OUT_OF_TURN_STATE_KEY, CHARACTER_DEFINITIONS, type CharacterDefinition, type CharacterId, type CharacterStateMap, type CharacterStateValue, type CharacterTurnLoadoutResolution, type CharacterTurnStartActionResolution, type CharacterTurnStartResolution, DEFAULT_GAME_MAP_ID, DEFAULT_MOVEMENT_ACTIONS, DEFAULT_MOVE_POINTS, type DieRollResult, type Direction, type DirectionalActionContext, type EffectPresentationEvent, type EventLogEntry, type EventType, FARTHER_PENDING_MOVE_BONUS_STATE_KEY, GAME_MAP_REGISTRY, GOLDEN_CASES, type GameMapContentDefinition, type GameMapId, type GameMapRegistry, type GameMapRuntimeMetadata, type GameMode, type GameSettlementState, type GameSimulation, type GameSnapshot, type GoldenCaseDefinition, type GoldenCaseExpectation, type GoldenCasePlayback, type GoldenCasePlaybackStep, type GoldenCasePlayerSummary, type GoldenCasePresentationSummary, type GoldenCaseResult, type GoldenCaseStateSummary, type GoldenCaseStep, type GoldenCaseStepResult, type GoldenEndTurnStep, type GoldenExpectedPlayerState, type GoldenExpectedSummonState, type GoldenGrantDebugToolStep, type GoldenPlayerDefinition, type GoldenPresentationExpectation, type GoldenRollDiceStep, type GoldenSceneDefinition, type GoldenSeedState, type GoldenSetCharacterStep, type GoldenStepExpectation, type GoldenSummonDefinition, type GoldenToolLoadoutDefinition, type GoldenToolSelectorDefinition, type GoldenUseToolStep, type GoldenUseTurnStartActionStep, type GrantDebugToolPayload, type GridPosition, MOVEMENT_DIE_FACES, type MovementActor, type MovementContext, type MovementDescriptor, type MovementDisposition, type MovementResolution, type MovementTiming, type MovementType, PLAYER_COLORS, PLAYER_SPAWNS, PRESENTATION_EFFECT_DEFINITIONS, type PlayerMotionPresentationEvent, type PlayerSnapshot, type PlayerTurnFlag, type PresentationEffectDefinition, type PresentationEffectType, type PresentationMotionStyle, type PresentationProjectileType, type ProjectilePresentationEvent, RACE_GAME_MAP_ID, type RaceStandingEntry, type ResolvedActorState, type ResolvedPlayerMovement, type RolledToolId, type RoomPhase, SUMMON_DEFINITIONS, type SequencedActionPresentation, type SetCharacterCommandPayload, type SetReadyCommandPayload, type SimulationCommand, type SimulationCommandOutcome, type SimulationDispatchResult, type SimulationEndTurnCommand, type SimulationGrantDebugToolCommand, type SimulationPlayerDefinition, type SimulationRollDiceCommand, type SimulationSceneDefinition, type SimulationSeedState, type SimulationSetCharacterCommand, type SimulationSummonDefinition, type SimulationToolLoadoutDefinition, type SimulationUseToolCommand, type SimulationUseTurnStartActionCommand, type StateTransitionPresentationEvent, type StopResolutionTarget, type SummonDefinition, type SummonId, type SummonMutation, type SummonPhaseResolution, type SummonPresentationState, type SummonSnapshot, type SummonStateTransition, TOOL_DEFINITIONS, TOOL_DIE_FACES, TURN_START_ACTION_DEFINITIONS, type TerrainPassThroughResult, type TerrainStopContext, type TerrainStopResult, type TileDefinition, type TileMutation, type TilePresentationState, type TileStateTransition, type TileTargetingMode, type TileType, type ToolActionContext, type ToolAvailability, type ToolButtonValueDefinition, type ToolChoiceDefinition, type ToolCondition, type ToolDefinition, type ToolDieFaceDefinition, type ToolId, type ToolLoadoutDefinition, type ToolParameterId, type ToolParameterValueMap, type ToolSource, type ToolTargetMode, type TriggeredSummonEffect, type TriggeredTerrainEffect, type TurnInfoSnapshot, type TurnPhase, type TurnStartActionDefinition, type TurnStartActionId, type TurnStartActionSnapshot, type TurnToolSnapshot, type UseToolCommandPayload, type UseTurnStartActionCommandPayload, VOLATY_LEAP_TURN_STATE_KEY, WATCHER_ROOM_NAME, adjustMovementTools, applyCharacterToolTransforms, applyCharacterTurnEndCleanup, areAllRacePlayersFinished, buildCharacterTurnLoadout, buildCharacterTurnLoadoutRuntime, buildGameMapRuntimeMetadata, buildGoldenCasePlayback, buildGoldenLayoutSymbols, buildRaceStandings, clearMovementTools, cloneCharacterState, cloneGameSnapshot, consumeToolInstance, createBoardDefinition, createBoardDefinitionFromGoldenLayout, createDebugToolInstance, createDefaultBoardDefinition, createGameSimulation, createMovementToolInstance, createRolledToolInstance, createSummonUpsertMutation, createTerrainStopTarget, createToolInstance, createTurnStartActionSnapshot, defineGoldenCase, describeToolButtonLabel, describeToolButtonValue, describeToolParameters, findToolInstance, getCharacterActiveSkillToolIds, getCharacterDefinition, getCharacterIds, getCharacterMovementOverrideType, getCharacterStateBoolean, getCharacterStateNumber, getCharacterTurnStartActionIds, getDebugGrantableToolIds, getDirectionVector, getGameMapDefinition, getGameMapIds, getGameMapSpawnPosition, getNextActiveRacePlayerId, getNextCharacterId, getNextFinishRank, getOppositeDirection, getPresentationEffectDefinition, getRollableToolIds, getSummonDefinition, getTerrainTileKey, getTile, getTilesByType, getToolAvailability, getToolChoiceDefinitions, getToolDefinition, getToolDisabledMessage, getToolParam, getTotalMovementPoints, getTurnStartActionDefinition, hasSummonAtPosition, isAimTool, isCharacterSkillTool, isChoiceTool, isDirectionalTool, isLuckyTurnFlag, isPlayerFinished, isSolidTileType, isTileDirectionTool, isTileTargetTool, isWithinBoard, markCharacterMovedOutOfTurn, nextDeterministicSeed, prepareCharacterTurnStart, resolveCharacterTurnStartAction, resolveCurrentTileStop, resolveGameMapId, resolvePassThroughSummonEffects, resolvePassThroughTerrainEffect, resolveSettlementState, resolveStopSummonEffects, resolveStopTerrainEffect, resolveToolAction, rollMovementDie, rollToolDie, runGoldenCase, runGoldenCases, serializeGoldenBoardLayout, setCharacterStateValue, stepPosition, toTileKey };
+export { type ActionContextBase, type ActionPresentation, type ActionPresentationEvent, type ActionPresentationEventBase, type ActionResolution, type AffectedPlayerMove, BASE_MOVEMENT_ACTIONS_PER_TURN, BLAZE_BOMB_PREPARED_STATE_KEY, BOARD_HEIGHT, BOARD_WIDTH, type BoardDefinition, type BoardPlayerState, type BoardSummonState, CHAIN_HOOK_READY_STATE_KEY, CHAIN_MOVED_OUT_OF_TURN_STATE_KEY, CHARACTER_DEFINITIONS, type CharacterDefinition, type CharacterId, type CharacterStateMap, type CharacterStateValue, type CharacterTurnLoadoutResolution, type CharacterTurnStartActionResolution, type CharacterTurnStartResolution, DEFAULT_GAME_MAP_ID, DEFAULT_MOVEMENT_ACTIONS, DEFAULT_MOVE_POINTS, type DieRollResult, type Direction, type DirectionalActionContext, type EffectPresentationEvent, type EventLogEntry, type EventType, FARTHER_PENDING_MOVE_BONUS_STATE_KEY, GAME_MAP_REGISTRY, GOLDEN_CASES, type GameMapContentDefinition, type GameMapId, type GameMapRegistry, type GameMapRuntimeMetadata, type GameMode, type GameSettlementState, type GameSimulation, type GameSnapshot, type GoldenCaseDefinition, type GoldenCaseExpectation, type GoldenCasePlayback, type GoldenCasePlaybackStep, type GoldenCasePlayerSummary, type GoldenCasePresentationSummary, type GoldenCaseResult, type GoldenCaseStateSummary, type GoldenCaseStep, type GoldenCaseStepResult, type GoldenEndTurnStep, type GoldenExpectedPlayerState, type GoldenExpectedSummonState, type GoldenGrantDebugToolStep, type GoldenPlayerDefinition, type GoldenPresentationExpectation, type GoldenRollDiceStep, type GoldenSceneDefinition, type GoldenSeedState, type GoldenSetCharacterStep, type GoldenStepExpectation, type GoldenSummonDefinition, type GoldenToolLoadoutDefinition, type GoldenToolSelectorDefinition, type GoldenUseToolStep, type GoldenUseTurnStartActionStep, type GrantDebugToolPayload, type GridPosition, type KickPlayerCommandPayload, MOVEMENT_DIE_FACES, type MovementActor, type MovementContext, type MovementDescriptor, type MovementDisposition, type MovementResolution, type MovementTiming, type MovementType, PLAYER_COLORS, PLAYER_SPAWNS, PRESENTATION_EFFECT_DEFINITIONS, type PlayerMotionPresentationEvent, type PlayerPresentationState, type PlayerSnapshot, type PlayerStateTransition, type PlayerTurnFlag, type PresentationEffectDefinition, type PresentationEffectType, type PresentationMotionStyle, type PresentationProjectileType, type ProjectilePresentationEvent, RACE_GAME_MAP_ID, ROCKET_BLAST_DELAY_MS, type RaceStandingEntry, type ResolvedActorState, type ResolvedPlayerMovement, type RolledToolId, type RoomPhase, SUMMON_DEFINITIONS, type SequencedActionPresentation, type SetCharacterCommandPayload, type SetReadyCommandPayload, type SimulationCommand, type SimulationCommandOutcome, type SimulationDispatchResult, type SimulationEndTurnCommand, type SimulationGrantDebugToolCommand, type SimulationPlayerDefinition, type SimulationRollDiceCommand, type SimulationSceneDefinition, type SimulationSeedState, type SimulationSetCharacterCommand, type SimulationSummonDefinition, type SimulationToolLoadoutDefinition, type SimulationUseToolCommand, type SimulationUseTurnStartActionCommand, type StateTransitionPresentationEvent, type StopResolutionTarget, type SummonDefinition, type SummonId, type SummonMutation, type SummonPhaseResolution, type SummonPresentationState, type SummonSnapshot, type SummonStateTransition, TOOL_DEFINITIONS, TOOL_DIE_FACES, TURN_START_ACTION_DEFINITIONS, type TerrainPassThroughResult, type TerrainStopContext, type TerrainStopResult, type TileDefinition, type TileMutation, type TilePresentationState, type TileStateTransition, type TileTargetingMode, type TileType, type ToolActionContext, type ToolAvailability, type ToolButtonValueDefinition, type ToolChoiceDefinition, type ToolCondition, type ToolDefinition, type ToolDieFaceDefinition, type ToolId, type ToolLoadoutDefinition, type ToolParameterId, type ToolParameterValueMap, type ToolSource, type ToolTargetMode, type TriggeredSummonEffect, type TriggeredTerrainEffect, type TurnInfoSnapshot, type TurnPhase, type TurnStartActionDefinition, type TurnStartActionId, type TurnStartActionSnapshot, type TurnToolSnapshot, type UseToolCommandPayload, type UseTurnStartActionCommandPayload, VOLATY_LEAP_TURN_STATE_KEY, WATCHER_ROOM_NAME, adjustMovementTools, appendPresentationEvents, applyCharacterToolTransforms, applyCharacterTurnEndCleanup, areAllRacePlayersFinished, buildCharacterTurnLoadout, buildCharacterTurnLoadoutRuntime, buildGameMapRuntimeMetadata, buildGoldenCasePlayback, buildGoldenLayoutSymbols, buildMotionPositions, buildRaceStandings, clearMovementTools, cloneCharacterState, cloneGameSnapshot, consumeToolInstance, createBoardDefinition, createBoardDefinitionFromGoldenLayout, createDebugToolInstance, createDefaultBoardDefinition, createEffectEvent, createGameSimulation, createMovementToolInstance, createPlayerMotionEvent, createPresentation, createProjectileEvent, createRolledToolInstance, createStateTransitionEvent, createSummonUpsertMutation, createTerrainStopTarget, createToolInstance, createTurnStartActionSnapshot, defineGoldenCase, describeToolButtonLabel, describeToolButtonValue, describeToolParameters, findToolInstance, getCharacterActiveSkillToolIds, getCharacterDefinition, getCharacterIds, getCharacterMovementOverrideType, getCharacterStateBoolean, getCharacterStateNumber, getCharacterTurnStartActionIds, getDebugGrantableToolIds, getDirectionVector, getGameMapDefinition, getGameMapIds, getGameMapSpawnPosition, getMotionArrivalStartMs, getNextActiveRacePlayerId, getNextCharacterId, getNextFinishRank, getOppositeDirection, getPresentationEffectDefinition, getRollableToolIds, getSummonDefinition, getTerrainTileKey, getTile, getTilesByType, getToolAvailability, getToolChoiceDefinitions, getToolDefinition, getToolDisabledMessage, getToolParam, getTotalMovementPoints, getTurnStartActionDefinition, hasSummonAtPosition, isAimTool, isCharacterSkillTool, isChoiceTool, isDirectionalTool, isLuckyTurnFlag, isPlayerFinished, isSolidTileType, isTileDirectionTool, isTileTargetTool, isWithinBoard, markCharacterMovedOutOfTurn, nextDeterministicSeed, prepareCharacterTurnStart, resolveCharacterTurnStartAction, resolveCurrentTileStop, resolveGameMapId, resolvePassThroughSummonEffects, resolvePassThroughTerrainEffect, resolveSettlementState, resolveStopSummonEffects, resolveStopTerrainEffect, resolveToolAction, rollMovementDie, rollToolDie, runGoldenCase, runGoldenCases, serializeGoldenBoardLayout, setCharacterStateValue, stepPosition, toTileKey };

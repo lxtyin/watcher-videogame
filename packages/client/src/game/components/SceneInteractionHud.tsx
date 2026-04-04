@@ -28,6 +28,7 @@ import type { SelectedToolInstanceId } from "../state/useGameStore";
 
 interface SceneActionRingProps {
   hidden?: boolean;
+  interactive?: boolean;
   tools: TurnToolSnapshot[];
   turnStartActions: TurnStartActionSnapshot[];
   phase: "roll" | "action";
@@ -151,6 +152,7 @@ function getSelectedCaption(
 // The floating action ring is the in-scene entry point for roll, tool choice, and end turn.
 export function SceneActionRing({
   hidden = false,
+  interactive = true,
   tools,
   turnStartActions,
   phase,
@@ -268,7 +270,7 @@ export function SceneActionRing({
                 ? getToolButtonDetail(tool, tools)
                 : availability.reason ?? getToolButtonDetail(tool, tools),
               disabled: !availability.usable,
-              selected: selectedToolInstanceId === tool.instanceId,
+              selected: interactive && selectedToolInstanceId === tool.instanceId,
               testId: `scene-tool-${tool.toolId}-${index}`,
               toolId: tool.toolId,
               toolInstanceId: tool.instanceId,
@@ -283,6 +285,10 @@ export function SceneActionRing({
                     }
                   : undefined,
               onClick: () => {
+                if (!interactive) {
+                  return;
+                }
+
                 if (!availability.usable) {
                   onSelectTool(tool.instanceId);
                   onShowUnavailableToolNotice(
@@ -314,12 +320,20 @@ export function SceneActionRing({
           }
         ];
   const selectedChoiceTool =
-    phase === "action" && selectedTool && isChoiceTool(selectedTool.toolId) ? selectedTool : null;
+    interactive && phase === "action" && selectedTool && isChoiceTool(selectedTool.toolId)
+      ? selectedTool
+      : null;
 
   return (
     <Html position={position} center>
       <div
-        className={["scene-action-ring", hidden ? "hidden" : ""].filter(Boolean).join(" ")}
+        className={[
+          "scene-action-ring",
+          hidden ? "hidden" : "",
+          interactive ? "" : "read-only"
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
         <div className="scene-action-ring__arc" />
@@ -346,9 +360,9 @@ export function SceneActionRing({
             data-tool-id={action.toolId}
             data-tool-instance-id={action.toolInstanceId}
             style={{ ...getRingButtonStyle(index, actions.length), "--scene-accent": action.accent } as CSSProperties}
-            onPointerDown={action.onPointerDown}
-            onClick={action.onClick}
-            aria-disabled={action.disabled}
+            onPointerDown={interactive ? action.onPointerDown : undefined}
+            onClick={interactive ? action.onClick : undefined}
+            aria-disabled={action.disabled || !interactive}
           >
             <span className="scene-action-button__token">{action.token}</span>
             <span className="scene-action-button__label">{action.label}</span>

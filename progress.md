@@ -861,3 +861,24 @@ Original prompt: [架构设计文档.md](docs/架构设计文档.md) [玩法设�
 - TODO:
   - consider whether direct room-entry pages should also expose the same pet picker as the home profile card
   - consider adding authored thumbnail art later if map count grows beyond procedural previews
+## 2026-04-04
+
+- Added host-side lobby kick controls:
+  - client sidebar now exposes a kick button for non-host players in the lobby
+  - room protocol now accepts `kickPlayer`
+  - kicked clients show a dedicated removal message instead of a generic disconnect code
+- Added read-only overhead action rings for the active remote player so spectators can still see the current turn tool loadout in-scene.
+- Added player-level delayed presentation state:
+  - `PlayerSnapshot.boardVisible`
+  - `playerTransitions` inside `state_transition` presentation events
+  - client `displayedPlayers` rollback support
+- Race finishes now append a dedicated `finish` motion, keep the finisher visible until the animation completes, then remove the piece from the board.
+- The authoritative room now delays next-turn / settlement advancement until the race finish presentation duration elapses.
+- Text smoke outputs:
+  - `output/web-game/room-kick-finish-text/summary.json`
+  - `output/web-game/room-kick-finish-text/finish-animation.json`
+- Verified:
+  - `npm.cmd run typecheck`
+  - `npm.cmd run build`
+- Known non-blocking issue remains unchanged:
+  - Vite client build still reports a large chunk warning.

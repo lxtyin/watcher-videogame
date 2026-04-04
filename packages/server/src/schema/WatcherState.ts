@@ -32,6 +32,7 @@ export class PlayerState extends Schema {
   @type("string") name = "";
   @type("string") petId = "";
   @type("string") color = "";
+  @type("boolean") boardVisible = true;
   @type("string") characterId: CharacterId = "late";
   @type("string") characterStateJson = "{}";
   @type("number") finishRank = 0;

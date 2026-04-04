@@ -233,6 +233,7 @@ export function attachStateTransitionPresentation(
         `${context.activeTool.instanceId}:tile-transition-${index}`,
         [transition],
         [],
+        [],
         findStateTransitionStartMs(resolution.presentation, mutation.position)
       );
 
@@ -250,6 +251,7 @@ export function attachStateTransitionPresentation(
         `${context.activeTool.instanceId}:summon-transition-${index}`,
         [],
         [transition],
+        [],
         findStateTransitionStartMs(resolution.presentation, anchorPosition)
       );
 

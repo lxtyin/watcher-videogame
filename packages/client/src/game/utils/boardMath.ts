@@ -115,14 +115,17 @@ export function buildActionPreview(
   }
 
   const board = createBoardDefinitionFromSnapshot(snapshot);
-  const players = snapshot.players.map((player) => ({
-    id: player.id,
-    characterId: player.characterId,
-    characterState: player.characterState,
-    position: player.position,
-    spawnPosition: player.spawnPosition,
-    turnFlags: player.turnFlags
-  }));
+  const players = snapshot.players
+    .filter((player) => player.boardVisible)
+    .map((player) => ({
+      id: player.id,
+      boardVisible: player.boardVisible,
+      characterId: player.characterId,
+      characterState: player.characterState,
+      position: player.position,
+      spawnPosition: player.spawnPosition,
+      turnFlags: player.turnFlags
+    }));
   const summons = snapshot.summons.map((summon) => ({
     instanceId: summon.instanceId,
     summonId: summon.summonId,

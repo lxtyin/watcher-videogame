@@ -34,20 +34,23 @@ export function createBoardDefinitionFromState(state: WatcherState) {
 
 // Player schema state is mirrored into shared snapshots for collision and terrain logic.
 export function createBoardPlayersFromState(state: WatcherState): BoardPlayerState[] {
-  return Array.from(state.players.values() as Iterable<PlayerState>).map((entry) => ({
-    id: entry.id,
-    characterId: entry.characterId,
-    characterState: parseCharacterState(entry.characterStateJson),
-    position: {
-      x: entry.x,
-      y: entry.y
-    },
-    spawnPosition: {
-      x: entry.spawnX,
-      y: entry.spawnY
-    },
-    turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
-  }));
+  return Array.from(state.players.values() as Iterable<PlayerState>)
+    .filter((entry) => entry.boardVisible)
+    .map((entry) => ({
+      id: entry.id,
+      boardVisible: entry.boardVisible,
+      characterId: entry.characterId,
+      characterState: parseCharacterState(entry.characterStateJson),
+      position: {
+        x: entry.x,
+        y: entry.y
+      },
+      spawnPosition: {
+        x: entry.spawnX,
+        y: entry.spawnY
+      },
+      turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
+    }));
 }
 
 export function parseCharacterState(characterStateJson: string): CharacterStateMap {

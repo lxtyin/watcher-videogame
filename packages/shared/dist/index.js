@@ -541,15 +541,15 @@ var DEFAULT_BOARD_SYMBOLS = {
 
 // src/content/raceBoard.ts
 var RACE_BOARD_LAYOUT = [
-  "#########",
-  "#s..>...#",
-  "#.##v#..#",
-  "#..l.#.g#",
-  "#..#.^..#",
-  "#..#....#",
-  "#..e....#",
-  "#....<..#",
-  "#########"
+  "########################",
+  "#s..v..............ee..#",
+  "#....#.............###.#",
+  "#..lp###.....#.l..##.g.#",
+  "#e.#........#......###.#",
+  "#..#.....###...........#",
+  "#.ee...................#",
+  "#....^................p#",
+  "########################"
 ];
 var RACE_BOARD_SYMBOLS = {};
 
@@ -663,6 +663,7 @@ function isWithinBoard(board, position) {
 // src/rules/actionPresentation.ts
 var GROUND_MOTION_MS_PER_STEP = 150;
 var ARC_MOTION_MS_PER_STEP = 210;
+var FINISH_MOTION_MS_PER_STEP = 820;
 var PROJECTILE_MOTION_MS_PER_STEP = 110;
 var ROCKET_EXPLOSION_EFFECT_MS = 420;
 var ROCKET_BLAST_DELAY_MS = 40;
@@ -689,7 +690,7 @@ function createPlayerMotionEvent(eventId, playerId, positions, motionStyle, star
     motionStyle,
     positions,
     startMs,
-    durationMs: stepCount * (motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP)
+    durationMs: stepCount * (motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : motionStyle === "finish" ? FINISH_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP)
   };
 }
 function createProjectileEvent(eventId, ownerId, projectileType, positions, startMs = 0) {
@@ -717,13 +718,14 @@ function createEffectEvent(eventId, effectType, position, tiles, startMs = 0, du
     durationMs
   };
 }
-function createStateTransitionEvent(eventId, tileTransitions, summonTransitions, startMs = 0) {
-  if (!tileTransitions.length && !summonTransitions.length) {
+function createStateTransitionEvent(eventId, tileTransitions, summonTransitions, playerTransitions = [], startMs = 0) {
+  if (!tileTransitions.length && !summonTransitions.length && !playerTransitions.length) {
     return null;
   }
   return {
     id: eventId,
     kind: "state_transition",
+    playerTransitions,
     tileTransitions,
     summonTransitions,
     startMs,
@@ -746,7 +748,13 @@ function appendPresentationEvents(presentation, actorId, toolId, events) {
   };
 }
 function getMotionStepDurationMs(motionStyle) {
-  return motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP;
+  if (motionStyle === "arc") {
+    return ARC_MOTION_MS_PER_STEP;
+  }
+  if (motionStyle === "finish") {
+    return FINISH_MOTION_MS_PER_STEP;
+  }
+  return GROUND_MOTION_MS_PER_STEP;
 }
 function getMotionArrivalStartMs(positions, motionStyle, targetPosition, startMs = 0) {
   const stepIndex = positions.findIndex(
@@ -897,6 +905,7 @@ function attachStateTransitionPresentation(context, resolution) {
         `${context.activeTool.instanceId}:tile-transition-${index}`,
         [transition],
         [],
+        [],
         findStateTransitionStartMs(resolution.presentation, mutation.position)
       );
       return event ? [event] : [];
@@ -911,6 +920,7 @@ function attachStateTransitionPresentation(context, resolution) {
         `${context.activeTool.instanceId}:summon-transition-${index}`,
         [],
         [transition],
+        [],
         findStateTransitionStartMs(resolution.presentation, anchorPosition)
       );
       return event ? [event] : [];
@@ -5118,6 +5128,7 @@ function cloneGameSnapshot(snapshot) {
     tiles: snapshot.tiles.map((tile) => ({ ...tile })),
     players: snapshot.players.map((player) => ({
       ...player,
+      boardVisible: player.boardVisible,
       characterState: cloneCharacterState(player.characterState),
       finishRank: player.finishRank,
       finishedTurnNumber: player.finishedTurnNumber,
@@ -5142,7 +5153,28 @@ function cloneGameSnapshot(snapshot) {
     turnInfo: cloneTurnInfo(snapshot.turnInfo),
     latestPresentation: snapshot.latestPresentation ? {
       ...snapshot.latestPresentation,
-      events: snapshot.latestPresentation.events.map((event) => ({ ...event }))
+      events: snapshot.latestPresentation.events.map(
+        (event) => event.kind === "state_transition" ? {
+          ...event,
+          tileTransitions: event.tileTransitions.map((transition) => ({
+            ...transition,
+            before: { ...transition.before },
+            after: { ...transition.after }
+          })),
+          summonTransitions: event.summonTransitions.map((transition) => ({
+            ...transition,
+            before: transition.before ? { ...transition.before, position: { ...transition.before.position } } : null,
+            after: transition.after ? { ...transition.after, position: { ...transition.after.position } } : null
+          })),
+          playerTransitions: event.playerTransitions.map((transition) => ({
+            ...transition,
+            before: { ...transition.before },
+            after: { ...transition.after }
+          }))
+        } : {
+          ...event
+        }
+      )
     } : null
   };
 }
@@ -5157,8 +5189,9 @@ function buildBoardDefinition(snapshot) {
   };
 }
 function buildBoardPlayers(snapshot) {
-  return snapshot.players.map((player) => ({
+  return snapshot.players.filter((player) => player.boardVisible).map((player) => ({
     id: player.id,
+    boardVisible: player.boardVisible,
     characterId: player.characterId,
     characterState: cloneCharacterState(player.characterState),
     position: clonePosition3(player.position),
@@ -5350,6 +5383,7 @@ function applyRaceGoalProgress(state, actorId, triggeredTerrainEffects) {
     }
     player.finishRank = getNextFinishRank(state.snapshot.players);
     player.finishedTurnNumber = state.snapshot.turnInfo.turnNumber;
+    player.boardVisible = false;
     actorFinished = actorFinished || player.id === actorId;
     pushEvent(
       state,
@@ -5824,6 +5858,7 @@ function createInitialState(sceneDefinition) {
     name: player.name ?? player.id,
     petId: player.petId ?? "",
     color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
+    boardVisible: player.boardVisible ?? player.finishRank == null,
     characterId: player.characterId ?? "late",
     characterState: cloneCharacterState(player.characterState ?? {}),
     finishRank: player.finishRank ?? null,
@@ -6305,6 +6340,7 @@ export {
   PLAYER_SPAWNS,
   PRESENTATION_EFFECT_DEFINITIONS,
   RACE_GAME_MAP_ID,
+  ROCKET_BLAST_DELAY_MS,
   SUMMON_DEFINITIONS,
   TOOL_DEFINITIONS,
   TOOL_DIE_FACES2 as TOOL_DIE_FACES,
@@ -6312,6 +6348,7 @@ export {
   VOLATY_LEAP_TURN_STATE_KEY,
   WATCHER_ROOM_NAME,
   adjustMovementTools,
+  appendPresentationEvents,
   applyCharacterToolTransforms,
   applyCharacterTurnEndCleanup,
   areAllRacePlayersFinished,
@@ -6320,6 +6357,7 @@ export {
   buildGameMapRuntimeMetadata,
   buildGoldenCasePlayback,
   buildGoldenLayoutSymbols,
+  buildMotionPositions,
   buildRaceStandings,
   clearMovementTools,
   cloneCharacterState,
@@ -6329,9 +6367,14 @@ export {
   createBoardDefinitionFromGoldenLayout,
   createDebugToolInstance,
   createDefaultBoardDefinition,
+  createEffectEvent,
   createGameSimulation,
   createMovementToolInstance,
+  createPlayerMotionEvent,
+  createPresentation,
+  createProjectileEvent,
   createRolledToolInstance,
+  createStateTransitionEvent,
   createSummonUpsertMutation,
   createTerrainStopTarget,
   createToolInstance,
@@ -6353,6 +6396,7 @@ export {
   getGameMapDefinition,
   getGameMapIds,
   getGameMapSpawnPosition,
+  getMotionArrivalStartMs,
   getNextActiveRacePlayerId,
   getNextCharacterId,
   getNextFinishRank,

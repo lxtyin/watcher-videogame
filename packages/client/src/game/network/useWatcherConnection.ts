@@ -213,12 +213,12 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
         }
 
         clearStoredRoomSession();
-        setLastError(`Room closed with code ${code}.`);
+        setLastError(code === 4001 ? "You were removed from the room." : `Room closed with code ${code}.`);
       });
 
       room.onError((code, message) => {
         setConnectionStatus("error");
-        setLastError(`Colyseus error ${code}: ${message}`);
+        setLastError(code === 4001 ? message || "You were removed from the room." : `Colyseus error ${code}: ${message}`);
       });
     },
     [clearSession, setConnectionStatus, setLastError, setSelectedToolInstanceId, setSession, setSnapshot]

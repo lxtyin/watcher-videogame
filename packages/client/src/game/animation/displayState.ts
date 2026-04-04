@@ -1,5 +1,6 @@
 import type {
   GameSnapshot,
+  PlayerSnapshot,
   SummonSnapshot,
   TileDefinition
 } from "@watcher/shared";
@@ -75,4 +76,44 @@ export function resolveDisplayedSummons(
   }
 
   return Array.from(summonsById.values());
+}
+
+export function resolveDisplayedPlayers(
+  snapshot: GameSnapshot,
+  pendingTransitions: PendingStateTransitionPlayback[]
+): PlayerSnapshot[] {
+  const playersById = new Map(
+    snapshot.players.map((player) => {
+      const clonedPlayer: PlayerSnapshot = {
+        ...player,
+        characterState: { ...player.characterState },
+        position: { ...player.position },
+        spawnPosition: { ...player.spawnPosition },
+        tools: player.tools.map((tool) => ({
+          ...tool,
+          params: { ...tool.params }
+        })),
+        turnFlags: [...player.turnFlags]
+      };
+
+      return [player.id, clonedPlayer] as const;
+    })
+  );
+
+  for (const transition of pendingTransitions) {
+    for (const playerTransition of transition.playerTransitions) {
+      const currentPlayer = playersById.get(playerTransition.playerId);
+
+      if (!currentPlayer) {
+        continue;
+      }
+
+      playersById.set(playerTransition.playerId, {
+        ...currentPlayer,
+        boardVisible: playerTransition.before.boardVisible
+      });
+    }
+  }
+
+  return Array.from(playersById.values());
 }

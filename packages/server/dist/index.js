@@ -20,6 +20,7 @@ import { WATCHER_ROOM_NAME } from "@watcher/shared";
 // src/rooms/WatcherRoom.ts
 import { Room } from "colyseus";
 import {
+  appendPresentationEvents,
   applyCharacterToolTransforms,
   applyCharacterTurnEndCleanup,
   buildCharacterTurnLoadoutRuntime,
@@ -37,8 +38,10 @@ import {
   PLAYER_COLORS,
   createDebugToolInstance,
   createBoardDefinition,
+  createPlayerMotionEvent,
   createMovementToolInstance,
   createRolledToolInstance,
+  createStateTransitionEvent,
   findToolInstance,
   getToolDefinition as getToolDefinition2,
   resolveCurrentTileStop,
@@ -116,6 +119,7 @@ var PlayerState = class extends Schema {
     this.name = "";
     this.petId = "";
     this.color = "";
+    this.boardVisible = true;
     this.characterId = "late";
     this.characterStateJson = "{}";
     this.finishRank = 0;
@@ -142,6 +146,9 @@ __decorateClass([
 __decorateClass([
   type("string")
 ], PlayerState.prototype, "color", 2);
+__decorateClass([
+  type("boolean")
+], PlayerState.prototype, "boardVisible", 2);
 __decorateClass([
   type("string")
 ], PlayerState.prototype, "characterId", 2);
@@ -419,8 +426,9 @@ function createBoardDefinitionFromState(state) {
   };
 }
 function createBoardPlayersFromState(state) {
-  return Array.from(state.players.values()).map((entry) => ({
+  return Array.from(state.players.values()).filter((entry) => entry.boardVisible).map((entry) => ({
     id: entry.id,
+    boardVisible: entry.boardVisible,
     characterId: entry.characterId,
     characterState: parseCharacterState(entry.characterStateJson),
     position: {
@@ -563,6 +571,8 @@ var WatcherRoom = class extends Room {
     this.toolDieSeed = 1;
     this.nextToolInstanceSerial = 1;
     this.nextPresentationSequence = 1;
+    this.pendingKickMessages = /* @__PURE__ */ new Map();
+    this.pendingRaceAdvance = null;
   }
   // Room bootstrap wires the authoritative board state and all gameplay messages.
   onCreate(options = {}) {
@@ -609,6 +619,9 @@ var WatcherRoom = class extends Room {
     this.onMessage("returnToRoom", (client) => {
       this.handleReturnToRoom(client);
     });
+    this.onMessage("kickPlayer", (client, payload) => {
+      this.handleKickPlayer(client, payload);
+    });
   }
   // Joining players enter the lobby first, while reconnects reclaim the previous seat.
   onJoin(client, options) {
@@ -632,6 +645,7 @@ var WatcherRoom = class extends Room {
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
     player.petId = options.requestedPetId?.trim() || "";
     player.color = pickRandomPlayerColor(this.state.players.values());
+    player.boardVisible = true;
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.characterStateJson = "{}";
     player.finishRank = 0;
@@ -650,11 +664,17 @@ var WatcherRoom = class extends Room {
   // Disconnects reserve the seat briefly so refreshes can reconnect without losing state.
   async onLeave(client, consented) {
     const leavingPlayer = this.state.players.get(client.sessionId);
+    const kickedMessage = this.pendingKickMessages.get(client.sessionId) ?? null;
     if (!leavingPlayer) {
       return;
     }
     leavingPlayer.isConnected = false;
     leavingPlayer.isReady = false;
+    if (kickedMessage) {
+      this.pendingKickMessages.delete(client.sessionId);
+      this.removePlayer(client.sessionId, kickedMessage, "player_kicked");
+      return;
+    }
     if (!consented) {
       this.pushEvent("turn_started", `${leavingPlayer.name} disconnected. Waiting to reconnect.`);
       try {
@@ -673,7 +693,8 @@ var WatcherRoom = class extends Room {
     }
     this.removePlayer(
       client.sessionId,
-      consented ? `${leavingPlayer.name} left room ${this.state.roomCode}.` : `${leavingPlayer.name} did not reconnect in time and was removed.`
+      consented ? `${leavingPlayer.name} left room ${this.state.roomCode}.` : `${leavingPlayer.name} did not reconnect in time and was removed.`,
+      "turn_started"
     );
   }
   // Board seeding mirrors the shared default layout into Colyseus schema state.
@@ -701,6 +722,61 @@ var WatcherRoom = class extends Room {
     this.state.latestPresentationSequence = this.nextPresentationSequence;
     this.nextPresentationSequence += 1;
     this.state.latestPresentationJson = JSON.stringify(presentation);
+  }
+  findClientBySessionId(sessionId) {
+    return this.clients.find((client) => client.sessionId === sessionId) ?? null;
+  }
+  createRaceFinishPresentation(playerId, position, presentation) {
+    const finishStartMs = presentation?.durationMs ?? 0;
+    const finishMotionEvent = createPlayerMotionEvent(
+      `race-finish:${playerId}`,
+      playerId,
+      [position, position],
+      "finish",
+      finishStartMs
+    );
+    const playerTransition = {
+      playerId,
+      before: {
+        playerId,
+        boardVisible: true
+      },
+      after: {
+        playerId,
+        boardVisible: false
+      }
+    };
+    const hideEvent = createStateTransitionEvent(
+      `race-finish-hide:${playerId}`,
+      [],
+      [],
+      [playerTransition],
+      finishStartMs + (finishMotionEvent?.durationMs ?? 0)
+    );
+    return appendPresentationEvents(
+      presentation,
+      playerId,
+      presentation?.toolId ?? "movement",
+      [finishMotionEvent, hideEvent].filter(
+        (event) => event !== null
+      )
+    ) ?? {
+      actorId: playerId,
+      toolId: "movement",
+      durationMs: 0,
+      events: []
+    };
+  }
+  scheduleRaceAdvance(delayMs, advance) {
+    this.clearPendingRaceAdvance();
+    if (delayMs <= 0) {
+      advance();
+      return;
+    }
+    this.pendingRaceAdvance = this.clock.setTimeout(() => {
+      this.pendingRaceAdvance = null;
+      advance();
+    }, delayMs);
   }
   createLoadoutTool(loadout) {
     return createToolInstance(this.createToolInstanceId(loadout.toolId), loadout.toolId, {
@@ -741,10 +817,18 @@ var WatcherRoom = class extends Room {
     this.moveDieSeed = 11;
     this.toolDieSeed = 1;
     this.nextToolInstanceSerial = 1;
+    this.clearPendingRaceAdvance();
     this.clearSummonsState();
     this.clearPresentationState();
     this.seedBoard();
     this.state.settlementState = "active";
+  }
+  clearPendingRaceAdvance() {
+    if (!this.pendingRaceAdvance) {
+      return;
+    }
+    this.pendingRaceAdvance.clear();
+    this.pendingRaceAdvance = null;
   }
   resetPlayersForCurrentMap(clearReady) {
     const playerOrder = this.getPlayerOrder();
@@ -758,6 +842,7 @@ var WatcherRoom = class extends Room {
       player.y = spawn.y;
       player.spawnX = spawn.x;
       player.spawnY = spawn.y;
+      player.boardVisible = true;
       player.finishRank = 0;
       player.finishedTurnNumber = 0;
       player.characterStateJson = "{}";
@@ -781,8 +866,11 @@ var WatcherRoom = class extends Room {
     }
     this.state.hostPlayerId = this.getPlayerOrder()[0] ?? "";
   }
-  removePlayer(playerId, message) {
+  removePlayer(playerId, message, eventType = "turn_started") {
     const wasActivePlayer = this.state.turnInfo.currentPlayerId === playerId;
+    if (wasActivePlayer) {
+      this.clearPendingRaceAdvance();
+    }
     this.state.players.delete(playerId);
     this.reassignHostIfNeeded();
     if (!this.state.players.size) {
@@ -801,7 +889,7 @@ var WatcherRoom = class extends Room {
         this.resetTurnState(this.state.turnInfo.turnNumber);
       }
     }
-    this.pushEvent("turn_started", message);
+    this.pushEvent(eventType, message);
   }
   getConnectedPlayers() {
     return Array.from(this.state.players.values()).filter(
@@ -873,6 +961,7 @@ var WatcherRoom = class extends Room {
         }))
       );
       player.finishedTurnNumber = this.state.turnInfo.turnNumber;
+      player.boardVisible = false;
       actorFinished = actorFinished || player.id === actorId;
       this.pushEvent(
         "player_finished",
@@ -888,16 +977,23 @@ var WatcherRoom = class extends Room {
       }))
     );
     const settlementComplete = settlementState === "complete";
-    if (settlementComplete && this.state.settlementState !== "complete") {
-      this.enterSettlementState();
-      this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
-    } else {
-      this.state.settlementState = settlementState;
-    }
+    this.state.settlementState = settlementState;
     return {
       actorFinished,
       settlementComplete
     };
+  }
+  schedulePostFinishAdvance(player, delayMs, settlementComplete) {
+    clearPlayerTurnResources(player);
+    this.scheduleRaceAdvance(delayMs, () => {
+      const nextPlayerId = settlementComplete ? null : this.getNextPlayerId(player.id);
+      if (settlementComplete || !nextPlayerId) {
+        this.enterSettlementState();
+        this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
+        return;
+      }
+      this.beginTurnFor(nextPlayerId, true);
+    });
   }
   applyTurnStartStop(player) {
     const stopResolution = resolveCurrentTileStop(
@@ -1001,17 +1097,12 @@ var WatcherRoom = class extends Room {
     this.pushEvent("turn_started", `${player.name}'s turn started. Roll the dice.`);
     const triggeredTerrainEffects = this.applyTurnStartStop(player);
     const goalProgress = this.applyRaceGoalProgress(player.id, triggeredTerrainEffects);
-    if (!goalProgress.actorFinished || goalProgress.settlementComplete) {
+    if (!goalProgress.actorFinished) {
       return;
     }
-    clearPlayerTurnResources(player);
-    const nextPlayerId = this.getNextPlayerId(player.id);
-    if (nextPlayerId) {
-      this.beginTurnFor(nextPlayerId, true);
-    } else {
-      this.enterSettlementState();
-      this.pushEvent("match_finished", "All players reached the goal. Settlement is ready.");
-    }
+    const finishPresentation = this.createRaceFinishPresentation(player.id, { x: player.x, y: player.y }, null);
+    this.publishActionPresentation(finishPresentation);
+    this.schedulePostFinishAdvance(player, finishPresentation.durationMs, goalProgress.settlementComplete);
   }
   // Player order follows the current schema insertion order.
   getPlayerOrder() {
@@ -1049,6 +1140,10 @@ var WatcherRoom = class extends Room {
     }
     if (this.state.turnInfo.currentPlayerId !== client.sessionId) {
       this.pushEvent("move_blocked", `${player.name} tried to act out of turn.`);
+      return null;
+    }
+    if (this.pendingRaceAdvance) {
+      this.pushEvent("move_blocked", `${player.name} must wait for the finish animation to resolve.`);
       return null;
     }
     return player;
@@ -1098,6 +1193,34 @@ var WatcherRoom = class extends Room {
     }
     this.resetRoomToLobbyState();
     this.pushEvent("turn_started", `${player.name} reopened room ${this.state.roomCode}.`);
+  }
+  handleKickPlayer(client, payload) {
+    const actor = this.state.players.get(client.sessionId);
+    if (!actor) {
+      return;
+    }
+    if (this.state.hostPlayerId !== client.sessionId) {
+      this.pushEvent("move_blocked", `${actor.name} is not allowed to remove players.`);
+      return;
+    }
+    if (payload.playerId === client.sessionId) {
+      this.pushEvent("move_blocked", `${actor.name} cannot remove the host seat.`);
+      return;
+    }
+    const target = this.state.players.get(payload.playerId);
+    if (!target) {
+      this.pushEvent("move_blocked", `${actor.name} tried to remove a missing player.`);
+      return;
+    }
+    const kickMessage = `${target.name} was removed from room ${this.state.roomCode} by ${actor.name}.`;
+    const targetClient = this.findClientBySessionId(payload.playerId);
+    if (!targetClient) {
+      this.removePlayer(payload.playerId, kickMessage, "player_kicked");
+      return;
+    }
+    this.pendingKickMessages.set(payload.playerId, kickMessage);
+    targetClient.error(4001, "You were removed from the room.");
+    void targetClient.leave(4001);
   }
   // Rolling creates the per-turn Movement tool and one additional rolled tool.
   handleRollDice(client) {
@@ -1252,7 +1375,6 @@ var WatcherRoom = class extends Room {
     }
     this.toolDieSeed = resolution.nextToolDieSeed;
     this.state.turnInfo.toolDieSeed = this.toolDieSeed;
-    this.publishActionPresentation(resolution.presentation);
     if (resolution.tileMutations.some(
       (mutation) => mutation.nextType === "floor"
     )) {
@@ -1261,6 +1383,8 @@ var WatcherRoom = class extends Room {
     pushTerrainEvents(this.state, player.id, resolution.triggeredTerrainEffects);
     pushSummonEvents(this.state, resolution.triggeredSummonEffects);
     const goalProgress = this.applyRaceGoalProgress(player.id, resolution.triggeredTerrainEffects);
+    const finalPresentation = goalProgress.actorFinished ? this.createRaceFinishPresentation(player.id, { x: player.x, y: player.y }, resolution.presentation) : resolution.presentation;
+    this.publishActionPresentation(finalPresentation);
     if (activeTool.toolId === "movement") {
       this.pushEvent(
         "piece_moved",
@@ -1270,13 +1394,7 @@ var WatcherRoom = class extends Room {
       this.pushEvent("tool_used", `${player.name} used ${toolDefinition.label}.`);
     }
     if (goalProgress.actorFinished) {
-      clearPlayerTurnResources(player);
-      if (!goalProgress.settlementComplete) {
-        const nextPlayerId = this.getNextPlayerId(player.id);
-        if (nextPlayerId) {
-          this.beginTurnFor(nextPlayerId, true);
-        }
-      }
+      this.schedulePostFinishAdvance(player, finalPresentation?.durationMs ?? 0, goalProgress.settlementComplete);
       return;
     }
     if (!resolution.endsTurn) {

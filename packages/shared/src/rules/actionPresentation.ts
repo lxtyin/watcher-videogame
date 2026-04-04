@@ -2,6 +2,7 @@ import type {
   ActionPresentation,
   ActionPresentationEvent,
   GridPosition,
+  PlayerStateTransition,
   PresentationEffectType,
   PresentationMotionStyle,
   PresentationProjectileType,
@@ -12,6 +13,7 @@ import type {
 
 const GROUND_MOTION_MS_PER_STEP = 150;
 const ARC_MOTION_MS_PER_STEP = 210;
+const FINISH_MOTION_MS_PER_STEP = 820;
 const PROJECTILE_MOTION_MS_PER_STEP = 110;
 const ROCKET_EXPLOSION_EFFECT_MS = 420;
 
@@ -56,7 +58,12 @@ export function createPlayerMotionEvent(
     positions,
     startMs,
     durationMs:
-      stepCount * (motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP)
+      stepCount *
+      (motionStyle === "arc"
+        ? ARC_MOTION_MS_PER_STEP
+        : motionStyle === "finish"
+          ? FINISH_MOTION_MS_PER_STEP
+          : GROUND_MOTION_MS_PER_STEP)
   };
 }
 
@@ -105,15 +112,17 @@ export function createStateTransitionEvent(
   eventId: string,
   tileTransitions: TileStateTransition[],
   summonTransitions: SummonStateTransition[],
+  playerTransitions: PlayerStateTransition[] = [],
   startMs = 0
 ): ActionPresentationEvent | null {
-  if (!tileTransitions.length && !summonTransitions.length) {
+  if (!tileTransitions.length && !summonTransitions.length && !playerTransitions.length) {
     return null;
   }
 
   return {
     id: eventId,
     kind: "state_transition",
+    playerTransitions,
     tileTransitions,
     summonTransitions,
     startMs,
@@ -146,7 +155,15 @@ export function appendPresentationEvents(
 }
 
 function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {
-  return motionStyle === "arc" ? ARC_MOTION_MS_PER_STEP : GROUND_MOTION_MS_PER_STEP;
+  if (motionStyle === "arc") {
+    return ARC_MOTION_MS_PER_STEP;
+  }
+
+  if (motionStyle === "finish") {
+    return FINISH_MOTION_MS_PER_STEP;
+  }
+
+  return GROUND_MOTION_MS_PER_STEP;
 }
 
 // Mutation timing can align to a motion path by sampling the target cell arrival time.

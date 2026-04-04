@@ -52,6 +52,7 @@ export type EventType =
   | "character_switched"
   | "summon_triggered"
   | "character_action_used"
+  | "player_kicked"
   | "player_finished"
   | "match_finished";
 
@@ -86,6 +87,7 @@ export interface TurnStartActionSnapshot {
 }
 
 export interface PlayerSnapshot {
+  boardVisible: boolean;
   characterId: CharacterId;
   characterState: CharacterStateMap;
   color: string;
@@ -126,7 +128,7 @@ export interface EventLogEntry {
   type: EventType;
 }
 
-export type PresentationMotionStyle = "ground" | "arc";
+export type PresentationMotionStyle = "ground" | "arc" | "finish";
 export type PresentationProjectileType = "basketball" | "rocket";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
 
@@ -219,6 +221,10 @@ export interface SetReadyCommandPayload {
   isReady: boolean;
 }
 
+export interface KickPlayerCommandPayload {
+  playerId: string;
+}
+
 export interface MovementActor {
   characterId: CharacterId;
   characterState: CharacterStateMap;
@@ -249,6 +255,7 @@ export type MovementResolution =
     };
 
 export interface BoardPlayerState {
+  boardVisible: boolean;
   characterId: CharacterId;
   characterState: CharacterStateMap;
   id: string;
@@ -441,8 +448,20 @@ export interface SummonStateTransition {
   instanceId: string;
 }
 
+export interface PlayerPresentationState {
+  boardVisible: boolean;
+  playerId: string;
+}
+
+export interface PlayerStateTransition {
+  after: PlayerPresentationState;
+  before: PlayerPresentationState;
+  playerId: string;
+}
+
 export interface StateTransitionPresentationEvent extends ActionPresentationEventBase {
   kind: "state_transition";
+  playerTransitions: PlayerStateTransition[];
   summonTransitions: SummonStateTransition[];
   tileTransitions: TileStateTransition[];
 }

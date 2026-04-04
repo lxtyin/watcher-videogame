@@ -103,6 +103,7 @@ export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
     tiles: snapshot.tiles.map((tile) => ({ ...tile })),
     players: snapshot.players.map((player) => ({
       ...player,
+      boardVisible: player.boardVisible,
       characterState: cloneCharacterState(player.characterState),
       finishRank: player.finishRank,
       finishedTurnNumber: player.finishedTurnNumber,
@@ -128,7 +129,30 @@ export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
     latestPresentation: snapshot.latestPresentation
       ? {
           ...snapshot.latestPresentation,
-          events: snapshot.latestPresentation.events.map((event) => ({ ...event }))
+          events: snapshot.latestPresentation.events.map((event) =>
+            event.kind === "state_transition"
+              ? {
+                  ...event,
+                  tileTransitions: event.tileTransitions.map((transition) => ({
+                    ...transition,
+                    before: { ...transition.before },
+                    after: { ...transition.after }
+                  })),
+                  summonTransitions: event.summonTransitions.map((transition) => ({
+                    ...transition,
+                    before: transition.before ? { ...transition.before, position: { ...transition.before.position } } : null,
+                    after: transition.after ? { ...transition.after, position: { ...transition.after.position } } : null
+                  })),
+                  playerTransitions: event.playerTransitions.map((transition) => ({
+                    ...transition,
+                    before: { ...transition.before },
+                    after: { ...transition.after }
+                  }))
+                }
+              : {
+                  ...event
+                }
+          )
         }
       : null
   };
@@ -146,14 +170,17 @@ function buildBoardDefinition(snapshot: GameSnapshot): BoardDefinition {
 }
 
 function buildBoardPlayers(snapshot: GameSnapshot): BoardPlayerState[] {
-  return snapshot.players.map((player) => ({
-    id: player.id,
-    characterId: player.characterId,
-    characterState: cloneCharacterState(player.characterState),
-    position: clonePosition(player.position),
-    spawnPosition: clonePosition(player.spawnPosition),
-    turnFlags: [...player.turnFlags]
-  }));
+  return snapshot.players
+    .filter((player) => player.boardVisible)
+    .map((player) => ({
+      id: player.id,
+      boardVisible: player.boardVisible,
+      characterId: player.characterId,
+      characterState: cloneCharacterState(player.characterState),
+      position: clonePosition(player.position),
+      spawnPosition: clonePosition(player.spawnPosition),
+      turnFlags: [...player.turnFlags]
+    }));
 }
 
 function buildBoardSummons(snapshot: GameSnapshot): BoardSummonState[] {
@@ -416,6 +443,7 @@ function applyRaceGoalProgress(
 
     player.finishRank = getNextFinishRank(state.snapshot.players);
     player.finishedTurnNumber = state.snapshot.turnInfo.turnNumber;
+    player.boardVisible = false;
     actorFinished = actorFinished || player.id === actorId;
     pushEvent(
       state,
@@ -1056,6 +1084,7 @@ function createInitialState(sceneDefinition: SimulationSceneDefinition): Simulat
     name: player.name ?? player.id,
     petId: player.petId ?? "",
     color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
+    boardVisible: player.boardVisible ?? player.finishRank == null,
     characterId: player.characterId ?? "late",
     characterState: cloneCharacterState(player.characterState ?? {}),
     finishRank: player.finishRank ?? null,

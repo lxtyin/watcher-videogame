@@ -31,6 +31,7 @@ interface RoomPlayerState {
   name: string;
   petId: string;
   color: string;
+  boardVisible: boolean;
   characterId: CharacterId;
   characterStateJson: string;
   finishRank: number;
@@ -87,6 +88,7 @@ interface RoomEventLogEntry {
     | "character_switched"
     | "summon_triggered"
     | "character_action_used"
+    | "player_kicked"
     | "player_finished"
     | "match_finished";
   message: string;
@@ -184,6 +186,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       name: player.name,
       petId: player.petId ?? "",
       color: player.color,
+      boardVisible: player.boardVisible,
       characterId: player.characterId,
       characterState: parseCharacterState(player.characterStateJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
