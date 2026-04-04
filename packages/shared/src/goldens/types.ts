@@ -1,4 +1,4 @@
-import type { LayoutSymbolDefinition } from "../content/defaultBoard";
+import type { LayoutSymbolDefinition } from "../content/boards/defaultBoard";
 import type {
   ActionPresentationEvent,
   CharacterId,

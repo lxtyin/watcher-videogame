@@ -1,7 +1,7 @@
 import {
   DEFAULT_BOARD_SYMBOLS,
   type LayoutSymbolDefinition
-} from "../content/defaultBoard";
+} from "../content/boards/defaultBoard";
 import type {
   BoardDefinition,
   GridPosition,

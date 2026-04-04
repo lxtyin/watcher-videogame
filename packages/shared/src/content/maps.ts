@@ -3,8 +3,8 @@ import {
   DEFAULT_BOARD_LAYOUT,
   DEFAULT_BOARD_SYMBOLS,
   type LayoutSymbolDefinition
-} from "./defaultBoard";
-import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./raceBoard";
+} from "./boards/defaultBoard";
+import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./boards/raceBoard";
 
 interface MapGridPosition {
   x: number;
@@ -58,7 +58,7 @@ export const GAME_MAP_REGISTRY = defineGameMapRegistry({
       ...RACE_BOARD_SYMBOLS
     },
     spawnMode: "shared",
-    spawnPositions: [{ x: 1, y: 1 }]
+    spawnPositions: [{ x: 2, y: 6 }]
   }
 });
 

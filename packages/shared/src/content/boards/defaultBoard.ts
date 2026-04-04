@@ -1,4 +1,4 @@
-import type { Direction, TileType } from "../types";
+import type { Direction, TileType } from "../../types";
 
 export interface LayoutSymbolDefinition {
   type: TileType;
