@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { PresentationProjectileType } from "@watcher/shared";
-import type { ActiveProjectilePlayback } from "../../animation/presentationPlayback";
+import type { ActiveProjectilePlayback } from "../../animation/playbackEngine";
 import { toWorldPositionFromGrid } from "../shared/gridPlacement";
 import { BasketballProjectileAsset } from "./BasketballProjectileAsset";
 import { RocketProjectileAsset } from "./RocketProjectileAsset";

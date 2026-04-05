@@ -1,14 +1,15 @@
 import type { SequencedActionPresentation } from "@watcher/shared";
 
-export interface PresentationPlaybackState {
+export interface PresentationQueueState {
   actionPresentationQueue: SequencedActionPresentation[];
   activeActionPresentation: SequencedActionPresentation | null;
   activeActionPresentationStartedAtMs: number | null;
   simulationTimeMs: number;
 }
 
-// Presentation playback advances automatically so the scene can stay purely render-focused.
-export function pumpActionPresentationPlayback<T extends PresentationPlaybackState>(
+// The queue pump only advances authoritative presentation scheduling.
+// Sampling and rendering belong to the animation playback engine.
+export function pumpPresentationQueue<T extends PresentationQueueState>(
   state: T
 ): Pick<
   T,

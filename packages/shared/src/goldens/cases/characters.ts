@@ -82,7 +82,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "bombThrow",
-        eventKinds: ["player_motion"]
+        eventKinds: ["motion"]
       }
     }
   }),
@@ -141,7 +141,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "movement",
-        eventKinds: ["player_motion"]
+        eventKinds: ["motion"]
       }
     }
   }),
@@ -352,7 +352,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "movement",
-        eventKinds: ["player_motion"]
+        eventKinds: ["motion"]
       }
     }
   }),
@@ -443,7 +443,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "movement",
-        eventKinds: ["player_motion"]
+        eventKinds: ["motion"]
       }
     }
   }),
@@ -584,7 +584,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "brake",
-        eventKinds: ["player_motion"]
+        eventKinds: ["motion"]
       }
     }
   })

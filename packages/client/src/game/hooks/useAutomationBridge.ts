@@ -1,8 +1,5 @@
 import { useEffect } from "react";
-import {
-  evaluateActionPresentation,
-  getActionPresentationElapsedMs
-} from "../animation/presentationPlayback";
+import { evaluatePlaybackEngine } from "../animation/playbackEngine";
 import { useGameStore } from "../state/useGameStore";
 
 // Automation hooks expose stable control points for browser-driven inspection.
@@ -17,15 +14,13 @@ export function useAutomationBridge(): void {
 
     window.render_game_to_text = () => {
       const state = useGameStore.getState();
-      const activePresentationElapsedMs = getActionPresentationElapsedMs(
-        state.activeActionPresentation,
-        state.activeActionPresentationStartedAtMs,
-        state.simulationTimeMs
-      );
-      const activePresentationPlayback = evaluateActionPresentation(
-        state.activeActionPresentation,
-        activePresentationElapsedMs
-      );
+      const playbackState = evaluatePlaybackEngine({
+        activeActionPresentation: state.activeActionPresentation,
+        activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+        actionPresentationQueue: state.actionPresentationQueue,
+        simulationTimeMs: state.simulationTimeMs,
+        snapshot: state.snapshot
+      });
       const payload = {
         route: window.location.search.includes("room=")
           ? "room"
@@ -45,12 +40,12 @@ export function useAutomationBridge(): void {
           ? {
               sequence: state.activeActionPresentation.sequence,
               toolId: state.activeActionPresentation.toolId,
-              elapsedMs: activePresentationElapsedMs,
+              elapsedMs: playbackState.activeElapsedMs,
               durationMs: state.activeActionPresentation.durationMs,
               queuedCount: state.actionPresentationQueue.length,
-              activePlayerMotionIds: Object.keys(activePresentationPlayback.playerMotions),
-              activeProjectileCount: activePresentationPlayback.projectiles.length,
-              activeEffectCount: activePresentationPlayback.effects.length
+              activePlayerMotionIds: Object.keys(playbackState.playerMotions),
+              activeProjectileCount: playbackState.projectiles.length,
+              activeReactionCount: playbackState.reactions.length
             }
           : {
               sequence: null,
@@ -60,7 +55,7 @@ export function useAutomationBridge(): void {
               queuedCount: state.actionPresentationQueue.length,
               activePlayerMotionIds: [],
               activeProjectileCount: 0,
-              activeEffectCount: 0
+              activeReactionCount: 0
             },
         snapshot: state.snapshot
       };

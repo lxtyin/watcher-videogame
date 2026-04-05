@@ -1,9 +1,9 @@
 import {
   getToolDefinition,
-  type ActionResolution,
   type GameSnapshot,
   type GridPosition,
   type PlayerSnapshot,
+  type PreviewDescriptor,
   type SummonSnapshot,
   type ToolId
 } from "@watcher/shared";
@@ -35,7 +35,7 @@ interface ToolPreviewResolverContext {
   actor: PlayerSnapshot | null;
   displayedPlayerPositions: Record<string, GridPosition>;
   previewColor: string;
-  previewResolution: ActionResolution | null;
+  previewDescriptor: PreviewDescriptor | null;
   sessionId: string | null;
   snapshot: GameSnapshot | null;
 }
@@ -52,18 +52,22 @@ const TOOL_PREVIEW_STYLE_OVERRIDES: Partial<
 };
 
 const TOOL_PREVIEW_RESOLVERS: Partial<Record<ToolId, ToolPreviewResolver>> = {
-  hookshot: ({ displayedPlayerPositions, previewColor, previewResolution, snapshot }) => {
-    if (
-      !snapshot ||
-      previewResolution?.kind !== "applied" ||
-      !previewResolution.affectedPlayers.length
-    ) {
+  hookshot: ({ displayedPlayerPositions, previewColor, previewDescriptor, snapshot }) => {
+    if (!snapshot || !previewDescriptor?.valid) {
       return {};
     }
 
     return {
-      landingRings: previewResolution.affectedPlayers.flatMap((affectedPlayer, index) => {
-        const player = snapshot.players.find((entry) => entry.id === affectedPlayer.playerId);
+      landingRings: previewDescriptor.playerTargets.flatMap((target, index) => {
+        if (
+          !target.boardVisible ||
+          target.startPosition.x === target.targetPosition.x &&
+            target.startPosition.y === target.targetPosition.y
+        ) {
+          return [];
+        }
+
+        const player = snapshot.players.find((entry) => entry.id === target.playerId);
 
         if (!player) {
           return [];
@@ -71,7 +75,7 @@ const TOOL_PREVIEW_RESOLVERS: Partial<Record<ToolId, ToolPreviewResolver>> = {
 
         return [
           {
-            key: `hookshot-preview-${affectedPlayer.playerId}-${index}`,
+            key: `hookshot-preview-${target.playerId}-${index}`,
             opacity: 0.68,
             position: displayedPlayerPositions[player.id] ?? player.position,
             radius: 0.52
@@ -80,94 +84,91 @@ const TOOL_PREVIEW_RESOLVERS: Partial<Record<ToolId, ToolPreviewResolver>> = {
       })
     };
   },
-  bombThrow: ({ displayedPlayerPositions, previewResolution, snapshot }) => {
-    if (
-      !snapshot ||
-      previewResolution?.kind !== "applied" ||
-      !previewResolution.affectedPlayers.length
-    ) {
+  bombThrow: ({ previewDescriptor, snapshot }) => {
+    if (!snapshot || !previewDescriptor?.valid) {
       return {};
     }
 
     return {
-      landingRings: previewResolution.affectedPlayers.flatMap((affectedPlayer, index) => {
-        const player = snapshot.players.find((entry) => entry.id === affectedPlayer.playerId);
+      landingRings: previewDescriptor.playerTargets.flatMap((target, index) => {
+        const player = snapshot.players.find((entry) => entry.id === target.playerId);
 
-        if (!player) {
+        if (
+          !player ||
+          !target.boardVisible ||
+          target.startPosition.x === target.targetPosition.x &&
+            target.startPosition.y === target.targetPosition.y
+        ) {
           return [];
         }
 
         return [
           {
-            key: `bomb-preview-${affectedPlayer.playerId}-${index}`,
+            key: `bomb-preview-${target.playerId}-${index}`,
             opacity: 0.72,
-            position: affectedPlayer.target,
+            position: target.targetPosition,
             radius: 0.54
           }
         ];
       })
     };
   },
-  buildWall: ({ previewResolution }) => ({
-    wallGhostPositions:
-      previewResolution?.kind === "applied"
-        ? previewResolution.tileMutations
-            .filter((mutation) => mutation.nextType === "earthWall")
-            .map((mutation) => mutation.position)
-        : []
+  buildWall: ({ previewDescriptor }) => ({
+    wallGhostPositions: previewDescriptor?.valid ? previewDescriptor.effectTiles : []
   }),
-  deployWallet: ({ previewColor, previewResolution, sessionId }) => ({
+  deployWallet: ({ previewColor, previewDescriptor, sessionId }) => ({
     summonPreviews:
-      previewResolution?.kind === "applied"
-        ? previewResolution.summonMutations.flatMap((mutation, index) =>
-            mutation.kind === "upsert" && mutation.summonId === "wallet"
-              ? [
-                  {
-                    key: `preview-wallet-${mutation.position.x}-${mutation.position.y}-${index}`,
-                    color: previewColor,
-                    opacity: 0.45,
-                    summon: {
-                      instanceId: `preview-wallet-${mutation.position.x}-${mutation.position.y}-${index}`,
-                      ownerId: sessionId ?? "preview",
-                      position: mutation.position,
-                      summonId: "wallet"
-                    }
-                  }
-                ]
-              : []
-          )
+      previewDescriptor?.valid
+        ? previewDescriptor.effectTiles.map((position, index) => ({
+            key: `preview-wallet-${position.x}-${position.y}-${index}`,
+            color: previewColor,
+            opacity: 0.45,
+            summon: {
+              instanceId: `preview-wallet-${position.x}-${position.y}-${index}`,
+              ownerId: sessionId ?? "preview",
+              position,
+              summonId: "wallet"
+            }
+          }))
         : []
   })
 };
 
 function buildDefaultLandingRing(
   actor: PlayerSnapshot | null,
-  previewResolution: ActionResolution | null
+  previewDescriptor: PreviewDescriptor | null
 ): PreviewRingSpec[] {
-  if (!actor || previewResolution?.kind !== "applied") {
+  if (!actor || !previewDescriptor?.valid) {
     return [];
   }
 
+  const actorTarget = previewDescriptor.playerTargets.find((target) => target.playerId === actor.id);
+
   if (
-    previewResolution.actor.position.x === actor.position.x &&
-    previewResolution.actor.position.y === actor.position.y
+    !actorTarget ||
+    actorTarget.targetPosition.x === actor.position.x &&
+      actorTarget.targetPosition.y === actor.position.y
   ) {
     return [];
   }
 
   return [
     {
-      key: `landing-preview-${previewResolution.actor.position.x}-${previewResolution.actor.position.y}`,
+      key: `landing-preview-${actorTarget.targetPosition.x}-${actorTarget.targetPosition.y}`,
       opacity: 0.72,
-      position: previewResolution.actor.position,
+      position: actorTarget.targetPosition,
       radius: 0.56
     }
   ];
 }
 
-function buildPreviewKeys(previewResolution: ActionResolution | null): Set<string> {
+function buildPreviewKeys(previewDescriptor: PreviewDescriptor | null): Set<string> {
   return new Set(
-    previewResolution?.previewTiles.map((position) => `${position.x},${position.y}`) ?? []
+    [
+      ...(previewDescriptor?.selectionTiles ?? []),
+      ...(previewDescriptor?.effectTiles ?? []),
+      ...(previewDescriptor?.actorPath ?? [])
+    ].map((position) => `${position.x},${position.y}`)
   );
 }
 
@@ -203,14 +204,14 @@ export interface ScenePreviewState {
 export function resolveScenePreviewState({
   actor,
   displayedPlayerPositions,
-  previewResolution,
+  previewDescriptor,
   sessionId,
   snapshot,
   toolId
 }: {
   actor: PlayerSnapshot | null;
   displayedPlayerPositions: Record<string, GridPosition>;
-  previewResolution: ActionResolution | null;
+  previewDescriptor: PreviewDescriptor | null;
   sessionId: string | null;
   snapshot: GameSnapshot | null;
   toolId: ToolId | null;
@@ -222,7 +223,7 @@ export function resolveScenePreviewState({
         actor,
         displayedPlayerPositions,
         previewColor: previewStyle.color,
-        previewResolution,
+        previewDescriptor,
         sessionId,
         snapshot
       })
@@ -230,11 +231,11 @@ export function resolveScenePreviewState({
 
   return {
     landingRings: [
-      ...buildDefaultLandingRing(actor, previewResolution),
+      ...buildDefaultLandingRing(actor, previewDescriptor),
       ...(extras.landingRings ?? [])
     ],
     previewColor: previewStyle.color,
-    previewKeys: buildPreviewKeys(previewResolution),
+    previewKeys: buildPreviewKeys(previewDescriptor),
     previewVariant: previewStyle.variant,
     summonPreviews: extras.summonPreviews ?? [],
     wallGhostPositions: extras.wallGhostPositions ?? []

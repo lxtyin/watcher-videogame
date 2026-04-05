@@ -6,6 +6,7 @@ import type {
   PresentationEffectType,
   PresentationMotionStyle,
   PresentationProjectileType,
+  ReactionPresentationEvent,
   SummonStateTransition,
   TileStateTransition,
   ToolId
@@ -52,10 +53,13 @@ export function createPlayerMotionEvent(
 
   return {
     id: eventId,
-    kind: "player_motion",
-    playerId,
-    motionStyle,
+    kind: "motion",
     positions,
+    subject: {
+      kind: "player",
+      motionStyle,
+      playerId
+    },
     startMs,
     durationMs:
       stepCount *
@@ -80,10 +84,13 @@ export function createProjectileEvent(
 
   return {
     id: eventId,
-    kind: "projectile",
-    ownerId,
-    projectileType,
+    kind: "motion",
     positions,
+    subject: {
+      kind: "projectile",
+      ownerId,
+      projectileType
+    },
     startMs,
     durationMs: Math.max(1, positions.length - 1) * PROJECTILE_MOTION_MS_PER_STEP
   };
@@ -99,10 +106,33 @@ export function createEffectEvent(
 ): ActionPresentationEvent {
   return {
     id: eventId,
-    kind: "effect",
-    effectType,
-    position,
-    tiles,
+    kind: "reaction",
+    reaction: {
+      kind: "effect",
+      effectType,
+      position,
+      tiles
+    },
+    startMs,
+    durationMs
+  };
+}
+
+export function createPlayerLiftReactionEvent(
+  eventId: string,
+  playerId: string,
+  height: number,
+  startMs = 0,
+  durationMs = GROUND_MOTION_MS_PER_STEP
+): ReactionPresentationEvent {
+  return {
+    id: eventId,
+    kind: "reaction",
+    reaction: {
+      kind: "player_lift",
+      height,
+      playerId
+    },
     startMs,
     durationMs
   };

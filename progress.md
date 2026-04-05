@@ -5,7 +5,7 @@
 - 已形成 `shared / server / client` 三层 workspace。
 - 已接入大厅、准备、开局、结算后回房的联机流程。
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
-- 已建立 shared `ActionPresentation` 播放链路，客户端可按语义事件做动画与显示态回滚。
+- 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
 ## 2026-04-05
 
@@ -29,6 +29,12 @@
 - 新增角色 `AWM` 与基础 Modifier `bondage`，验证“角色安装 Modifier，tags 仅保存层数状态”的可插拔能力模型。
 - 扩展 golden 断言以检查 `player.tags` 与 `player.modifiers`，并新增 AWM / bondage 两条能力系统回归用例。
 - 为 `packages/server` 与 `packages/client` 的类型检查增加 `@watcher/shared -> ../shared/src/index.ts` 路径映射，避免工作区内 typecheck 读取过期 dist 声明。
+- 从 `ActionResolution` 中正式封装 `PreviewDescriptor`，统一表达所有玩家预计落点、当前玩家移动路径、选择范围、作用范围与合法性。
+- 将 shared 表现事件统一收敛为 `motion / reaction / state_transition` 三类，不再保留零散动画事件命名。
+- 新增 `packages/client/src/game/animation/playbackEngine.ts` 作为客户端唯一播放引擎，统一输出当前时刻的瞬态玩家、投射物、reaction 与显示状态。
+- 删除旧的分散式 `presentationPlayback.ts` 与 `displayState.ts` 播放实现，避免表现层双轨。
+- 将 client 输入显式限制为“presentation 播放期间不可交互”，避免预览与 authoritative 播放重叠。
+- 清理并同步 `docs/index.md`、`docs/arch/架构总览.md`、`docs/arch/共享规则层.md`、`docs/arch/前后端联机原型.md` 的表现层文档边界。
 
 ## 2026-04-04
 

@@ -397,25 +397,55 @@ export interface ActionPresentationEventBase {
   startMs: number;
 }
 
-export interface PlayerMotionPresentationEvent extends ActionPresentationEventBase {
-  kind: "player_motion";
-  motionStyle: PresentationMotionStyle;
+export type MotionPresentationSubject =
+  | {
+      kind: "player";
+      motionStyle: PresentationMotionStyle;
+      playerId: string;
+    }
+  | {
+      kind: "projectile";
+      ownerId: string;
+      projectileType: PresentationProjectileType;
+    };
+
+export interface MotionPresentationEvent extends ActionPresentationEventBase {
+  kind: "motion";
+  positions: GridPosition[];
+  subject: MotionPresentationSubject;
+}
+
+export type ReactionPresentationPayload =
+  | {
+      kind: "effect";
+      effectType: PresentationEffectType;
+      position: GridPosition;
+      tiles: GridPosition[];
+    }
+  | {
+      height: number;
+      kind: "player_lift";
+      playerId: string;
+    };
+
+export interface ReactionPresentationEvent extends ActionPresentationEventBase {
+  kind: "reaction";
+  reaction: ReactionPresentationPayload;
+}
+
+export interface PreviewPlayerTarget {
+  boardVisible: boolean;
   playerId: string;
-  positions: GridPosition[];
+  startPosition: GridPosition;
+  targetPosition: GridPosition;
 }
 
-export interface ProjectilePresentationEvent extends ActionPresentationEventBase {
-  kind: "projectile";
-  ownerId: string;
-  positions: GridPosition[];
-  projectileType: PresentationProjectileType;
-}
-
-export interface EffectPresentationEvent extends ActionPresentationEventBase {
-  effectType: PresentationEffectType;
-  kind: "effect";
-  position: GridPosition;
-  tiles: GridPosition[];
+export interface PreviewDescriptor {
+  actorPath: GridPosition[];
+  effectTiles: GridPosition[];
+  playerTargets: PreviewPlayerTarget[];
+  selectionTiles: GridPosition[];
+  valid: boolean;
 }
 
 export interface TilePresentationState {
@@ -463,9 +493,8 @@ export interface StateTransitionPresentationEvent extends ActionPresentationEven
 }
 
 export type ActionPresentationEvent =
-  | PlayerMotionPresentationEvent
-  | ProjectilePresentationEvent
-  | EffectPresentationEvent
+  | MotionPresentationEvent
+  | ReactionPresentationEvent
   | StateTransitionPresentationEvent;
 
 export interface ActionPresentation {
@@ -498,7 +527,7 @@ export type ActionResolution =
       nextToolDieSeed: number;
       path: GridPosition[];
       presentation: ActionPresentation | null;
-      previewTiles: GridPosition[];
+      preview: PreviewDescriptor;
       reason: string;
       summonMutations: SummonMutation[];
       tileMutations: TileMutation[];
@@ -516,7 +545,7 @@ export type ActionResolution =
       nextToolDieSeed: number;
       path: GridPosition[];
       presentation: ActionPresentation | null;
-      previewTiles: GridPosition[];
+      preview: PreviewDescriptor;
       summary: string;
       summonMutations: SummonMutation[];
       tileMutations: TileMutation[];

@@ -1,11 +1,11 @@
 import {
   findToolInstance,
   resolveToolAction,
-  type ActionResolution,
   type BoardDefinition,
   type Direction,
   type GameSnapshot,
   type GridPosition,
+  type PreviewDescriptor,
   type TurnPhase,
   type UseToolCommandPayload
 } from "@watcher/shared";
@@ -103,7 +103,7 @@ export function buildActionPreview(
   snapshot: GameSnapshot,
   sessionId: string | null,
   payload: UseToolCommandPayload
-): ActionResolution | null {
+): PreviewDescriptor | null {
   if (!sessionId) {
     return null;
   }
@@ -161,5 +161,5 @@ export function buildActionPreview(
     ...(payload.direction ? { direction: payload.direction } : {}),
     ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
     players
-  });
+  }).preview;
 }

@@ -76,7 +76,7 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       },
       latestPresentation: {
         toolId: "hookshot",
-        eventKinds: ["player_motion", "player_motion"]
+        eventKinds: ["motion", "motion"]
       }
     }
   }),
@@ -182,12 +182,12 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       latestPresentation: {
         toolId: "rocket",
         eventKinds: [
-          "projectile",
-          "player_motion",
-          "player_motion",
-          "player_motion",
-          "player_motion",
-          "effect"
+          "motion",
+          "motion",
+          "motion",
+          "motion",
+          "motion",
+          "reaction"
         ]
       }
     }

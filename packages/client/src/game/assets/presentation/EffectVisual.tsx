@@ -1,14 +1,14 @@
 import type { ComponentType } from "react";
 import type { PresentationEffectType } from "@watcher/shared";
-import type { ActiveEffectPlayback } from "../../animation/presentationPlayback";
+import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
 import { RocketExplosionEffectAsset } from "./RocketExplosionEffectAsset";
 
 interface EffectAssetProps {
   boardHeight: number;
   boardWidth: number;
-  position: ActiveEffectPlayback["position"];
+  position: ActiveEffectReactionPlayback["position"];
   progress: number;
-  tiles: ActiveEffectPlayback["tiles"];
+  tiles: ActiveEffectReactionPlayback["tiles"];
 }
 
 type EffectAssetComponent = ComponentType<EffectAssetProps>;
@@ -25,7 +25,7 @@ export function EffectVisual({
 }: {
   boardHeight: number;
   boardWidth: number;
-  effect: ActiveEffectPlayback;
+  effect: ActiveEffectReactionPlayback;
 }) {
   const Asset = EFFECT_ASSETS[effect.effectType];
 

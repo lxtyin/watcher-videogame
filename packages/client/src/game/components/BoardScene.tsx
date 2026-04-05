@@ -26,11 +26,7 @@ import { PreviewRingAsset } from "../assets/previews/PreviewRingAsset";
 import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset";
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
-import {
-  resolveDisplayedPlayers,
-  resolveDisplayedSummons,
-  resolveDisplayedTiles
-} from "../animation/displayState";
+import { evaluatePlaybackEngine } from "../animation/playbackEngine";
 import {
   getDragDirection,
   projectClientToGround,
@@ -51,12 +47,6 @@ import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneInspectionCard } from "./SceneInspectionCard";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
-import {
-  collectPendingStateTransitions,
-  collectPendingPlayerOrigins,
-  evaluateActionPresentation,
-  getActionPresentationElapsedMs
-} from "../animation/presentationPlayback";
 import {
   buildActionPreview,
   toWorldPosition
@@ -227,12 +217,15 @@ export function BoardScene() {
   const dragIntersection = useMemo(() => new Vector3(), []);
 
   const myPlayer = snapshot?.players.find((player) => player.id === sessionId) ?? null;
+  const isPresentationBusy = Boolean(activeActionPresentation || actionPresentationQueue.length);
   const isMyTurn = Boolean(snapshot && sessionId && snapshot.turnInfo.currentPlayerId === sessionId);
+  const canInteract = isMyTurn && !isPresentationBusy;
   const selectedTool =
     myPlayer && selectedToolInstanceId ? findToolInstance(myPlayer.tools, selectedToolInstanceId) ?? null : null;
   const selectedAimTool =
     selectedTool &&
     isAimTool(selectedTool.toolId) &&
+    canInteract &&
     getToolAvailability(selectedTool, myPlayer?.tools ?? []).usable
       ? selectedTool
       : null;
@@ -243,78 +236,34 @@ export function BoardScene() {
   const isAiming = Boolean(aimState);
   const canShowDirectionArrows = Boolean(
     myPlayer &&
-      isMyTurn &&
+      canInteract &&
       (selectedDirectionalTool || (selectedTileDirectionTool && aimState?.targetMode === "tile_direction"))
   );
   const focusedDirection =
     aimState?.targetMode === "direction" || aimState?.targetMode === "tile_direction"
       ? aimState.direction
       : null;
-  const activePresentationElapsedMs = getActionPresentationElapsedMs(
-    activeActionPresentation,
-    activeActionPresentationStartedAtMs,
-    simulationTimeMs
-  );
-  const activePresentationPlayback = useMemo(
-    () => evaluateActionPresentation(activeActionPresentation, activePresentationElapsedMs),
-    [activeActionPresentation, activePresentationElapsedMs]
-  );
-  const pendingStateTransitions = useMemo(
+  const playbackState = useMemo(
     () =>
-      collectPendingStateTransitions(
+      evaluatePlaybackEngine({
         activeActionPresentation,
-        activePresentationElapsedMs,
-        actionPresentationQueue
-      ),
-    [actionPresentationQueue, activeActionPresentation, activePresentationElapsedMs]
+        activeActionPresentationStartedAtMs,
+        actionPresentationQueue,
+        simulationTimeMs,
+        snapshot
+      }),
+    [
+      actionPresentationQueue,
+      activeActionPresentation,
+      activeActionPresentationStartedAtMs,
+      simulationTimeMs,
+      snapshot
+    ]
   );
-  const pendingPlayerOrigins = useMemo(
-    () =>
-      collectPendingPlayerOrigins(
-        activeActionPresentation,
-        activePresentationElapsedMs,
-        actionPresentationQueue
-      ),
-    [actionPresentationQueue, activeActionPresentation, activePresentationElapsedMs]
-  );
-  const displayedPlayerPositions = useMemo<Record<string, GridPosition>>(() => {
-    if (!snapshot) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      snapshot.players.map((player) => {
-        const activeMotion = activePresentationPlayback.playerMotions[player.id];
-
-        if (activeMotion) {
-          return [
-            player.id,
-            {
-              x: activeMotion.position.x,
-              y: activeMotion.position.y
-            }
-          ] as const;
-        }
-
-        return [
-          player.id,
-          pendingPlayerOrigins[player.id] ?? player.position
-        ] as const;
-      })
-    );
-  }, [activePresentationPlayback.playerMotions, pendingPlayerOrigins, snapshot]);
-  const displayedTiles = useMemo(
-    () => (snapshot ? resolveDisplayedTiles(snapshot, pendingStateTransitions) : []),
-    [pendingStateTransitions, snapshot]
-  );
-  const displayedPlayers = useMemo(
-    () => (snapshot ? resolveDisplayedPlayers(snapshot, pendingStateTransitions) : []),
-    [pendingStateTransitions, snapshot]
-  );
-  const displayedSummons = useMemo(
-    () => (snapshot ? resolveDisplayedSummons(snapshot, pendingStateTransitions) : []),
-    [pendingStateTransitions, snapshot]
-  );
+  const displayedPlayerPositions = playbackState.displayedPlayerPositions;
+  const displayedTiles = playbackState.displayedTiles;
+  const displayedPlayers = playbackState.displayedPlayers;
+  const displayedSummons = playbackState.displayedSummons;
   const playerStackLayout = useMemo(() => {
     const layout = new Map<string, PlayerStackLayout>();
 
@@ -382,6 +331,20 @@ export function BoardScene() {
         return left.id.localeCompare(right.id);
       });
   }, [cellEntrySerialByPlayer, displayedPlayers, playerStackLayout, snapshot]);
+  const playerLiftById = useMemo(() => {
+    const nextLifts: Record<string, number> = {};
+
+    for (const reaction of playbackState.reactions) {
+      if (reaction.kind !== "player_lift") {
+        continue;
+      }
+
+      const lift = Math.sin(reaction.progress * Math.PI) * reaction.height;
+      nextLifts[reaction.playerId] = (nextLifts[reaction.playerId] ?? 0) + lift;
+    }
+
+    return nextLifts;
+  }, [playbackState.reactions]);
   const facingById = useMemo(() => {
     const nextFacingById = { ...facingByIdRef.current };
 
@@ -418,11 +381,11 @@ export function BoardScene() {
     ) as Record<string, number>;
     const arrivalMsByPlayer = Object.fromEntries(
       (snapshot.latestPresentation?.events ?? []).flatMap((event) => {
-        if (event.kind !== "player_motion") {
+        if (event.kind !== "motion" || event.subject.kind !== "player") {
           return [];
         }
 
-        return [[event.playerId, event.startMs + event.durationMs] as const];
+        return [[event.subject.playerId, event.startMs + event.durationMs] as const];
       })
     ) as Record<string, number>;
     const playersNeedingEntryUpdate = snapshot.players
@@ -544,14 +507,14 @@ export function BoardScene() {
   }, []);
 
   useEffect(() => {
-    if (!selectedAimTool || !myPlayer || !isMyTurn) {
+    if (!selectedAimTool || !myPlayer || !canInteract) {
       aimStateRef.current = null;
       setAimState(null);
     }
-  }, [isMyTurn, myPlayer, selectedAimTool]);
+  }, [canInteract, myPlayer, selectedAimTool]);
 
   useEffect(() => {
-    if (!aimState || !myPlayer || !snapshot || !isMyTurn) {
+    if (!aimState || !myPlayer || !snapshot || !canInteract) {
       return;
     }
 
@@ -748,12 +711,12 @@ export function BoardScene() {
   }, [
     aimState,
     camera,
+    canInteract,
     dragIntersection,
     dragPlane,
     dragPointer,
     dragRaycaster,
     gl,
-    isMyTurn,
     myPlayer,
     performDirectionalAction,
     performTileDirectionAction,
@@ -761,8 +724,8 @@ export function BoardScene() {
     snapshot
   ]);
 
-  const previewResolution = useMemo(() => {
-    if (!snapshot || !sessionId || !aimState) {
+  const previewDescriptor = useMemo(() => {
+    if (!snapshot || !sessionId || !aimState || !canInteract) {
       return null;
     }
 
@@ -795,13 +758,13 @@ export function BoardScene() {
     }
 
     return null;
-  }, [aimState, sessionId, snapshot]);
+  }, [aimState, canInteract, sessionId, snapshot]);
   const scenePreview = useMemo(
     () => {
       const basePreview = resolveScenePreviewState({
         actor: myPlayer,
         displayedPlayerPositions,
-        previewResolution,
+        previewDescriptor,
         sessionId,
         snapshot,
         toolId: aimState?.toolId ?? null
@@ -810,7 +773,7 @@ export function BoardScene() {
       if (
         aimState?.targetMode === "tile_direction" &&
         aimState.targetPosition &&
-        !previewResolution &&
+        !previewDescriptor &&
         snapshot
       ) {
         const previewKeys = new Set(basePreview.previewKeys);
@@ -831,7 +794,7 @@ export function BoardScene() {
       aimState && "targetPosition" in aimState ? aimState.targetPosition?.y : null,
       displayedPlayerPositions,
       myPlayer,
-      previewResolution,
+      previewDescriptor,
       sessionId,
       snapshot
     ]
@@ -1006,7 +969,7 @@ export function BoardScene() {
       player.id === sessionId &&
       selectedAimTool &&
       myPlayer &&
-      isMyTurn
+      canInteract
     ) {
       event.stopPropagation();
       cancelInspection();
@@ -1110,7 +1073,7 @@ export function BoardScene() {
       ))}
 
       {renderedPlayers.map((player, index) => {
-        const activeMotion = activePresentationPlayback.playerMotions[player.id] ?? null;
+        const activeMotion = playbackState.playerMotions[player.id] ?? null;
         const displayedGridPosition = displayedPlayerPositions[player.id] ?? player.position;
         const [x, , z] = toWorldPositionFromGrid(
           displayedGridPosition.x,
@@ -1136,11 +1099,13 @@ export function BoardScene() {
           snapshot.boardHeight
         );
         const bob = activeMotion || (isActive && isMe) ? 0 : Math.sin(simulationTimeMs / 450 + index) * 0.05;
+        const reactionLift = playerLiftById[player.id] ?? 0;
         const pieceBaseY =
           PLAYER_BASE_Y +
           animatedStackIndex * PLAYER_STACK_STEP_Y +
           bob +
-          (activeMotion?.position.lift ?? 0);
+          (activeMotion?.position.lift ?? 0) +
+          reactionLift;
         const pieceTopY = pieceBaseY + 0.96;
         const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
         const pieceRotationY =
@@ -1168,16 +1133,16 @@ export function BoardScene() {
             {isActive ? (
               <SceneActionRing
                 hidden={isAiming && isMe}
-                interactive={isMe}
+                interactive={isMe && canInteract}
                 tools={player.tools}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
-                onEndTurn={isMe ? endTurn : () => {}}
+                onEndTurn={isMe && canInteract ? endTurn : () => {}}
                 onPressAimTool={(toolInstanceId, clientX, clientY) => {
-                  if (!isMe) {
+                  if (!isMe || !canInteract) {
                     return;
                   }
 
@@ -1187,11 +1152,11 @@ export function BoardScene() {
                     beginAim(tool, clientX, clientY);
                   }
                 }}
-                onRollDice={isMe ? rollDice : () => {}}
-                onSelectTool={isMe ? setSelectedToolInstanceId : () => {}}
-                onShowUnavailableToolNotice={isMe ? showToolNotice : () => {}}
-                onUseChoiceTool={isMe ? useChoiceTool : () => {}}
-                onUseInstantTool={isMe ? useInstantTool : () => {}}
+                onRollDice={isMe && canInteract ? rollDice : () => {}}
+                onSelectTool={isMe && canInteract ? setSelectedToolInstanceId : () => {}}
+                onShowUnavailableToolNotice={isMe && canInteract ? showToolNotice : () => {}}
+                onUseChoiceTool={isMe && canInteract ? useChoiceTool : () => {}}
+                onUseInstantTool={isMe && canInteract ? useInstantTool : () => {}}
               />
             ) : null}
             {isMe && canShowDirectionArrows && (selectedDirectionalTool || selectedTileDirectionTool) ? (
@@ -1219,7 +1184,7 @@ export function BoardScene() {
           </group>
         );
       })}
-      {activePresentationPlayback.projectiles.map((projectile) => (
+      {playbackState.projectiles.map((projectile) => (
         <ProjectileVisual
           key={projectile.eventId}
           boardWidth={snapshot.boardWidth}
@@ -1227,7 +1192,9 @@ export function BoardScene() {
           projectile={projectile}
         />
       ))}
-      {activePresentationPlayback.effects.map((effect) => (
+      {playbackState.reactions
+        .filter((reaction): reaction is Extract<(typeof playbackState.reactions)[number], { kind: "effect" }> => reaction.kind === "effect")
+        .map((effect) => (
         <EffectVisual
           key={effect.eventId}
           boardWidth={snapshot.boardWidth}

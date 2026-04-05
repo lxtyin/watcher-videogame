@@ -148,7 +148,7 @@ export const GOLDEN_WALLET_CASES = [
       summonCount: 0,
       latestPresentation: {
         toolId: "movement",
-        eventKinds: ["player_motion", "state_transition"]
+        eventKinds: ["motion", "state_transition"]
       }
     }
   }),
@@ -220,7 +220,7 @@ export const GOLDEN_WALLET_CASES = [
       summonCount: 0,
       latestPresentation: {
         toolId: "hookshot",
-        eventKinds: ["player_motion", "state_transition"]
+        eventKinds: ["motion", "state_transition"]
       }
     }
   }),
@@ -292,7 +292,7 @@ export const GOLDEN_WALLET_CASES = [
       summonCount: 0,
       latestPresentation: {
         toolId: "jump",
-        eventKinds: ["player_motion", "state_transition"]
+        eventKinds: ["motion", "state_transition"]
       }
     }
   }),
@@ -383,7 +383,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       latestPresentation: {
         toolId: "basketball",
-        eventKinds: ["projectile", "player_motion"]
+        eventKinds: ["motion", "motion"]
       }
     }
   })

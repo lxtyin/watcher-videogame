@@ -202,13 +202,13 @@ function resolveRocketTool(context: Parameters<ToolModule["execute"]>[0]): Actio
     }
   }
 
-  const previewTiles = collectExplosionPreviewTiles(context.board, explosionPosition);
+  const effectTiles = collectExplosionPreviewTiles(context.board, explosionPosition);
   motionEvents.push(
     createEffectEvent(
       `${context.activeTool.instanceId}:explosion`,
       "rocket_explosion",
       explosionPosition,
-      previewTiles,
+      effectTiles,
       explosionStartMs
     )
   );
@@ -222,7 +222,7 @@ function resolveRocketTool(context: Parameters<ToolModule["execute"]>[0]): Actio
     tileMutations,
     affectedPlayers,
     triggeredTerrainEffects,
-    previewTiles,
+    effectTiles,
     createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
     summonMutations,
     triggeredSummonEffects

@@ -4,6 +4,7 @@ import {
   attachStateTransitionPresentation,
   buildBlockedResolution
 } from "./rules/actionResolution";
+import { attachPreviewDescriptor } from "./rules/previewDescriptor";
 import { TOOL_EXECUTORS } from "./rules/toolExecutors";
 
 export {
@@ -17,52 +18,41 @@ export {
 export function resolveToolAction(context: ToolActionContext): ActionResolution {
   const availability = getToolAvailability(context.activeTool, context.tools);
   const toolDefinition = getToolDefinition(context.activeTool.toolId);
+  const buildPreviewBlockedResolution = (reason: string) =>
+    attachPreviewDescriptor(
+      context,
+      buildBlockedResolution(
+        context.actor,
+        context.tools,
+        reason,
+        context.toolDieSeed
+      )
+    );
 
   if (!availability.usable) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      availability.reason ?? "Tool cannot be used right now",
-      context.toolDieSeed
+    return buildPreviewBlockedResolution(
+      availability.reason ?? "Tool cannot be used right now"
     );
   }
 
   if (toolDefinition.targetMode === "direction" && !context.direction) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      `${toolDefinition.label} needs a direction`,
-      context.toolDieSeed
-    );
+    return buildPreviewBlockedResolution(`${toolDefinition.label} needs a direction`);
   }
 
   if (toolDefinition.targetMode === "tile" && !context.targetPosition) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      `${toolDefinition.label} needs a target tile`,
-      context.toolDieSeed
-    );
+    return buildPreviewBlockedResolution(`${toolDefinition.label} needs a target tile`);
   }
 
   if (toolDefinition.targetMode === "choice" && !context.choiceId) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      `${toolDefinition.label} needs a choice`,
-      context.toolDieSeed
-    );
+    return buildPreviewBlockedResolution(`${toolDefinition.label} needs a choice`);
   }
 
   if (
     toolDefinition.targetMode === "tile_direction" &&
     (!context.targetPosition || !context.direction)
   ) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      `${toolDefinition.label} needs both a target tile and a direction`,
-      context.toolDieSeed
+    return buildPreviewBlockedResolution(
+      `${toolDefinition.label} needs both a target tile and a direction`
     );
   }
 
@@ -79,5 +69,8 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
         }
       : executedResolution;
 
-  return attachStateTransitionPresentation(context, definitionAdjustedResolution);
+  return attachPreviewDescriptor(
+    context,
+    attachStateTransitionPresentation(context, definitionAdjustedResolution)
+  );
 }

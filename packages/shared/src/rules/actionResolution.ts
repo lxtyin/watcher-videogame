@@ -27,6 +27,7 @@ import {
   createStateTransitionEvent,
   getMotionArrivalStartMs
 } from "./actionPresentation";
+import { createPlaceholderPreview } from "./previewDescriptor";
 
 // Blocked resolutions preserve tool inventory so previews can explain why an action failed.
 export function buildBlockedResolution(
@@ -36,14 +37,14 @@ export function buildBlockedResolution(
   nextToolDieSeed: number,
   path: GridPosition[] = [],
   triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
-  previewTiles: GridPosition[] = []
+  effectTiles: GridPosition[] = []
 ): ActionResolution {
   return {
     kind: "blocked",
     actorMovement: null,
     reason,
     path,
-    previewTiles,
+    preview: createPlaceholderPreview(false, path, effectTiles),
     actor: {
       modifiers: actor.modifiers,
       position: actor.position,
@@ -73,7 +74,7 @@ export function buildAppliedResolution(
   tileMutations: TileMutation[] = [],
   affectedPlayers: AffectedPlayerMove[] = [],
   triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
-  previewTiles: GridPosition[] = [],
+  effectTiles: GridPosition[] = [],
   presentation: ActionPresentation | null = null,
   summonMutations: SummonMutation[] = [],
   triggeredSummonEffects: TriggeredSummonEffect[] = [],
@@ -86,7 +87,7 @@ export function buildAppliedResolution(
     actorMovement,
     summary,
     path,
-    previewTiles,
+    preview: createPlaceholderPreview(true, path, effectTiles),
     actor: {
       modifiers: nextActor.modifiers,
       position: nextActor.position,
@@ -198,13 +199,13 @@ function findStateTransitionStartMs(
   }
 
   const arrivalTimes = presentation.events.flatMap((event) => {
-    if (event.kind !== "player_motion") {
+    if (event.kind !== "motion" || event.subject.kind !== "player") {
       return [];
     }
 
     const arrivalMs = getMotionArrivalStartMs(
       event.positions,
-      event.motionStyle,
+      event.subject.motionStyle,
       position,
       event.startMs
     );

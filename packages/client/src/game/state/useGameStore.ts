@@ -8,7 +8,7 @@ import type {
   SequencedActionPresentation,
   ToolId
 } from "@watcher/shared";
-import { pumpActionPresentationPlayback } from "./presentationPlayback";
+import { pumpPresentationQueue } from "./presentationQueue";
 import {
   sendChoiceToolIfUsable,
   sendDirectionalToolIfUsable,
@@ -90,7 +90,14 @@ function advancePresentationClock(state: Pick<
   GameStore,
   "actionPresentationQueue" | "activeActionPresentation" | "activeActionPresentationStartedAtMs"
 > {
-  return pumpActionPresentationPlayback(state);
+  return pumpPresentationQueue(state);
+}
+
+function isPresentationBusy(state: Pick<
+  GameStore,
+  "actionPresentationQueue" | "activeActionPresentation"
+>): boolean {
+  return Boolean(state.activeActionPresentation || state.actionPresentationQueue.length);
 }
 
 function applyIncomingSnapshot(
@@ -254,10 +261,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
   rollDice: () => {
-    sendRollDice(get().room);
+    const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
+    sendRollDice(state.room);
   },
   endTurn: () => {
-    sendEndTurn(get().room);
+    const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
+    sendEndTurn(state.room);
   },
   setReady: (isReady) => {
     sendSetReady(get().room, { isReady });
@@ -275,10 +294,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     sendSetCharacter(get().room, characterId);
   },
   grantDebugTool: (toolId) => {
-    sendGrantDebugTool(get().room, toolId);
+    const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
+    sendGrantDebugTool(state.room, toolId);
   },
   useInstantTool: (toolInstanceId) => {
     const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
     const didSend = sendInstantToolIfUsable(
       state.room,
       state.snapshot,
@@ -292,6 +322,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   useChoiceTool: (choiceId, toolInstanceId) => {
     const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
     const didSend = sendChoiceToolIfUsable(
       state.room,
       state.snapshot,
@@ -306,6 +341,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   performDirectionalAction: (direction, toolInstanceId) => {
     const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
     const didSend = sendDirectionalToolIfUsable(
       state.room,
       state.snapshot,
@@ -320,6 +360,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   performTileTargetAction: (targetPosition, toolInstanceId) => {
     const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
     const didSend = sendTileTargetToolIfUsable(
       state.room,
       state.snapshot,
@@ -334,6 +379,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   performTileDirectionAction: (targetPosition, direction, toolInstanceId) => {
     const state = get();
+
+    if (isPresentationBusy(state)) {
+      return;
+    }
+
     const didSend = sendTileDirectionToolIfUsable(
       state.room,
       state.snapshot,

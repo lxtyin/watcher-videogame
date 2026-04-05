@@ -57,7 +57,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             },
             latestPresentation: {
                 toolId: "movement",
-                eventKinds: ["player_motion"]
+                eventKinds: ["motion"]
             }
         }
     }),
