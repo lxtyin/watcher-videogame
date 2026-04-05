@@ -1,11 +1,13 @@
 ﻿import { toTileKey } from "./board";
 import { rollToolDie } from "./dice";
+import { cloneModifierIds } from "./modifiers";
 import { isMovementType } from "./rules/displacement";
 import { createRolledToolInstance } from "./tools";
 import type {
   BoardDefinition,
   Direction,
   GridPosition,
+  ModifierId,
   MovementActor,
   MovementDescriptor,
   PlayerTagMap,
@@ -26,6 +28,7 @@ interface TerrainPassThroughContext {
 
 interface TerrainPassThroughResult {
   nextDirection?: Direction;
+  nextModifiers?: ModifierId[];
   nextRemainingMovePoints?: number;
   nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
@@ -38,6 +41,7 @@ interface StopResolutionTarget {
   characterId: MovementActor["characterId"];
   id: string;
   isActor: boolean;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
@@ -54,6 +58,7 @@ interface TerrainStopContext {
 }
 
 interface TerrainStopResult {
+  nextModifiers?: ModifierId[];
   nextPosition?: GridPosition;
   nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
@@ -238,6 +243,7 @@ export function createTerrainStopTarget(
     characterId: actor.characterId,
     id: actor.id,
     isActor,
+    modifiers: cloneModifierIds(actor.modifiers),
     position,
     spawnPosition: actor.spawnPosition,
     tags: actor.tags,

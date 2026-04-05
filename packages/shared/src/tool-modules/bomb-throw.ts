@@ -94,6 +94,7 @@ function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): Ac
       player: {
         characterId: targetPlayer.characterId,
         id: targetPlayer.id,
+        modifiers: targetPlayer.modifiers,
         position: targetPlayer.position,
         spawnPosition: targetPlayer.spawnPosition,
         tags: targetPlayer.tags,

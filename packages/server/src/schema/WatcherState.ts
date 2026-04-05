@@ -35,6 +35,7 @@ export class PlayerState extends Schema {
   @type("boolean") boardVisible = true;
   @type("string") characterId: CharacterId = "late";
   @type("string") tagsJson = "{}";
+  @type(["string"]) modifiers = new ArraySchema<string>();
   @type("number") finishRank = 0;
   @type("number") finishedTurnNumber = 0;
   @type("boolean") isConnected = true;

@@ -2,16 +2,15 @@ import type {
   CharacterId,
   Direction,
   GridPosition,
+  ModifierId,
   MovementDescriptor,
   MovementType,
   PlayerTagMap,
+  SkillId,
   ToolLoadoutDefinition,
   TurnPhase,
   TurnToolSnapshot
 } from "./types";
-
-export type SkillId = string;
-export type ModifierId = string;
 
 export interface SkillDefinition {
   id: SkillId;
@@ -20,14 +19,10 @@ export interface SkillDefinition {
   summary: string;
 }
 
-export interface ModifierActivationContext {
-  characterId: CharacterId;
-  tags: PlayerTagMap;
-}
-
 export interface ModifierContextBase {
   actorId: string;
   characterId: CharacterId;
+  modifiers: readonly ModifierId[];
   phase: TurnPhase;
   position: GridPosition;
   tags: PlayerTagMap;
@@ -53,6 +48,7 @@ export interface ModifierMovementHookContext extends ModifierContextBase {
 
 export interface ModifierPhaseHookResult {
   grantTools?: readonly ToolLoadoutDefinition[];
+  nextModifiers?: readonly ModifierId[];
   nextTags?: PlayerTagMap;
 }
 
@@ -83,5 +79,32 @@ export interface ModifierHooks {
 export interface ModifierDefinition {
   hooks: ModifierHooks;
   id: ModifierId;
-  isActive?: (context: ModifierActivationContext) => boolean;
+}
+
+export function cloneModifierIds(modifiers: readonly ModifierId[]): ModifierId[] {
+  return [...modifiers];
+}
+
+export function normalizeModifierIds(modifiers: readonly ModifierId[]): ModifierId[] {
+  return [...new Set(modifiers)];
+}
+
+export function hasModifier(modifiers: readonly ModifierId[], modifierId: ModifierId): boolean {
+  return modifiers.includes(modifierId);
+}
+
+export function attachModifier(
+  modifiers: readonly ModifierId[],
+  modifierId: ModifierId
+): ModifierId[] {
+  return hasModifier(modifiers, modifierId)
+    ? cloneModifierIds(modifiers)
+    : [...modifiers, modifierId];
+}
+
+export function detachModifier(
+  modifiers: readonly ModifierId[],
+  modifierId: ModifierId
+): ModifierId[] {
+  return modifiers.filter((candidate) => candidate !== modifierId);
 }

@@ -3,6 +3,7 @@ import type {
   BoardSummonState,
   Direction,
   GameSnapshot,
+  ModifierId,
   PlayerTagMap,
   PlayerTurnFlag,
   SequencedActionPresentation,
@@ -42,6 +43,7 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
       id: entry.id,
       boardVisible: entry.boardVisible,
       characterId: entry.characterId,
+      modifiers: Array.from(entry.modifiers) as ModifierId[],
       tags: parsePlayerTags(entry.tagsJson),
       position: {
         x: entry.x,
@@ -134,6 +136,7 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
       color: player.color,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
+      modifiers: Array.from(player.modifiers) as ModifierId[],
       tags: parsePlayerTags(player.tagsJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
       finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,

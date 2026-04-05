@@ -23,6 +23,8 @@ export type MovementTiming = "in_turn" | "out_of_turn";
 export type GameMode = "free" | "race";
 export type GameSettlementState = "active" | "complete";
 export type RoomPhase = "lobby" | "in_game" | "settlement";
+export type SkillId = string;
+export type ModifierId = string;
 export type CharacterId = keyof typeof import("./content/characters").CHARACTER_REGISTRY;
 export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
@@ -91,6 +93,7 @@ export interface PlayerSnapshot {
   name: string;
   petId: string;
   position: GridPosition;
+  modifiers: ModifierId[];
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
   tools: TurnToolSnapshot[];
@@ -216,6 +219,7 @@ export interface KickPlayerCommandPayload {
 export interface MovementActor {
   characterId: CharacterId;
   id: string;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
@@ -246,6 +250,7 @@ export interface BoardPlayerState {
   boardVisible: boolean;
   characterId: CharacterId;
   id: string;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
@@ -268,6 +273,7 @@ export interface TileMutation {
 
 export interface AffectedPlayerMove {
   movement: MovementDescriptor;
+  modifiers?: ModifierId[];
   path: GridPosition[];
   playerId: string;
   reason: string;
@@ -307,6 +313,7 @@ export interface ToolActionContext extends ActionContextBase {
 }
 
 export interface ResolvedActorState {
+  modifiers: ModifierId[];
   position: GridPosition;
   tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];

@@ -1,6 +1,5 @@
-import { getPlayerTagNumber } from "../playerTags";
-import { setPlayerTagValue } from "../playerTags";
-import type { ModifierDefinition } from "../modifiers";
+import { detachModifier, type ModifierDefinition } from "../modifiers";
+import { getPlayerTagNumber, setPlayerTagValue } from "../playerTags";
 
 export const BONDAGE_MODIFIER_ID = "basis:bondage";
 export const BONDAGE_STACKS_TAG = "basis:bondage-stacks";
@@ -9,9 +8,10 @@ function reduceToolValue(currentValue: number, reduction: number): number {
   return Math.max(0, currentValue - reduction);
 }
 
+
 export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
   id: BONDAGE_MODIFIER_ID,
-  isActive: ({ tags }) => getPlayerTagNumber(tags, BONDAGE_STACKS_TAG) > 0,
+
   hooks: {
     onGetTool: ({ tags, tool }) => {
       const bondageStacks = getPlayerTagNumber(tags, BONDAGE_STACKS_TAG);
@@ -52,7 +52,8 @@ export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
 
       return null;
     },
-    onTurnEnd: ({ tags }) => ({
+    onTurnEnd: ({ modifiers, tags }) => ({
+      nextModifiers: detachModifier(modifiers, BONDAGE_MODIFIER_ID),
       nextTags: setPlayerTagValue(tags, BONDAGE_STACKS_TAG, undefined)
     })
   }

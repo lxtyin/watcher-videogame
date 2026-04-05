@@ -9,6 +9,7 @@ import {
   resolveSettlementState
 } from "./gameplay";
 import { createBoardDefinitionFromGoldenLayout } from "./goldens/layout";
+import { cloneModifierIds } from "./modifiers";
 import { clonePlayerTags } from "./playerTags";
 import {
   appendPresentationEvents,
@@ -116,6 +117,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
       isConnected: player.isConnected,
       isReady: player.isReady,
       petId: player.petId,
+      modifiers: cloneModifierIds(player.modifiers),
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
@@ -199,6 +201,7 @@ function buildBoardPlayers(snapshot: GameSnapshot): BoardPlayerState[] {
       id: player.id,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
+      modifiers: cloneModifierIds(player.modifiers),
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
@@ -231,11 +234,12 @@ function normalizePlayerTools(
   player: PlayerSnapshot,
   tools: TurnToolSnapshot[],
   phase: TurnInfoSnapshot["phase"]
-): TurnToolSnapshot[] {
+): ReturnType<typeof applyOnGetToolModifiers> {
   return applyOnGetToolModifiers(
     player.characterId,
     {
       id: player.id,
+      modifiers: cloneModifierIds(player.modifiers),
       phase,
       position: clonePosition(player.position),
       tags: clonePlayerTags(player.tags),
@@ -250,6 +254,10 @@ function clearPlayerTurnResources(player: PlayerSnapshot): void {
   player.turnFlags = [];
 }
 
+function applyPlayerModifiers(player: PlayerSnapshot, modifiers: readonly import("./types").ModifierId[]): void {
+  player.modifiers = cloneModifierIds(modifiers);
+}
+
 function applyPlayerTurnFlags(player: PlayerSnapshot, turnFlags: PlayerTurnFlag[]): void {
   player.turnFlags = [...turnFlags];
 }
@@ -259,7 +267,10 @@ function applyToolInventory(
   tools: TurnToolSnapshot[],
   phase: TurnInfoSnapshot["phase"]
 ): void {
-  player.tools = normalizePlayerTools(player, tools, phase);
+  const normalizedTools = normalizePlayerTools(player, tools, phase);
+  applyPlayerModifiers(player, normalizedTools.nextModifiers);
+  applyPlayerTags(player, normalizedTools.nextTags);
+  player.tools = normalizedTools.tools;
 }
 
 function applyPlayerTags(player: PlayerSnapshot, tags: PlayerTagMap): void {
@@ -307,6 +318,7 @@ function applySummonMutations(snapshot: GameSnapshot, summonMutations: SummonMut
 function applyAffectedPlayerMoves(
   snapshot: GameSnapshot,
   affectedPlayers: Array<{
+    modifiers?: import("./types").ModifierId[];
     playerId: string;
     target: GridPosition;
     tags?: PlayerTagMap;
@@ -324,6 +336,10 @@ function applyAffectedPlayerMoves(
 
     if (affectedPlayer.turnFlags) {
       applyPlayerTurnFlags(player, affectedPlayer.turnFlags);
+    }
+
+    if (affectedPlayer.modifiers) {
+      applyPlayerModifiers(player, affectedPlayer.modifiers);
     }
 
     if (affectedPlayer.tags) {
@@ -358,22 +374,22 @@ function applyMovementResolvedEffects(
       continue;
     }
 
-    applyPlayerTags(
-      player,
-      applyMovementResolvedModifiers(
-        player.characterId,
-        {
-          id: player.id,
-          phase,
-          position: clonePosition(player.position),
-          tags: clonePlayerTags(player.tags),
-          tools: [...player.tools]
-        },
-        movementResult.movement,
-        null,
-        movementResult.path
-      )
+    const movementResolution = applyMovementResolvedModifiers(
+      player.characterId,
+      {
+        id: player.id,
+        modifiers: cloneModifierIds(player.modifiers),
+        phase,
+        position: clonePosition(player.position),
+        tags: clonePlayerTags(player.tags),
+        tools: [...player.tools]
+      },
+      movementResult.movement,
+      null,
+      movementResult.path
     );
+    applyPlayerModifiers(player, movementResolution.nextModifiers);
+    applyPlayerTags(player, movementResolution.nextTags);
   }
 }
 
@@ -583,6 +599,7 @@ function applyPhaseStartToPlayer(
     phase === "turn-start"
       ? applyTurnStartModifiers(player.characterId, {
           id: player.id,
+          modifiers: cloneModifierIds(player.modifiers),
           phase,
           position: clonePosition(player.position),
           tags: clonePlayerTags(player.tags),
@@ -591,6 +608,7 @@ function applyPhaseStartToPlayer(
       : phase === "turn-action"
         ? applyTurnActionStartModifiers(player.characterId, {
             id: player.id,
+            modifiers: cloneModifierIds(player.modifiers),
             phase,
             position: clonePosition(player.position),
             tags: clonePlayerTags(player.tags),
@@ -598,12 +616,14 @@ function applyPhaseStartToPlayer(
           })
         : applyTurnEndModifiers(player.characterId, {
             id: player.id,
+            modifiers: cloneModifierIds(player.modifiers),
             phase,
             position: clonePosition(player.position),
             tags: clonePlayerTags(player.tags),
             tools: [...player.tools]
           });
 
+  applyPlayerModifiers(player, phaseStart.nextModifiers);
   applyPlayerTags(player, phaseStart.nextTags);
 
   if (!phaseStart.grantTools.length) {
@@ -637,6 +657,7 @@ function applyTurnStartStop(
     player: {
       characterId: player.characterId,
       id: player.id,
+      modifiers: cloneModifierIds(player.modifiers),
       position: nextPosition,
       spawnPosition: clonePosition(player.spawnPosition),
       tags: nextTags,
@@ -676,6 +697,7 @@ function applyTurnStartStop(
           {
             characterId: player.characterId,
             id: player.id,
+            modifiers: cloneModifierIds(player.modifiers),
             position: nextPosition,
             spawnPosition: clonePosition(player.spawnPosition),
             tags: nextTags,
@@ -734,6 +756,7 @@ function enterActionPhaseWithRoll(
     player.characterId,
     {
       id: player.id,
+      modifiers: cloneModifierIds(player.modifiers),
       phase: "turn-start",
       position: clonePosition(player.position),
       tags: clonePlayerTags(player.tags),
@@ -743,6 +766,7 @@ function enterActionPhaseWithRoll(
     rolledTool
   );
 
+  applyPlayerModifiers(player, diceRollModifiers.nextModifiers);
   applyPlayerTags(player, diceRollModifiers.nextTags);
   applyToolInventory(
     player,
@@ -871,12 +895,14 @@ function finishTurn(
 ): void {
   const phaseEnd = applyTurnEndModifiers(player.characterId, {
     id: player.id,
+    modifiers: cloneModifierIds(player.modifiers),
     phase: state.snapshot.turnInfo.phase,
     position: clonePosition(player.position),
     tags: clonePlayerTags(player.tags),
     tools: [...player.tools]
   });
 
+  applyPlayerModifiers(player, phaseEnd.nextModifiers);
   applyPlayerTags(player, phaseEnd.nextTags);
   pushEvent(state, "turn_ended", message);
   state.snapshot.turnInfo.phase = "turn-end";
@@ -1095,6 +1121,7 @@ function runUseToolCommand(
     actor: {
       id: player.id,
       characterId: player.characterId,
+      modifiers: cloneModifierIds(player.modifiers),
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
@@ -1240,6 +1267,7 @@ function runSetCharacterCommand(
   }
 
   player.characterId = characterId as PlayerSnapshot["characterId"];
+  applyPlayerModifiers(player, []);
   applyPlayerTags(player, {});
   clearPlayerTurnResources(player);
   applyPhaseStartToPlayer(state, player, "turn-start");
@@ -1410,6 +1438,7 @@ export function createGameOrchestrationStateFromScene(
     finishedTurnNumber: player.finishedTurnNumber ?? null,
     isConnected: true,
     isReady: false,
+    modifiers: cloneModifierIds(player.modifiers ?? []),
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition ?? player.position),
     tags: clonePlayerTags(player.tags ?? {}),

@@ -449,9 +449,9 @@ export const GOLDEN_CHARACTER_CASES = [
   }),
   defineGoldenCase({
     id: "awm-shoot-applies-bondage-tags",
-    title: "AWM applies bondage through tags instead of character-specific runtime state",
+    title: "AWM installs bondage and writes stacks without character-specific runtime state",
     description:
-      "AWM Shoot should tag the first hit player with bondage stacks equal to AWM's current movement pool.",
+      "AWM Shoot should install the base bondage modifier on the first hit player and write stacks equal to AWM's current movement pool.",
     scene: {
       layout: [
         "########",
@@ -507,6 +507,7 @@ export const GOLDEN_CHARACTER_CASES = [
         },
         target: {
           position: { x: 3, y: 1 },
+          modifiers: ["basis:bondage"],
           tags: {
             "basis:bondage-stacks": 2
           }
@@ -518,7 +519,7 @@ export const GOLDEN_CHARACTER_CASES = [
     id: "bondage-modifier-reduces-next-movement-and-clears-on-turn-end",
     title: "Bondage is a pluggable base modifier that reduces movement and clears on turn end",
     description:
-      "A non-AWM player with bondage tags should receive reduced movement-derived tools on roll, then lose the tags at turn end.",
+      "A player with an installed bondage modifier should receive reduced movement-derived tools on roll, then lose both the modifier and its stacks at turn end.",
     scene: {
       layout: [
         "########",
@@ -532,6 +533,7 @@ export const GOLDEN_CHARACTER_CASES = [
           name: "Target",
           characterId: "late",
           position: { x: 1, y: 1 },
+          modifiers: ["basis:bondage"],
           tags: {
             "basis:bondage-stacks": 2
           }
@@ -571,6 +573,7 @@ export const GOLDEN_CHARACTER_CASES = [
       players: {
         target: {
           position: { x: 2, y: 1 },
+          modifiers: [],
           tags: {},
           toolIds: []
         }

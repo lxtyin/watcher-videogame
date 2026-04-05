@@ -25,8 +25,10 @@
 - 将 Modifier 阶段 hook 统一收敛为 `onTurnStart / onTurnActionStart / onTurnEnd`。
 - 把单个 Tool 的定义与执行收拢到 `packages/shared/src/tool-modules/`，删除旧的分散式 `rules/executors/*` 工具实现文件。
 - 将回合开始的停留结算从 `movementSystem.resolveCurrentTileStop` 收回 `gameOrchestration.ts`，由编排层统一处理地形与召唤物停留效果。
-- 新增角色 `AWM` 与基础 Modifier `bondage`，验证“角色施加 tags，基础 Modifier 通过 tags 激活”的可插拔能力模型。
-- 扩展 golden 断言以检查 `player.tags`，并新增 AWM / bondage 两条能力系统回归用例。
+- 将运行时可插拔 Modifier 显式迁移到 `Player.modifiers`，不再通过枚举全部 Modifier 再结合 tags 推断激活。
+- 新增角色 `AWM` 与基础 Modifier `bondage`，验证“角色安装 Modifier，tags 仅保存层数状态”的可插拔能力模型。
+- 扩展 golden 断言以检查 `player.tags` 与 `player.modifiers`，并新增 AWM / bondage 两条能力系统回归用例。
+- 为 `packages/server` 与 `packages/client` 的类型检查增加 `@watcher/shared -> ../shared/src/index.ts` 路径映射，避免工作区内 typecheck 读取过期 dist 声明。
 
 ## 2026-04-04
 
@@ -40,6 +42,8 @@
 
 ## 最近验证
 
-- `npm.cmd run typecheck`
-- `npm.cmd run goldens`
+- `npm.cmd run typecheck --workspace @watcher/shared`
+- `npm.cmd run typecheck --workspace @watcher/server`
+- `npm.cmd run typecheck --workspace @watcher/client`
+- `node_modules/.bin/tsx.cmd -e "...runGoldenCases(GOLDEN_CASES)..."`
 - 结果：`22/22` golden cases passed

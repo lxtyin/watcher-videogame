@@ -122,6 +122,7 @@ export function buildActionPreview(
       id: player.id,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
+      modifiers: player.modifiers,
       tags: player.tags,
       position: player.position,
       spawnPosition: player.spawnPosition,
@@ -136,6 +137,7 @@ export function buildActionPreview(
   const actor = {
     id: me.id,
     characterId: me.characterId,
+    modifiers: me.modifiers,
     tags: me.tags,
     position: me.position,
     spawnPosition: me.spawnPosition,

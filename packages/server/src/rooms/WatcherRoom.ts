@@ -132,6 +132,9 @@ export class WatcherRoom extends Room<WatcherState> {
     player.boardVisible = true;
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.tagsJson = "{}";
+    while (player.modifiers.length > 0) {
+      player.modifiers.pop();
+    }
     player.finishRank = 0;
     player.finishedTurnNumber = 0;
     player.isConnected = true;
@@ -277,6 +280,9 @@ export class WatcherRoom extends Room<WatcherState> {
       player.finishRank = 0;
       player.finishedTurnNumber = 0;
       player.tagsJson = "{}";
+      while (player.modifiers.length > 0) {
+        player.modifiers.pop();
+      }
 
       if (clearReady) {
         player.isReady = false;
@@ -559,6 +565,9 @@ export class WatcherRoom extends Room<WatcherState> {
     if (this.state.roomPhase === "lobby") {
       player.characterId = payload.characterId;
       player.tagsJson = "{}";
+      while (player.modifiers.length > 0) {
+        player.modifiers.pop();
+      }
       this.pushEvent(
         "character_switched",
         `${player.name} selected ${getCharacterDefinition(payload.characterId).label}.`

@@ -86,6 +86,7 @@ export function resolveDisplayedPlayers(
     snapshot.players.map((player) => {
       const clonedPlayer: PlayerSnapshot = {
         ...player,
+        modifiers: [...player.modifiers],
         position: { ...player.position },
         spawnPosition: { ...player.spawnPosition },
         tags: { ...player.tags },

@@ -45,6 +45,7 @@ export function buildBlockedResolution(
     path,
     previewTiles,
     actor: {
+      modifiers: actor.modifiers,
       position: actor.position,
       tags: actor.tags,
       turnFlags: actor.turnFlags
@@ -87,6 +88,7 @@ export function buildAppliedResolution(
     path,
     previewTiles,
     actor: {
+      modifiers: nextActor.modifiers,
       position: nextActor.position,
       tags: nextActor.tags,
       turnFlags: nextActor.turnFlags

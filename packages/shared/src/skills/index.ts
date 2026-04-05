@@ -1,7 +1,5 @@
 import { getCharacterDefinition } from "../characters";
-import { clonePlayerTags } from "../playerTags";
 import type {
-  ModifierActivationContext,
   ModifierDiceRollHookResult,
   ModifierDefinition,
   ModifierMovementHookContext,
@@ -9,8 +7,14 @@ import type {
   ModifierToolHookResult,
   SkillDefinition
 } from "../modifiers";
+import {
+  cloneModifierIds,
+  normalizeModifierIds
+} from "../modifiers";
+import { clonePlayerTags } from "../playerTags";
 import type {
   CharacterId,
+  ModifierId,
   MovementDescriptor,
   MovementType,
   PlayerTagMap,
@@ -27,6 +31,7 @@ import {
   BLAZE_SKILL_DEFINITION
 } from "./blaze";
 import {
+  BONDAGE_MODIFIER_ID,
   BONDAGE_MODIFIER_DEFINITION,
   BONDAGE_STACKS_TAG
 } from "./bondage";
@@ -59,6 +64,7 @@ export {
   BLAZE_BOMB_PREPARED_TAG
 } from "./blaze";
 export {
+  BONDAGE_MODIFIER_ID,
   BONDAGE_STACKS_TAG
 } from "./bondage";
 export {
@@ -72,6 +78,15 @@ export {
   VOLATY_LEAP_PENDING_TAG,
   VOLATY_LEAP_TURN_TAG
 } from "./volaty";
+
+interface ModifierActorContext {
+  id: string;
+  modifiers: readonly ModifierId[];
+  phase: TurnPhase;
+  position: { x: number; y: number };
+  tags: PlayerTagMap;
+  tools: readonly TurnToolSnapshot[];
+}
 
 function defineSkillRegistry<const Registry extends Record<string, SkillDefinition>>(
   registry: Registry
@@ -124,90 +139,89 @@ function getCharacterModifiers(characterId: CharacterId): ModifierDefinition[] {
   });
 }
 
-function isRuntimeModifierActive(
-  modifier: ModifierDefinition,
-  context: ModifierActivationContext
-): boolean {
-  return modifier.isActive?.(context) ?? false;
+function getRuntimeModifiers(modifierIds: readonly ModifierId[]): ModifierDefinition[] {
+  return normalizeModifierIds(modifierIds).flatMap((modifierId) => {
+    const modifier = MODIFIER_REGISTRY[modifierId];
+
+    return modifier ? [modifier] : [];
+  });
 }
 
-function getPlayerModifiers(characterId: CharacterId, tags: PlayerTagMap): ModifierDefinition[] {
+function getPlayerModifiers(
+  characterId: CharacterId,
+  modifierIds: readonly ModifierId[]
+): ModifierDefinition[] {
   const modifiersById = new Map<string, ModifierDefinition>();
 
   for (const modifier of getCharacterModifiers(characterId)) {
     modifiersById.set(modifier.id, modifier);
   }
 
-  for (const modifier of Object.values(MODIFIER_REGISTRY)) {
-    if (isRuntimeModifierActive(modifier, { characterId, tags })) {
-      modifiersById.set(modifier.id, modifier);
-    }
+  for (const modifier of getRuntimeModifiers(modifierIds)) {
+    modifiersById.set(modifier.id, modifier);
   }
 
   return [...modifiersById.values()];
 }
 
 function mergePhaseResult(
+  nextModifiers: ModifierId[],
   nextTags: PlayerTagMap,
   result: ModifierPhaseHookResult | null
 ): {
   grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
 } {
   return {
     grantTools: result?.grantTools ? [...result.grantTools] : [],
+    nextModifiers: result?.nextModifiers ? cloneModifierIds(result.nextModifiers) : nextModifiers,
     nextTags: result?.nextTags ? clonePlayerTags(result.nextTags) : nextTags
   };
 }
 
 function applyTurnHook(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  },
+  actor: ModifierActorContext,
   hookName: "onTurnActionStart" | "onTurnEnd" | "onTurnStart"
 ): {
   grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
 } {
+  let nextModifiers = cloneModifierIds(actor.modifiers);
   let nextTags = clonePlayerTags(actor.tags);
   const grantTools: ToolLoadoutDefinition[] = [];
 
-  for (const modifier of getPlayerModifiers(characterId, nextTags)) {
+  for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
     const result = modifier.hooks[hookName]?.({
       actorId: actor.id,
       characterId,
+      modifiers: nextModifiers,
       phase: actor.phase,
       position: actor.position,
       tags: nextTags,
       tools: actor.tools
     }) ?? null;
-    const merged = mergePhaseResult(nextTags, result);
+    const merged = mergePhaseResult(nextModifiers, nextTags, result);
+    nextModifiers = merged.nextModifiers;
     nextTags = merged.nextTags;
     grantTools.push(...merged.grantTools);
   }
 
   return {
     grantTools,
+    nextModifiers,
     nextTags
   };
 }
 
 export function applyTurnActionStartModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  }
+  actor: ModifierActorContext
 ): {
   grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
 } {
   return applyTurnHook(characterId, actor, "onTurnActionStart");
@@ -215,15 +229,10 @@ export function applyTurnActionStartModifiers(
 
 export function applyTurnEndModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  }
+  actor: ModifierActorContext
 ): {
   grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
 } {
   return applyTurnHook(characterId, actor, "onTurnEnd");
@@ -231,15 +240,10 @@ export function applyTurnEndModifiers(
 
 export function applyTurnStartModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  }
+  actor: ModifierActorContext
 ): {
   grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
 } {
   return applyTurnHook(characterId, actor, "onTurnStart");
@@ -247,31 +251,28 @@ export function applyTurnStartModifiers(
 
 export function applyDiceRollModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  },
+  actor: ModifierActorContext,
   movementRoll: number,
   rolledTool: ToolLoadoutDefinition | null
 ): {
   grantTools: ToolLoadoutDefinition[];
   movementRoll: number;
+  nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
   rolledTool: ToolLoadoutDefinition | null;
 } {
+  let nextModifiers = cloneModifierIds(actor.modifiers);
   let nextTags = clonePlayerTags(actor.tags);
   let nextMovementRoll = movementRoll;
   let nextRolledTool = rolledTool;
   const grantTools: ToolLoadoutDefinition[] = [];
 
-  for (const modifier of getPlayerModifiers(characterId, nextTags)) {
+  for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
     const result: ModifierDiceRollHookResult | null =
       modifier.hooks.onDiceRoll?.({
         actorId: actor.id,
         characterId,
+        modifiers: nextModifiers,
         phase: actor.phase,
         position: actor.position,
         tags: nextTags,
@@ -292,6 +293,10 @@ export function applyDiceRollModifiers(
       nextRolledTool = result.rolledTool ?? null;
     }
 
+    if (result.nextModifiers) {
+      nextModifiers = cloneModifierIds(result.nextModifiers);
+    }
+
     if (result.nextTags) {
       nextTags = clonePlayerTags(result.nextTags);
     }
@@ -304,6 +309,7 @@ export function applyDiceRollModifiers(
   return {
     grantTools,
     movementRoll: nextMovementRoll,
+    nextModifiers,
     nextTags,
     rolledTool: nextRolledTool
   };
@@ -311,16 +317,18 @@ export function applyDiceRollModifiers(
 
 export function applyOnGetToolModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  },
+  actor: ModifierActorContext,
   tools: readonly TurnToolSnapshot[]
-): TurnToolSnapshot[] {
-  return tools.flatMap((tool) => {
+): {
+  nextModifiers: ModifierId[];
+  nextTags: PlayerTagMap;
+  tools: TurnToolSnapshot[];
+} {
+  let nextModifiers = cloneModifierIds(actor.modifiers);
+  let nextTags = clonePlayerTags(actor.tags);
+  const nextTools: TurnToolSnapshot[] = [];
+
+  for (const tool of tools) {
     let nextTool: TurnToolSnapshot | null = {
       ...tool,
       params: {
@@ -328,7 +336,7 @@ export function applyOnGetToolModifiers(
       }
     };
 
-    for (const modifier of getPlayerModifiers(characterId, actor.tags)) {
+    for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
       if (!nextTool) {
         break;
       }
@@ -336,43 +344,57 @@ export function applyOnGetToolModifiers(
       const result: ModifierToolHookResult | null = modifier.hooks.onGetTool?.({
         actorId: actor.id,
         characterId,
+        modifiers: nextModifiers,
         phase: actor.phase,
         position: actor.position,
-        tags: actor.tags,
+        tags: nextTags,
         tools: actor.tools,
         tool: nextTool
       }) ?? null;
 
-      if (!result || result.tool === undefined) {
+      if (!result) {
         continue;
       }
 
-      nextTool = result.tool;
+      if (result.nextModifiers) {
+        nextModifiers = cloneModifierIds(result.nextModifiers);
+      }
+
+      if (result.nextTags) {
+        nextTags = clonePlayerTags(result.nextTags);
+      }
+
+      if (result.tool !== undefined) {
+        nextTool = result.tool;
+      }
     }
 
-    return nextTool ? [nextTool] : [];
-  });
+    if (nextTool) {
+      nextTools.push(nextTool);
+    }
+  }
+
+  return {
+    nextModifiers,
+    nextTags,
+    tools: nextTools
+  };
 }
 
 export function resolveToolMovementType(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  },
+  actor: ModifierActorContext,
   tool: TurnToolSnapshot,
   movementType: MovementType
 ): MovementType {
   let nextMovementType = movementType;
 
-  for (const modifier of getPlayerModifiers(characterId, actor.tags)) {
+  for (const modifier of getPlayerModifiers(characterId, actor.modifiers)) {
     const overrideMovementType =
       modifier.hooks.getMovementType?.({
         actorId: actor.id,
         characterId,
+        modifiers: actor.modifiers,
         phase: actor.phase,
         position: actor.position,
         tags: actor.tags,
@@ -391,24 +413,23 @@ export function resolveToolMovementType(
 
 export function applyMovementResolvedModifiers(
   characterId: CharacterId,
-  actor: {
-    id: string;
-    phase: TurnPhase;
-    position: { x: number; y: number };
-    tags: PlayerTagMap;
-    tools: readonly TurnToolSnapshot[];
-  },
+  actor: ModifierActorContext,
   movement: MovementDescriptor,
   direction: "up" | "down" | "left" | "right" | null,
   path: readonly { x: number; y: number }[]
-): PlayerTagMap {
+): {
+  nextModifiers: ModifierId[];
+  nextTags: PlayerTagMap;
+} {
+  let nextModifiers = cloneModifierIds(actor.modifiers);
   let nextTags = clonePlayerTags(actor.tags);
 
-  for (const modifier of getPlayerModifiers(characterId, nextTags)) {
+  for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
     const result: ModifierPhaseHookResult | null =
       modifier.hooks.onMovementResolved?.({
         actorId: actor.id,
         characterId,
+        modifiers: nextModifiers,
         phase: actor.phase,
         position: actor.position,
         tags: nextTags,
@@ -418,10 +439,17 @@ export function applyMovementResolvedModifiers(
         path
       } satisfies ModifierMovementHookContext) ?? null;
 
+    if (result?.nextModifiers) {
+      nextModifiers = cloneModifierIds(result.nextModifiers);
+    }
+
     if (result?.nextTags) {
       nextTags = clonePlayerTags(result.nextTags);
     }
   }
 
-  return nextTags;
+  return {
+    nextModifiers,
+    nextTags
+  };
 }

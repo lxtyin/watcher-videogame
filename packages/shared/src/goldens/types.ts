@@ -7,6 +7,7 @@ import type {
   GameMode,
   GameSnapshot,
   GridPosition,
+  ModifierId,
   PlayerTagMap,
   PlayerTurnFlag,
   SummonId,
@@ -30,6 +31,7 @@ export interface GoldenPlayerDefinition {
   color?: string;
   id: string;
   name?: string;
+  modifiers?: ModifierId[];
   position: GridPosition;
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
@@ -107,6 +109,7 @@ export interface GoldenExpectedPlayerState {
   characterId?: CharacterId;
   finishRank?: number | null;
   finishedTurnNumber?: number | null;
+  modifiers?: ModifierId[];
   position?: GridPosition;
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
@@ -156,6 +159,7 @@ export interface GoldenCasePlayerSummary {
   color: string;
   finishRank: number | null;
   finishedTurnNumber: number | null;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;

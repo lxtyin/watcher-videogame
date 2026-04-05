@@ -6,6 +6,7 @@ import type {
   GameSnapshot,
   GrantDebugToolPayload,
   GridPosition,
+  ModifierId,
   PlayerTagMap,
   PlayerTurnFlag,
   SetCharacterCommandPayload,
@@ -35,6 +36,7 @@ export interface SimulationPlayerDefinition {
   name?: string;
   petId?: string;
   position: GridPosition;
+  modifiers?: ModifierId[];
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
   tools?: SimulationToolLoadoutDefinition[];

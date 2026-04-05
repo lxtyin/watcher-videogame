@@ -51,6 +51,7 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
   return {
     characterId: actor.characterId,
     id: actor.id,
+    modifiers: actor.modifiers,
     position: actor.position,
     spawnPosition: actor.spawnPosition,
     tags: actor.tags,
@@ -75,6 +76,7 @@ export function createToolMovementDescriptor(
           context.actor.characterId,
           {
             id: context.actor.id,
+            modifiers: context.actor.modifiers,
             phase: context.phase,
             position: context.actor.position,
             tags: context.actor.tags,
@@ -137,6 +139,7 @@ export function toAffectedPlayerMove(
     playerId,
     reason,
     startPosition,
+    modifiers: resolution.actor.modifiers,
     target: resolution.actor.position,
     tags: resolution.actor.tags,
     turnFlags: resolution.actor.turnFlags
@@ -146,6 +149,7 @@ export function toAffectedPlayerMove(
 export function toTaggedPlayerPatch(
   player: ToolActionContext["players"][number],
   movement: MovementDescriptor,
+  nextModifiers: ToolActionContext["players"][number]["modifiers"],
   nextTags: ToolActionContext["players"][number]["tags"],
   reason: string
 ): AffectedPlayerMove {
@@ -155,6 +159,7 @@ export function toTaggedPlayerPatch(
     playerId: player.id,
     reason,
     startPosition: player.position,
+    modifiers: nextModifiers,
     target: player.position,
     tags: nextTags,
     turnFlags: player.turnFlags

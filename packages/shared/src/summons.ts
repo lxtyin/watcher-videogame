@@ -1,11 +1,13 @@
 import { SUMMON_REGISTRY } from "./content/summons";
 import { rollToolDie } from "./dice";
+import { cloneModifierIds } from "./modifiers";
 import { isMovementDisposition, isMovementType } from "./rules/displacement";
 import type {
   BoardSummonState,
   CharacterId,
   Direction,
   GridPosition,
+  ModifierId,
   MovementActor,
   MovementDescriptor,
   PlayerTagMap,
@@ -20,6 +22,7 @@ import { createRolledToolInstance } from "./tools";
 interface SummonTriggerTarget {
   characterId: CharacterId;
   id: string;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
@@ -41,6 +44,7 @@ interface SummonTriggerContext {
 interface SummonTriggerResult {
   consumeSummon?: boolean;
   nextDirection?: Direction;
+  nextModifiers?: ModifierId[];
   nextRemainingMovePoints?: number;
   nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
@@ -63,6 +67,7 @@ interface SummonPhaseContext {
 
 export interface SummonPhaseResolution {
   nextDirection?: Direction;
+  nextModifiers?: ModifierId[];
   nextRemainingMovePoints?: number;
   nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
@@ -185,6 +190,10 @@ function applySummonTriggerResult(
     };
   }
 
+  if (result.nextModifiers) {
+    resolution.nextModifiers = cloneModifierIds(result.nextModifiers);
+  }
+
   if (result.nextDirection) {
     resolution.nextDirection = result.nextDirection;
   }
@@ -245,6 +254,7 @@ function runSummonPhase(
       player: {
         characterId: context.player.characterId,
         id: context.player.id,
+        modifiers: cloneModifierIds(context.player.modifiers),
         position: context.position,
         spawnPosition: context.player.spawnPosition,
         tags: context.player.tags,

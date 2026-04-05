@@ -3,6 +3,7 @@ import type {
   Direction,
   GameMode,
   GameSnapshot,
+  ModifierId,
   TurnPhase,
   RoomPhase,
   PlayerTagMap,
@@ -34,6 +35,7 @@ interface RoomPlayerState {
   color: string;
   boardVisible: boolean;
   characterId: CharacterId;
+  modifiers: Iterable<ModifierId>;
   tagsJson: string;
   finishRank: number;
   finishedTurnNumber: number;
@@ -181,6 +183,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       color: player.color,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
+      modifiers: Array.from(player.modifiers),
       tags: parsePlayerTags(player.tagsJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
       finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,

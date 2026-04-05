@@ -1,6 +1,7 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { attachModifier } from "../modifiers";
 import { setPlayerTagValue } from "../playerTags";
-import { BONDAGE_STACKS_TAG } from "../skills";
+import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../skills/bondage";
 import type { AffectedPlayerMove, ActionResolution } from "../types";
 import {
   buildAppliedResolution,
@@ -55,6 +56,7 @@ function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): Act
           toTaggedPlayerPatch(
             hitPlayer,
             bondageMovement,
+            attachModifier(hitPlayer.modifiers, BONDAGE_MODIFIER_ID),
             setPlayerTagValue(hitPlayer.tags, BONDAGE_STACKS_TAG, bondageStacks),
             "awm_shot"
           )

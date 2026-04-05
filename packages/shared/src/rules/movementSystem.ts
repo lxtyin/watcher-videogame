@@ -4,6 +4,7 @@ import type {
   BoardSummonState,
   Direction,
   GridPosition,
+  ModifierId,
   MovementActor,
   MovementDescriptor,
   PlayerTagMap,
@@ -38,6 +39,7 @@ interface MovementSystemContext {
 interface MovementSubject {
   characterId: MovementActor["characterId"];
   id: string;
+  modifiers: ModifierId[];
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
@@ -103,6 +105,7 @@ function cloneSubject(player: MovementSubject): MovementSubject {
   return {
     characterId: player.characterId,
     id: player.id,
+    modifiers: [...player.modifiers],
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition),
     tags: clonePlayerTags(player.tags),
@@ -134,6 +137,7 @@ function applyToolStatePatch(
   state: MutableMovementState,
   patch: {
     nextDirection?: Direction;
+    nextModifiers?: ModifierId[];
     nextRemainingMovePoints?: number;
     nextTags?: PlayerTagMap;
     nextToolDieSeed?: number;
@@ -143,6 +147,10 @@ function applyToolStatePatch(
 ): void {
   if (patch.nextTags) {
     state.player.tags = clonePlayerTags(patch.nextTags);
+  }
+
+  if (patch.nextModifiers) {
+    state.player.modifiers = [...patch.nextModifiers];
   }
 
   if (patch.nextDirection) {
@@ -190,6 +198,7 @@ function appendEffectArrays(
 function applyStopPatch(
   state: MutableMovementState,
   patch: {
+    nextModifiers?: ModifierId[];
     nextPosition?: GridPosition;
     nextTags?: PlayerTagMap;
     nextToolDieSeed?: number;
@@ -330,6 +339,7 @@ function runStopTriggers(
       characterId: state.player.characterId,
       id: state.player.id,
       isActor: state.player.id === context.actorId,
+      modifiers: [...state.player.modifiers],
       position: state.player.position,
       spawnPosition: state.player.spawnPosition,
       tags: state.player.tags,
@@ -356,6 +366,7 @@ function buildResolution(
 ): MovementSystemResolution {
   return {
     actor: {
+      modifiers: [...state.player.modifiers],
       position: clonePosition(state.player.position),
       tags: clonePlayerTags(state.player.tags),
       turnFlags: [...state.player.turnFlags]

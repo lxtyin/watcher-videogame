@@ -218,6 +218,7 @@ function summarizePlayers(
         color: player.color,
         finishRank: player.finishRank,
         finishedTurnNumber: player.finishedTurnNumber,
+        modifiers: [...player.modifiers],
         position: clonePosition(player.position),
         spawnPosition: clonePosition(player.spawnPosition),
         tags: { ...player.tags },
@@ -322,6 +323,15 @@ function compareExpectedPlayerState(
   ) {
     mismatches.push(
       `Player "${playerId}" tags mismatch: expected ${JSON.stringify(expected.tags)}, got ${JSON.stringify(actual.tags)}.`
+    );
+  }
+
+  if (
+    expected.modifiers &&
+    JSON.stringify(expected.modifiers) !== JSON.stringify(actual.modifiers)
+  ) {
+    mismatches.push(
+      `Player "${playerId}" modifiers mismatch: expected [${expected.modifiers.join(", ")}], got [${actual.modifiers.join(", ")}].`
     );
   }
 

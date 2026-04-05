@@ -1,6 +1,7 @@
 import type {
   AffectedPlayerMove,
   GameSnapshot,
+  ModifierId,
   PlayerTagMap,
   SummonMutation,
   TileMutation,
@@ -66,6 +67,16 @@ export function applyPlayerTags(player: PlayerState, tags: PlayerTagMap): void {
   player.tagsJson = JSON.stringify(tags);
 }
 
+export function applyPlayerModifiers(player: PlayerState, modifiers: readonly ModifierId[]): void {
+  while (player.modifiers.length > 0) {
+    player.modifiers.pop();
+  }
+
+  for (const modifier of modifiers) {
+    player.modifiers.push(modifier);
+  }
+}
+
 // Tile mutations persist permanent board changes such as broken earth walls.
 export function applyTileMutations(state: WatcherState, tileMutations: TileMutation[]): void {
   for (const mutation of tileMutations) {
@@ -103,7 +114,8 @@ export function applyAffectedPlayerMoves(
   state: WatcherState,
   affectedPlayers: AffectedPlayerMove[],
   applyFlags: (player: PlayerState, turnFlags: string[]) => void,
-  applyPlayerTagsPatch: (player: PlayerState, tags: PlayerTagMap) => void
+  applyPlayerTagsPatch: (player: PlayerState, tags: PlayerTagMap) => void,
+  applyPlayerModifiersPatch: (player: PlayerState, modifiers: readonly ModifierId[]) => void
 ): void {
   for (const affectedPlayer of affectedPlayers) {
     const player = state.players.get(affectedPlayer.playerId);
@@ -121,6 +133,10 @@ export function applyAffectedPlayerMoves(
 
     if (affectedPlayer.tags) {
       applyPlayerTagsPatch(player, affectedPlayer.tags);
+    }
+
+    if (affectedPlayer.modifiers) {
+      applyPlayerModifiersPatch(player, affectedPlayer.modifiers);
     }
   }
 }
@@ -191,6 +207,7 @@ export function applyGameSnapshotToState(
     playerState.boardVisible = player.boardVisible;
     playerState.characterId = player.characterId;
     playerState.tagsJson = JSON.stringify(player.tags);
+    applyPlayerModifiers(playerState, player.modifiers);
     playerState.finishRank = player.finishRank ?? 0;
     playerState.finishedTurnNumber = player.finishedTurnNumber ?? 0;
     playerState.isConnected = player.isConnected;
