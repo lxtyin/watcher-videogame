@@ -16,7 +16,6 @@ import {
   type SetCharacterCommandPayload,
   type SetReadyCommandPayload,
   type SimulationCommand,
-  type UseTurnStartActionCommandPayload,
   type UseToolCommandPayload
 } from "@watcher/shared";
 import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
@@ -71,10 +70,6 @@ export class WatcherRoom extends Room<WatcherState> {
 
     this.onMessage("rollDice", (client) => {
       this.handleRollDice(client);
-    });
-
-    this.onMessage("useTurnStartAction", (client, payload: UseTurnStartActionCommandPayload) => {
-      this.handleUseTurnStartAction(client, payload);
     });
 
     this.onMessage("useTool", (client, payload: UseToolCommandPayload) => {
@@ -136,7 +131,7 @@ export class WatcherRoom extends Room<WatcherState> {
     player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
     player.boardVisible = true;
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
-    player.characterStateJson = "{}";
+    player.tagsJson = "{}";
     player.finishRank = 0;
     player.finishedTurnNumber = 0;
     player.isConnected = true;
@@ -223,10 +218,9 @@ export class WatcherRoom extends Room<WatcherState> {
 
   private resetTurnState(turnNumber: number): void {
     this.state.turnInfo.currentPlayerId = "";
-    this.state.turnInfo.phase = "roll";
+    this.state.turnInfo.phase = "turn-start";
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
-    this.state.turnInfo.turnStartActionsJson = "[]";
     this.state.turnInfo.toolDieSeed = this.runtimeState.toolDieSeed;
     this.state.turnInfo.turnNumber = turnNumber;
   }
@@ -282,7 +276,7 @@ export class WatcherRoom extends Room<WatcherState> {
       player.boardVisible = true;
       player.finishRank = 0;
       player.finishedTurnNumber = 0;
-      player.characterStateJson = "{}";
+      player.tagsJson = "{}";
 
       if (clearReady) {
         player.isReady = false;
@@ -535,17 +529,6 @@ export class WatcherRoom extends Room<WatcherState> {
     });
   }
 
-  private handleUseTurnStartAction(
-    client: Client,
-    payload: UseTurnStartActionCommandPayload
-  ): void {
-    this.dispatchInGameCommand({
-      kind: "useTurnStartAction",
-      actorId: client.sessionId,
-      payload
-    });
-  }
-
   private handleUseTool(client: Client, payload: UseToolCommandPayload): void {
     this.dispatchInGameCommand({
       kind: "useTool",
@@ -575,7 +558,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     if (this.state.roomPhase === "lobby") {
       player.characterId = payload.characterId;
-      player.characterStateJson = "{}";
+      player.tagsJson = "{}";
       this.pushEvent(
         "character_switched",
         `${player.name} selected ${getCharacterDefinition(payload.characterId).label}.`

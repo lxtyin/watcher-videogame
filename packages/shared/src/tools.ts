@@ -24,6 +24,7 @@ function materializeToolDefinitions(): Record<ToolId, ToolDefinition> {
       {
         id: toolId as ToolId,
         ...definition,
+        phases: "phases" in definition ? (definition.phases ?? ["turn-action"]) : ["turn-action"],
         choices:
           "choices" in definition
             ? (definition.choices?.map((choice: ToolChoiceDefinition) => ({
@@ -36,7 +37,7 @@ function materializeToolDefinitions(): Record<ToolId, ToolDefinition> {
         }))
       }
     ])
-  ) as Record<ToolId, ToolDefinition>;
+  ) as unknown as Record<ToolId, ToolDefinition>;
 }
 
 function materializeToolDieFaces(): readonly ToolDieFaceDefinition[] {
@@ -62,6 +63,10 @@ function mergeToolParams(
 // Tool definitions are the canonical metadata source for both rules and UI.
 export function getToolDefinition(toolId: ToolId): ToolDefinition {
   return TOOL_DEFINITIONS[toolId];
+}
+
+export function canUseToolInPhase(toolId: ToolId, phase: ToolDefinition["phases"][number]): boolean {
+  return TOOL_DEFINITIONS[toolId].phases.includes(phase);
 }
 
 // Directional tools need a cardinal input before they can execute.

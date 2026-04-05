@@ -198,7 +198,6 @@ export function BoardScene() {
   const setSelectedToolInstanceId = useGameStore((state) => state.setSelectedToolInstanceId);
   const showToolNotice = useGameStore((state) => state.showToolNotice);
   const rollDice = useGameStore((state) => state.rollDice);
-  const useTurnStartAction = useGameStore((state) => state.useTurnStartAction);
   const endTurn = useGameStore((state) => state.endTurn);
   const useInstantTool = useGameStore((state) => state.useInstantTool);
   const useChoiceTool = useGameStore((state) => state.useChoiceTool);
@@ -245,7 +244,6 @@ export function BoardScene() {
   const canShowDirectionArrows = Boolean(
     myPlayer &&
       isMyTurn &&
-      snapshot?.turnInfo.phase === "action" &&
       (selectedDirectionalTool || (selectedTileDirectionTool && aimState?.targetMode === "tile_direction"))
   );
   const focusedDirection =
@@ -1172,7 +1170,6 @@ export function BoardScene() {
                 hidden={isAiming && isMe}
                 interactive={isMe}
                 tools={player.tools}
-                turnStartActions={snapshot.turnInfo.turnStartActions}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
                 screenOffsetX={actionRingOffset.x}
@@ -1195,7 +1192,6 @@ export function BoardScene() {
                 onShowUnavailableToolNotice={isMe ? showToolNotice : () => {}}
                 onUseChoiceTool={isMe ? useChoiceTool : () => {}}
                 onUseInstantTool={isMe ? useInstantTool : () => {}}
-                onUseTurnStartAction={isMe ? useTurnStartAction : () => {}}
               />
             ) : null}
             {isMe && canShowDirectionArrows && (selectedDirectionalTool || selectedTileDirectionTool) ? (

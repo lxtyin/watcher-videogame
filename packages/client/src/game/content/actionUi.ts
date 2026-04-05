@@ -1,10 +1,9 @@
 import {
   TOOL_DEFINITIONS,
-  type ToolId,
-  type TurnStartActionId
+  type ToolId
 } from "@watcher/shared";
 
-export type ActionUiId = "roll" | ToolId | TurnStartActionId | "end";
+export type ActionUiId = "roll" | ToolId | "end";
 export type DirectionVisualVariant =
   | "move"
   | "jump"
@@ -102,6 +101,11 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     token: "跃",
     accent: "#77b8ff",
     detail: "弃骰飞跃"
+  },
+  awmShoot: {
+    token: "狙",
+    accent: TOOL_DEFINITIONS.awmShoot.color,
+    detail: "按住瞄准"
   },
   end: {
     token: "结",

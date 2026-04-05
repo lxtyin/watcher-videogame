@@ -33,7 +33,7 @@ export const GOLDEN_RACE_CASES = [
       ],
       turn: {
         currentPlayerId: "p1",
-        phase: "action",
+        phase: "turn-action",
         turnNumber: 1
       }
     },
@@ -64,7 +64,7 @@ export const GOLDEN_RACE_CASES = [
       },
       turnInfo: {
         currentPlayerId: "p2",
-        phase: "roll",
+        phase: "turn-start",
         turnNumber: 2
       }
     }
@@ -102,7 +102,7 @@ export const GOLDEN_RACE_CASES = [
       ],
       turn: {
         currentPlayerId: "p2",
-        phase: "action",
+        phase: "turn-action",
         turnNumber: 2
       }
     },
@@ -133,7 +133,7 @@ export const GOLDEN_RACE_CASES = [
       },
       turnInfo: {
         currentPlayerId: "",
-        phase: "roll",
+        phase: "turn-start",
         turnNumber: 2
       }
     }

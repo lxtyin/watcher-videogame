@@ -1,7 +1,6 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
-  TURN_START_ACTION_DEFINITIONS,
   describeToolButtonValue,
   getToolAvailability,
   getToolChoiceDefinitions,
@@ -12,7 +11,7 @@ import {
   isTileDirectionTool,
   isTileTargetTool,
   type ToolId,
-  type TurnStartActionSnapshot,
+  type TurnPhase,
   type TurnToolSnapshot
 } from "@watcher/shared";
 import {
@@ -29,25 +28,19 @@ import type { SelectedToolInstanceId } from "../state/useGameStore";
 interface SceneActionRingProps {
   hidden?: boolean;
   interactive?: boolean;
-  tools: TurnToolSnapshot[];
-  turnStartActions: TurnStartActionSnapshot[];
-  phase: "roll" | "action";
+  phase: TurnPhase;
   position: [number, number, number];
   screenOffsetX?: number;
   screenOffsetY?: number;
   selectedToolInstanceId: SelectedToolInstanceId;
+  tools: TurnToolSnapshot[];
   onEndTurn: () => void;
-  onPressAimTool: (
-    toolInstanceId: string,
-    clientX: number,
-    clientY: number
-  ) => void;
+  onPressAimTool: (toolInstanceId: string, clientX: number, clientY: number) => void;
   onRollDice: () => void;
   onSelectTool: (toolInstanceId: SelectedToolInstanceId) => void;
   onShowUnavailableToolNotice: (message: string) => void;
   onUseChoiceTool: (toolInstanceId: string, choiceId: string) => void;
   onUseInstantTool: (toolInstanceId: string) => void;
-  onUseTurnStartAction: (actionId: TurnStartActionSnapshot["actionId"]) => void;
 }
 
 interface FloatingActionItem {
@@ -56,13 +49,13 @@ interface FloatingActionItem {
   disabled: boolean;
   id: string;
   label: string;
-  onPointerDown: ((event: ReactPointerEvent<HTMLButtonElement>) => void) | undefined;
+  onClick: () => void;
+  onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   selected: boolean;
   testId: string;
   token: string;
   toolId?: ToolId;
   toolInstanceId?: string;
-  onClick: () => void;
 }
 
 const ARC_START_DEGREES = 206;
@@ -71,7 +64,6 @@ const RING_CENTER_X = 150;
 const RING_CENTER_Y = 154;
 const RING_RADIUS = 112;
 
-// Buttons are distributed along a fixed arc so the ring layout stays stable per frame.
 function getRingButtonStyle(index: number, total: number): CSSProperties {
   const angle =
     total === 1
@@ -85,7 +77,6 @@ function getRingButtonStyle(index: number, total: number): CSSProperties {
   };
 }
 
-// Tool subtitles expose the most relevant numeric state for the current ring button.
 function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
   const availability = getToolAvailability(tool, tools);
   const baseDetail = getActionUiConfig(tool.toolId).detail;
@@ -102,21 +93,19 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
   return availability.usable ? baseDetail : availability.reason ?? baseDetail;
 }
 
-// The caption explains the currently selected interaction mode at the center of the arc.
 function getSelectedCaption(
-  phase: "roll" | "action",
+  phase: TurnPhase,
   selectedTool: TurnToolSnapshot | null,
-  tools: TurnToolSnapshot[],
-  turnStartActions: TurnStartActionSnapshot[]
+  tools: TurnToolSnapshot[]
 ): string {
-  if (phase === "roll") {
-    return turnStartActions.length
-      ? "点击掷骰开始回合，或使用角色的回合开始技能"
-      : "点击头顶骰子开始本回合";
+  if (phase === "turn-start") {
+    return tools.length
+      ? "点击投骰开始回合，或先使用当前阶段工具"
+      : "点击投骰开始本回合";
   }
 
   if (!tools.length) {
-    return "本回合没有可用工具了，结束回合吧";
+    return phase === "turn-end" ? "回合结束阶段没有可用工具" : "本回合没有可用工具了，结束回合吧";
   }
 
   if (!selectedTool) {
@@ -131,7 +120,7 @@ function getSelectedCaption(
   }
 
   if (isDirectionalTool(selectedTool.toolId)) {
-    return `按住${label}，在场景里拖拽定向，松手执行`;
+    return `按住${label}并拖拽定向，松手执行`;
   }
 
   if (isTileTargetTool(selectedTool.toolId)) {
@@ -139,7 +128,7 @@ function getSelectedCaption(
   }
 
   if (isTileDirectionTool(selectedTool.toolId)) {
-    return `按住${label}，先选目标格，再拖出方向后松手执行`;
+    return `按住${label}，先选格子再拖出方向`;
   }
 
   if (isChoiceTool(selectedTool.toolId)) {
@@ -149,36 +138,31 @@ function getSelectedCaption(
   return `${label}已准备好`;
 }
 
-// The floating action ring is the in-scene entry point for roll, tool choice, and end turn.
 export function SceneActionRing({
   hidden = false,
   interactive = true,
-  tools,
-  turnStartActions,
   phase,
   position,
   screenOffsetX = 0,
   screenOffsetY = 0,
   selectedToolInstanceId,
+  tools,
   onEndTurn,
   onPressAimTool,
   onRollDice,
   onSelectTool,
   onShowUnavailableToolNotice,
   onUseChoiceTool,
-  onUseInstantTool,
-  onUseTurnStartAction
+  onUseInstantTool
 }: SceneActionRingProps) {
   const [incomingToolInstanceIds, setIncomingToolInstanceIds] = useState<string[]>([]);
   const previousActionToolIdsRef = useRef<string[]>([]);
   const incomingClearTimerRef = useRef<number | null>(null);
-  const selectedTool =
-    tools.find((tool) => tool.instanceId === selectedToolInstanceId) ?? null;
+  const selectedTool = tools.find((tool) => tool.instanceId === selectedToolInstanceId) ?? null;
   const actionToolIds = useMemo(() => tools.map((tool) => tool.instanceId), [tools]);
 
   useEffect(() => {
-    // Ring entry animations only run for tools that appear after the action phase is already active.
-    if (phase !== "action") {
+    if (phase !== "turn-action") {
       previousActionToolIdsRef.current = [];
       setIncomingToolInstanceIds([]);
 
@@ -205,9 +189,7 @@ export function SceneActionRing({
       return;
     }
 
-    setIncomingToolInstanceIds((currentIds) =>
-      Array.from(new Set([...currentIds, ...nextIncomingToolIds]))
-    );
+    setIncomingToolInstanceIds((currentIds) => Array.from(new Set([...currentIds, ...nextIncomingToolIds])));
 
     if (incomingClearTimerRef.current !== null) {
       window.clearTimeout(incomingClearTimerRef.current);
@@ -228,84 +210,75 @@ export function SceneActionRing({
     []
   );
 
+  const mapToolToAction = (tool: TurnToolSnapshot, index: number): FloatingActionItem => {
+    const availability = getToolAvailability(tool, tools);
+    const definition = TOOL_DEFINITIONS[tool.toolId];
+    const onPointerDown =
+      availability.usable && isAimTool(tool.toolId)
+        ? (event: ReactPointerEvent<HTMLButtonElement>) => {
+            if (event.button !== 0) {
+              return;
+            }
+
+            onPressAimTool(tool.instanceId, event.clientX, event.clientY);
+          }
+        : null;
+
+    return {
+      id: tool.instanceId,
+      label: definition.label,
+      token: getActionUiConfig(tool.toolId).token,
+      accent: getActionUiConfig(tool.toolId).accent,
+      detail: availability.usable
+        ? getToolButtonDetail(tool, tools)
+        : availability.reason ?? getToolButtonDetail(tool, tools),
+      disabled: !availability.usable,
+      selected: interactive && selectedToolInstanceId === tool.instanceId,
+      testId: `scene-tool-${tool.toolId}-${index}`,
+      toolId: tool.toolId,
+      toolInstanceId: tool.instanceId,
+      ...(onPointerDown ? { onPointerDown } : {}),
+      onClick: () => {
+        if (!interactive) {
+          return;
+        }
+
+        if (!availability.usable) {
+          onSelectTool(tool.instanceId);
+          onShowUnavailableToolNotice(
+            getToolDisabledMessage(tool, tools) ?? `${definition.label}当前不可用。`
+          );
+          return;
+        }
+
+        if (isAimTool(tool.toolId) || isChoiceTool(tool.toolId)) {
+          onSelectTool(tool.instanceId);
+          return;
+        }
+
+        onUseInstantTool(tool.instanceId);
+      }
+    };
+  };
+
   const actions: FloatingActionItem[] =
-    phase === "roll"
+    phase === "turn-start"
       ? [
           {
             id: "roll",
-            label: "掷骰",
+            label: "投骰",
             token: getActionUiConfig("roll").token,
             accent: getActionUiConfig("roll").accent,
             detail: getActionUiConfig("roll").detail,
             disabled: false,
             selected: false,
             testId: "scene-roll-dice-button",
-            onPointerDown: undefined,
             onClick: onRollDice
           },
-          ...turnStartActions.map((action, index) => ({
-            id: action.actionId,
-            label: TURN_START_ACTION_DEFINITIONS[action.actionId].label,
-            token: getActionUiConfig(action.actionId).token,
-            accent: getActionUiConfig(action.actionId).accent,
-            detail: getActionUiConfig(action.actionId).detail,
-            disabled: false,
-            selected: false,
-            testId: `scene-turn-start-action-${index}`,
-            onPointerDown: undefined,
-            onClick: () => onUseTurnStartAction(action.actionId)
-          }))
+          ...tools.map(mapToolToAction)
         ]
       : [
-          ...tools.map((tool, index) => {
-            const availability = getToolAvailability(tool, tools);
-            const definition = TOOL_DEFINITIONS[tool.toolId];
-
-            return {
-              id: tool.instanceId,
-              label: definition.label,
-              token: getActionUiConfig(tool.toolId).token,
-              accent: getActionUiConfig(tool.toolId).accent,
-              detail: availability.usable
-                ? getToolButtonDetail(tool, tools)
-                : availability.reason ?? getToolButtonDetail(tool, tools),
-              disabled: !availability.usable,
-              selected: interactive && selectedToolInstanceId === tool.instanceId,
-              testId: `scene-tool-${tool.toolId}-${index}`,
-              toolId: tool.toolId,
-              toolInstanceId: tool.instanceId,
-              onPointerDown:
-                availability.usable && isAimTool(tool.toolId)
-                  ? (event: ReactPointerEvent<HTMLButtonElement>) => {
-                      if (event.button !== 0) {
-                        return;
-                      }
-
-                      onPressAimTool(tool.instanceId, event.clientX, event.clientY);
-                    }
-                  : undefined,
-              onClick: () => {
-                if (!interactive) {
-                  return;
-                }
-
-                if (!availability.usable) {
-                  onSelectTool(tool.instanceId);
-                  onShowUnavailableToolNotice(
-                    getToolDisabledMessage(tool, tools) ?? `${definition.label}当前不可用。`
-                  );
-                  return;
-                }
-
-                if (isAimTool(tool.toolId) || isChoiceTool(tool.toolId)) {
-                  onSelectTool(tool.instanceId);
-                  return;
-                }
-
-                onUseInstantTool(tool.instanceId);
-              }
-            };
-          }),
+          ...tools.map(mapToolToAction),
           {
             id: "end",
             label: "结束",
@@ -315,14 +288,12 @@ export function SceneActionRing({
             disabled: false,
             selected: false,
             testId: "scene-end-turn-button",
-            onPointerDown: undefined,
             onClick: onEndTurn
           }
         ];
+
   const selectedChoiceTool =
-    interactive && phase === "action" && selectedTool && isChoiceTool(selectedTool.toolId)
-      ? selectedTool
-      : null;
+    interactive && selectedTool && isChoiceTool(selectedTool.toolId) ? selectedTool : null;
 
   return (
     <Html position={position} center>
@@ -337,25 +308,19 @@ export function SceneActionRing({
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
         <div className="scene-action-ring__arc" />
-        <div className="scene-action-ring__caption">
-          {getSelectedCaption(phase, selectedTool, tools, turnStartActions)}
-        </div>
+        <div className="scene-action-ring__caption">{getSelectedCaption(phase, selectedTool, tools)}</div>
         {actions.map((action, index) => (
           <button
             key={action.id}
             type="button"
-            className={
-              [
-                "scene-action-button",
-                action.toolInstanceId && incomingToolInstanceIds.includes(action.toolInstanceId)
-                  ? "incoming"
-                  : "",
-                action.selected ? "selected" : "",
-                action.disabled ? "disabled" : ""
-              ]
-                .filter(Boolean)
-                .join(" ")
-            }
+            className={[
+              "scene-action-button",
+              action.toolInstanceId && incomingToolInstanceIds.includes(action.toolInstanceId) ? "incoming" : "",
+              action.selected ? "selected" : "",
+              action.disabled ? "disabled" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
             data-testid={action.testId}
             data-tool-id={action.toolId}
             data-tool-instance-id={action.toolInstanceId}

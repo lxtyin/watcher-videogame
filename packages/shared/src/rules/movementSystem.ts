@@ -2,11 +2,11 @@ import type {
   BoardDefinition,
   BoardPlayerState,
   BoardSummonState,
-  CharacterStateMap,
   Direction,
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  PlayerTagMap,
   ResolvedActorState,
   SummonMutation,
   TileMutation,
@@ -15,6 +15,7 @@ import type {
   TurnToolSnapshot
 } from "../types";
 import { isWithinBoard } from "../board";
+import { clonePlayerTags } from "../playerTags";
 import { resolvePassThroughSummonEffects, resolveStopSummonEffects } from "../summons";
 import { resolvePassThroughTerrainEffect, resolveStopTerrainEffect } from "../terrain";
 import {
@@ -36,10 +37,10 @@ interface MovementSystemContext {
 
 interface MovementSubject {
   characterId: MovementActor["characterId"];
-  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: MovementActor["turnFlags"];
 }
 
@@ -65,14 +66,6 @@ interface LeapMovementOptions extends MovementRuntimeOptions {
 
 interface TeleportMovementOptions extends MovementRuntimeOptions {
   targetPosition: GridPosition;
-}
-
-interface StationaryStopOptions {
-  player: MovementSubject;
-  priorSummonMutations?: SummonMutation[];
-  priorTileMutations?: TileMutation[];
-  toolDieSeed: number;
-  tools: TurnToolSnapshot[];
 }
 
 export interface MovementSystemResolution {
@@ -106,19 +99,13 @@ function clonePosition(position: GridPosition): GridPosition {
   };
 }
 
-function cloneCharacterState(characterState: CharacterStateMap): CharacterStateMap {
-  return {
-    ...characterState
-  };
-}
-
 function cloneSubject(player: MovementSubject): MovementSubject {
   return {
     characterId: player.characterId,
-    characterState: cloneCharacterState(player.characterState),
     id: player.id,
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition),
+    tags: clonePlayerTags(player.tags),
     turnFlags: [...player.turnFlags]
   };
 }
@@ -146,16 +133,16 @@ function buildState(
 function applyToolStatePatch(
   state: MutableMovementState,
   patch: {
-    nextCharacterState?: CharacterStateMap;
     nextDirection?: Direction;
     nextRemainingMovePoints?: number;
+    nextTags?: PlayerTagMap;
     nextToolDieSeed?: number;
     nextTools?: TurnToolSnapshot[];
     nextTurnFlags?: MovementActor["turnFlags"];
   }
 ): void {
-  if (patch.nextCharacterState) {
-    state.player.characterState = cloneCharacterState(patch.nextCharacterState);
+  if (patch.nextTags) {
+    state.player.tags = clonePlayerTags(patch.nextTags);
   }
 
   if (patch.nextDirection) {
@@ -203,8 +190,8 @@ function appendEffectArrays(
 function applyStopPatch(
   state: MutableMovementState,
   patch: {
-    nextCharacterState?: CharacterStateMap;
     nextPosition?: GridPosition;
+    nextTags?: PlayerTagMap;
     nextToolDieSeed?: number;
     nextTools?: TurnToolSnapshot[];
     nextTurnFlags?: MovementActor["turnFlags"];
@@ -341,11 +328,11 @@ function runStopTriggers(
     movement,
     player: {
       characterId: state.player.characterId,
-      characterState: state.player.characterState,
       id: state.player.id,
       isActor: state.player.id === context.actorId,
       position: state.player.position,
       spawnPosition: state.player.spawnPosition,
+      tags: state.player.tags,
       turnFlags: [...state.player.turnFlags]
     },
     sourceId: context.sourceId,
@@ -369,8 +356,8 @@ function buildResolution(
 ): MovementSystemResolution {
   return {
     actor: {
-      characterState: cloneCharacterState(state.player.characterState),
       position: clonePosition(state.player.position),
+      tags: clonePlayerTags(state.player.tags),
       turnFlags: [...state.player.turnFlags]
     },
     nextToolDieSeed: state.nextToolDieSeed,
@@ -515,20 +502,4 @@ export function resolveTeleportDisplacement(
   runStopTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
 
   return buildResolution(state, path, "Movement ended");
-}
-
-// Turn start resolves the current tile as a stop trigger without inventing a fake movement record.
-export function resolveCurrentTileStop(
-  context: MovementSystemContext,
-  options: StationaryStopOptions
-): MovementSystemResolution {
-  const state = buildState(options.player, options.tools, options.toolDieSeed, null, null);
-  runStopTriggers(
-    context,
-    state,
-    null,
-    options.priorTileMutations ?? [],
-    options.priorSummonMutations ?? []
-  );
-  return buildResolution(state, [], "Current tile stop");
 }

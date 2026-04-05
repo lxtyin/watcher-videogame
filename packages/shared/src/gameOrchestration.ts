@@ -1,12 +1,5 @@
-import { applyCharacterToolTransforms, getCharacterDefinition, getCharacterIds } from "./characters";
-import {
-  applyCharacterTurnEndCleanup,
-  buildCharacterTurnLoadoutRuntime,
-  cloneCharacterState,
-  markCharacterMovedOutOfTurn,
-  prepareCharacterTurnStart,
-  resolveCharacterTurnStartAction
-} from "./characterRuntime";
+import { getTile } from "./board";
+import { getCharacterDefinition, getCharacterIds } from "./characters";
 import { PLAYER_COLORS } from "./constants";
 import { rollMovementDie, rollToolDie } from "./dice";
 import {
@@ -16,34 +9,41 @@ import {
   resolveSettlementState
 } from "./gameplay";
 import { createBoardDefinitionFromGoldenLayout } from "./goldens/layout";
+import { clonePlayerTags } from "./playerTags";
 import {
   appendPresentationEvents,
   createPlayerMotionEvent,
   createStateTransitionEvent
 } from "./rules/actionPresentation";
-import { resolveCurrentTileStop, resolveToolAction } from "./actions";
+import { resolveToolAction } from "./actions";
 import {
+  applyDiceRollModifiers,
+  applyMovementResolvedModifiers,
+  applyOnGetToolModifiers,
+  applyTurnActionStartModifiers,
+  applyTurnEndModifiers,
+  applyTurnStartModifiers
+} from "./skills";
+import { resolveStopSummonEffects } from "./summons";
+import { createTerrainStopTarget, resolveStopTerrainEffect } from "./terrain";
+import {
+  canUseToolInPhase,
   createDebugToolInstance,
   createMovementToolInstance,
-  createRolledToolInstance,
   createToolInstance,
   findToolInstance,
   getToolDefinition
 } from "./tools";
-import {
-  createTurnStartActionSnapshot,
-  getTurnStartActionDefinition
-} from "./turnStartActions";
 import type {
   ActionPresentation,
   BoardDefinition,
   BoardPlayerState,
   BoardSummonState,
-  CharacterStateMap,
   EventLogEntry,
   EventType,
   GameSnapshot,
   GridPosition,
+  PlayerTagMap,
   PlayerSnapshot,
   PlayerStateTransition,
   PlayerTurnFlag,
@@ -54,7 +54,7 @@ import type {
   TurnInfoSnapshot,
   TurnToolSnapshot
 } from "./types";
-import type { UseToolCommandPayload, UseTurnStartActionCommandPayload } from "./types";
+import type { ActionRollMode, UseToolCommandPayload } from "./types";
 import type {
   GameOrchestrationState,
   GameRuntimeState,
@@ -99,9 +99,6 @@ function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
     turnNumber: turnInfo.turnNumber,
     moveRoll: turnInfo.moveRoll,
     lastRolledToolId: turnInfo.lastRolledToolId,
-    turnStartActions: turnInfo.turnStartActions.map((action) => ({
-      ...action
-    })),
     toolDieSeed: turnInfo.toolDieSeed
   };
 }
@@ -114,7 +111,6 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
     players: snapshot.players.map((player) => ({
       ...player,
       boardVisible: player.boardVisible,
-      characterState: cloneCharacterState(player.characterState),
       finishRank: player.finishRank,
       finishedTurnNumber: player.finishedTurnNumber,
       isConnected: player.isConnected,
@@ -122,6 +118,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
       petId: player.petId,
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
+      tags: clonePlayerTags(player.tags),
       tools: player.tools.map((tool) => ({
         ...tool,
         params: {
@@ -202,9 +199,9 @@ function buildBoardPlayers(snapshot: GameSnapshot): BoardPlayerState[] {
       id: player.id,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
-      characterState: cloneCharacterState(player.characterState),
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
+      tags: clonePlayerTags(player.tags),
       turnFlags: [...player.turnFlags]
     }));
 }
@@ -232,9 +229,20 @@ function isRaceMode(state: MutableGameOrchestrationState): boolean {
 
 function normalizePlayerTools(
   player: PlayerSnapshot,
-  tools: TurnToolSnapshot[]
+  tools: TurnToolSnapshot[],
+  phase: TurnInfoSnapshot["phase"]
 ): TurnToolSnapshot[] {
-  return applyCharacterToolTransforms(player.characterId, tools);
+  return applyOnGetToolModifiers(
+    player.characterId,
+    {
+      id: player.id,
+      phase,
+      position: clonePosition(player.position),
+      tags: clonePlayerTags(player.tags),
+      tools
+    },
+    tools
+  );
 }
 
 function clearPlayerTurnResources(player: PlayerSnapshot): void {
@@ -246,12 +254,16 @@ function applyPlayerTurnFlags(player: PlayerSnapshot, turnFlags: PlayerTurnFlag[
   player.turnFlags = [...turnFlags];
 }
 
-function applyToolInventory(player: PlayerSnapshot, tools: TurnToolSnapshot[]): void {
-  player.tools = normalizePlayerTools(player, tools);
+function applyToolInventory(
+  player: PlayerSnapshot,
+  tools: TurnToolSnapshot[],
+  phase: TurnInfoSnapshot["phase"]
+): void {
+  player.tools = normalizePlayerTools(player, tools, phase);
 }
 
-function applyCharacterState(player: PlayerSnapshot, characterState: CharacterStateMap): void {
-  player.characterState = cloneCharacterState(characterState);
+function applyPlayerTags(player: PlayerSnapshot, tags: PlayerTagMap): void {
+  player.tags = clonePlayerTags(tags);
 }
 
 function applyTileMutations(snapshot: GameSnapshot, tileMutations: TileMutation[]): void {
@@ -295,9 +307,9 @@ function applySummonMutations(snapshot: GameSnapshot, summonMutations: SummonMut
 function applyAffectedPlayerMoves(
   snapshot: GameSnapshot,
   affectedPlayers: Array<{
-    characterState?: CharacterStateMap;
     playerId: string;
     target: GridPosition;
+    tags?: PlayerTagMap;
     turnFlags?: PlayerTurnFlag[];
   }>
 ): void {
@@ -314,33 +326,53 @@ function applyAffectedPlayerMoves(
       applyPlayerTurnFlags(player, affectedPlayer.turnFlags);
     }
 
-    if (affectedPlayer.characterState) {
-      applyCharacterState(player, affectedPlayer.characterState);
+    if (affectedPlayer.tags) {
+      applyPlayerTags(player, affectedPlayer.tags);
     }
   }
 }
 
-function markOutOfTurnMovement(
+function applyMovementResolvedEffects(
   snapshot: GameSnapshot,
-  activePlayerId: string,
+  phase: TurnInfoSnapshot["phase"],
+  actorMovement: { movement: import("./types").MovementDescriptor; path: GridPosition[]; playerId: string } | null,
   affectedPlayers: Array<{
+    movement: import("./types").MovementDescriptor;
+    path: GridPosition[];
     playerId: string;
   }>
 ): void {
-  for (const affectedPlayer of affectedPlayers) {
-    if (affectedPlayer.playerId === activePlayerId) {
+  const movementResults = [
+    ...(actorMovement ? [actorMovement] : []),
+    ...affectedPlayers
+  ];
+
+  for (const movementResult of movementResults) {
+    if (!movementResult.path.length) {
       continue;
     }
 
-    const player = findPlayer(snapshot, affectedPlayer.playerId);
+    const player = findPlayer(snapshot, movementResult.playerId);
 
     if (!player) {
       continue;
     }
 
-    applyCharacterState(
+    applyPlayerTags(
       player,
-      markCharacterMovedOutOfTurn(player.characterId, player.characterState)
+      applyMovementResolvedModifiers(
+        player.characterId,
+        {
+          id: player.id,
+          phase,
+          position: clonePosition(player.position),
+          tags: clonePlayerTags(player.tags),
+          tools: [...player.tools]
+        },
+        movementResult.movement,
+        null,
+        movementResult.path
+      )
     );
   }
 }
@@ -435,10 +467,9 @@ function enterSettlementState(state: MutableGameOrchestrationState): void {
   state.runtime.pendingAdvance = null;
   state.snapshot.roomPhase = "settlement";
   state.snapshot.turnInfo.currentPlayerId = "";
-  state.snapshot.turnInfo.phase = "roll";
+  state.snapshot.turnInfo.phase = "turn-start";
   state.snapshot.turnInfo.moveRoll = 0;
   state.snapshot.turnInfo.lastRolledToolId = null;
-  state.snapshot.turnInfo.turnStartActions = [];
   state.snapshot.settlementState = "complete";
 }
 
@@ -543,30 +574,49 @@ function materializeToolLoadout(
   );
 }
 
-function buildTurnActionTools(
+function applyPhaseStartToPlayer(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
-  baseTools: TurnToolSnapshot[]
-): TurnToolSnapshot[] {
-  const runtimeLoadout = buildCharacterTurnLoadoutRuntime(
-    player.characterId,
-    player.characterState
-  );
-  applyCharacterState(player, runtimeLoadout.nextCharacterState);
-
-  return normalizePlayerTools(player, [
-    ...baseTools,
-    ...runtimeLoadout.loadout.map((tool) => materializeToolLoadout(state, tool))
-  ]);
-}
-
-function refreshTurnStartActions(
-  state: MutableGameOrchestrationState,
-  player: PlayerSnapshot,
-  actionIds: readonly import("./types").TurnStartActionId[]
+  phase: TurnInfoSnapshot["phase"]
 ): void {
-  state.snapshot.turnInfo.turnStartActions = actionIds.map((actionId) =>
-    createTurnStartActionSnapshot(actionId, player.characterId)
+  const phaseStart =
+    phase === "turn-start"
+      ? applyTurnStartModifiers(player.characterId, {
+          id: player.id,
+          phase,
+          position: clonePosition(player.position),
+          tags: clonePlayerTags(player.tags),
+          tools: [...player.tools]
+        })
+      : phase === "turn-action"
+        ? applyTurnActionStartModifiers(player.characterId, {
+            id: player.id,
+            phase,
+            position: clonePosition(player.position),
+            tags: clonePlayerTags(player.tags),
+            tools: [...player.tools]
+          })
+        : applyTurnEndModifiers(player.characterId, {
+            id: player.id,
+            phase,
+            position: clonePosition(player.position),
+            tags: clonePlayerTags(player.tags),
+            tools: [...player.tools]
+          });
+
+  applyPlayerTags(player, phaseStart.nextTags);
+
+  if (!phaseStart.grantTools.length) {
+    return;
+  }
+
+  applyToolInventory(
+    player,
+    [
+      ...player.tools,
+      ...phaseStart.grantTools.map((tool: ToolLoadoutLike) => materializeToolLoadout(state, tool))
+    ],
+    phase
   );
 }
 
@@ -574,73 +624,151 @@ function applyTurnStartStop(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot
 ): TriggeredTerrainEffect[] {
-  const stopResolution = resolveCurrentTileStop(
-    {
-      activeTool: null,
-      actorId: player.id,
-      board: buildBoardDefinition(state.snapshot),
-      players: buildBoardPlayers(state.snapshot),
-      sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
-      summons: buildBoardSummons(state.snapshot)
+  let nextPosition = clonePosition(player.position);
+  let nextTags = clonePlayerTags(player.tags);
+  let nextTools = [...player.tools];
+  let nextTurnFlags = [...player.turnFlags];
+  let nextToolDieSeed = state.runtime.toolDieSeed;
+  const summonMutations: SummonMutation[] = [];
+  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
+
+  const summonResolution = resolveStopSummonEffects({
+    movement: null,
+    player: {
+      characterId: player.characterId,
+      id: player.id,
+      position: nextPosition,
+      spawnPosition: clonePosition(player.spawnPosition),
+      tags: nextTags,
+      turnFlags: nextTurnFlags
     },
-    {
-      player: {
-        characterId: player.characterId,
-        characterState: cloneCharacterState(player.characterState),
-        id: player.id,
-        position: clonePosition(player.position),
-        spawnPosition: clonePosition(player.spawnPosition),
-        turnFlags: [...player.turnFlags]
-      },
-      toolDieSeed: state.runtime.toolDieSeed,
-      tools: [...player.tools]
-    }
-  );
+    position: nextPosition,
+    sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+    summons: buildBoardSummons(state.snapshot),
+    toolDieSeed: nextToolDieSeed,
+    tools: nextTools
+  });
 
-  player.position = clonePosition(stopResolution.actor.position);
-  applyCharacterState(player, stopResolution.actor.characterState);
-  applyPlayerTurnFlags(player, stopResolution.actor.turnFlags);
-  applyToolInventory(player, stopResolution.tools);
-  applyTileMutations(state.snapshot, stopResolution.tileMutations);
-  applySummonMutations(state.snapshot, stopResolution.summonMutations);
-  state.runtime.toolDieSeed = stopResolution.nextToolDieSeed;
+  if (summonResolution.nextTags) {
+    nextTags = clonePlayerTags(summonResolution.nextTags);
+  }
+
+  if (summonResolution.nextTools) {
+    nextTools = summonResolution.nextTools;
+  }
+
+  if (summonResolution.nextTurnFlags) {
+    nextTurnFlags = [...summonResolution.nextTurnFlags];
+  }
+
+  if (summonResolution.nextToolDieSeed !== undefined) {
+    nextToolDieSeed = summonResolution.nextToolDieSeed;
+  }
+
+  summonMutations.push(...summonResolution.summonMutations);
+  triggeredSummonEffects.push(...summonResolution.triggeredSummonEffects);
+
+  const tile = getTile(buildBoardDefinition(state.snapshot), nextPosition);
+  const terrainResolution = tile
+    ? resolveStopTerrainEffect({
+        movement: null,
+        player: createTerrainStopTarget(
+          {
+            characterId: player.characterId,
+            id: player.id,
+            position: nextPosition,
+            spawnPosition: clonePosition(player.spawnPosition),
+            tags: nextTags,
+            turnFlags: nextTurnFlags
+          },
+          nextPosition,
+          true
+        ),
+        sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+        tile,
+        toolDieSeed: nextToolDieSeed,
+        tools: nextTools
+      })
+    : null;
+
+  if (terrainResolution?.nextPosition) {
+    nextPosition = clonePosition(terrainResolution.nextPosition);
+  }
+
+  if (terrainResolution?.nextTags) {
+    nextTags = clonePlayerTags(terrainResolution.nextTags);
+  }
+
+  if (terrainResolution?.nextTools) {
+    nextTools = terrainResolution.nextTools;
+  }
+
+  if (terrainResolution?.nextTurnFlags) {
+    nextTurnFlags = [...terrainResolution.nextTurnFlags];
+  }
+
+  if (terrainResolution?.nextToolDieSeed !== undefined) {
+    nextToolDieSeed = terrainResolution.nextToolDieSeed;
+  }
+
+  player.position = clonePosition(nextPosition);
+  applyPlayerTags(player, nextTags);
+  applyPlayerTurnFlags(player, nextTurnFlags);
+  applyToolInventory(player, nextTools, "turn-start");
+  applySummonMutations(state.snapshot, summonMutations);
+  state.runtime.toolDieSeed = nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
-  pushTerrainEvents(state, player.id, stopResolution.triggeredTerrainEffects);
-  pushSummonEvents(state, stopResolution.triggeredSummonEffects);
-  return stopResolution.triggeredTerrainEffects;
-}
-
-function prepareTurnStartState(player: PlayerSnapshot) {
-  const preparation = prepareCharacterTurnStart(player.characterId, player.characterState);
-  applyCharacterState(player, preparation.nextCharacterState);
-  return preparation;
+  pushTerrainEvents(state, player.id, terrainResolution?.triggeredTerrainEffects ?? []);
+  pushSummonEvents(state, triggeredSummonEffects);
+  return terrainResolution?.triggeredTerrainEffects ?? [];
 }
 
 function enterActionPhaseWithRoll(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
   moveRoll: number,
-  rolledTool: TurnToolSnapshot | null
+  rollMode: ActionRollMode,
+  rolledTool: ToolLoadoutLike | null
 ): void {
-  applyToolInventory(
-    player,
-    buildTurnActionTools(
-      state,
-      player,
-      [
-        ...player.tools,
-        createMovementToolInstance(createToolInstanceId(state, "movement"), moveRoll),
-        ...(rolledTool ? [rolledTool] : [])
-      ]
-    )
+  const diceRollModifiers = applyDiceRollModifiers(
+    player.characterId,
+    {
+      id: player.id,
+      phase: "turn-start",
+      position: clonePosition(player.position),
+      tags: clonePlayerTags(player.tags),
+      tools: [...player.tools]
+    },
+    moveRoll,
+    rolledTool
   );
 
-  state.snapshot.turnInfo.phase = "action";
-  state.snapshot.turnInfo.moveRoll = moveRoll;
+  applyPlayerTags(player, diceRollModifiers.nextTags);
+  applyToolInventory(
+    player,
+    [
+      createMovementToolInstance(
+        createToolInstanceId(state, "movement"),
+        diceRollModifiers.movementRoll
+      ),
+      ...(diceRollModifiers.rolledTool
+        ? [
+            materializeToolLoadout(state, {
+              ...diceRollModifiers.rolledTool
+            })
+          ]
+        : []),
+      ...diceRollModifiers.grantTools.map((tool) => materializeToolLoadout(state, tool))
+    ],
+    "turn-action"
+  );
+
+  state.snapshot.turnInfo.phase = "turn-action";
+  state.snapshot.turnInfo.moveRoll = diceRollModifiers.movementRoll;
   state.snapshot.turnInfo.lastRolledToolId =
-    (rolledTool?.toolId as TurnInfoSnapshot["lastRolledToolId"]) ?? null;
-  state.snapshot.turnInfo.turnStartActions = [];
+    (diceRollModifiers.rolledTool?.toolId as TurnInfoSnapshot["lastRolledToolId"]) ?? null;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
+  applyPhaseStartToPlayer(state, player, "turn-action");
 }
 
 function createRaceFinishPresentation(
@@ -741,11 +869,17 @@ function finishTurn(
   player: PlayerSnapshot,
   message: string
 ): void {
+  const phaseEnd = applyTurnEndModifiers(player.characterId, {
+    id: player.id,
+    phase: state.snapshot.turnInfo.phase,
+    position: clonePosition(player.position),
+    tags: clonePlayerTags(player.tags),
+    tools: [...player.tools]
+  });
+
+  applyPlayerTags(player, phaseEnd.nextTags);
   pushEvent(state, "turn_ended", message);
-  applyCharacterState(
-    player,
-    applyCharacterTurnEndCleanup(player.characterId, player.characterState)
-  );
+  state.snapshot.turnInfo.phase = "turn-end";
   clearPlayerTurnResources(player);
   const nextPlayerId = getNextPlayerId(state, player.id);
 
@@ -769,13 +903,11 @@ function beginTurnFor(
   }
 
   state.runtime.pendingAdvance = null;
-  const preparation = prepareTurnStartState(player);
   clearPlayerTurnResources(player);
   state.snapshot.turnInfo.currentPlayerId = playerId;
-  state.snapshot.turnInfo.phase = "roll";
+  state.snapshot.turnInfo.phase = "turn-start";
   state.snapshot.turnInfo.moveRoll = 0;
   state.snapshot.turnInfo.lastRolledToolId = null;
-  refreshTurnStartActions(state, player, preparation.turnStartActions);
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   state.snapshot.roomPhase = "in_game";
 
@@ -785,6 +917,7 @@ function beginTurnFor(
 
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
   const triggeredTerrainEffects = applyTurnStartStop(state, player);
+  applyPhaseStartToPlayer(state, player, "turn-start");
   const goalProgress = applyRaceGoalProgress(state, player.id, triggeredTerrainEffects);
 
   if (!goalProgress.actorFinished) {
@@ -794,17 +927,16 @@ function beginTurnFor(
   queueRaceFinishAdvance(state, player, null, true, goalProgress.settlementComplete);
 }
 
-function bootstrapExistingRollPhase(state: MutableGameOrchestrationState): void {
+function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): void {
   const activePlayer = findPlayer(state.snapshot, state.snapshot.turnInfo.currentPlayerId);
 
   if (!activePlayer) {
     return;
   }
 
-  const preparation = prepareTurnStartState(activePlayer);
-  refreshTurnStartActions(state, activePlayer, preparation.turnStartActions);
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   const triggeredTerrainEffects = applyTurnStartStop(state, activePlayer);
+  applyPhaseStartToPlayer(state, activePlayer, "turn-start");
   const goalProgress = applyRaceGoalProgress(state, activePlayer.id, triggeredTerrainEffects);
 
   if (goalProgress.actorFinished) {
@@ -902,7 +1034,7 @@ function runRollDiceCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot roll right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "roll") {
+  if (state.snapshot.turnInfo.phase !== "turn-start") {
     return blockCommand(state, `${player.name} cannot roll right now.`);
   }
 
@@ -915,7 +1047,8 @@ function runRollDiceCommand(
     state,
     player,
     movementRoll.value,
-    createRolledToolInstance(createToolInstanceId(state, toolRoll.value.toolId), toolRoll.value)
+    "standard",
+    toolRoll.value
   );
 
   pushEvent(
@@ -925,67 +1058,6 @@ function runRollDiceCommand(
   );
 
   return buildOkOutcome(`${player.name} rolled successfully.`);
-}
-
-function runUseTurnStartActionCommand(
-  state: MutableGameOrchestrationState,
-  actorId: string,
-  payload: UseTurnStartActionCommandPayload
-): SimulationCommandOutcome {
-  const player = ensureActivePlayer(state, actorId);
-
-  if (!player) {
-    return buildBlockedOutcome(`Player ${actorId} cannot act right now.`);
-  }
-
-  if (state.snapshot.turnInfo.phase !== "roll") {
-    return blockCommand(state, `${player.name} can only use this action before rolling.`);
-  }
-
-  const availableAction = state.snapshot.turnInfo.turnStartActions.find(
-    (action) => action.actionId === payload.actionId
-  );
-
-  if (!availableAction) {
-    return blockCommand(state, `${player.name} cannot use that roll-phase action right now.`);
-  }
-
-  const resolution = resolveCharacterTurnStartAction(
-    player.characterId,
-    player.characterState,
-    payload.actionId
-  );
-
-  if (!resolution) {
-    return blockCommand(state, `${player.name} cannot use that roll-phase action right now.`);
-  }
-
-  applyCharacterState(player, resolution.nextCharacterState);
-  pushEvent(
-    state,
-    "character_action_used",
-    `${player.name} used ${getTurnStartActionDefinition(availableAction.actionId).label}.`
-  );
-
-  if (resolution.endTurn) {
-    finishTurn(state, player, `${player.name} ended the turn.`);
-    return buildOkOutcome(`${player.name} prepared the next turn.`);
-  }
-
-  if (resolution.skipToolDie) {
-    const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
-    state.runtime.moveDieSeed = movementRoll.nextSeed;
-    enterActionPhaseWithRoll(state, player, movementRoll.value, null);
-    pushEvent(
-      state,
-      "dice_rolled",
-      `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
-    );
-
-    return buildOkOutcome(`${player.name} entered leap mode for this turn.`);
-  }
-
-  return buildOkOutcome(`${player.name} used a roll-phase action.`);
 }
 
 function runUseToolCommand(
@@ -999,14 +1071,17 @@ function runUseToolCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot act right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "action") {
-    return blockCommand(state, `${player.name} must roll dice first.`);
-  }
-
   const activeTool = findToolInstance(player.tools, payload.toolInstanceId);
 
   if (!activeTool) {
     return blockCommand(state, `${player.name} does not have the selected tool.`);
+  }
+
+  if (!canUseToolInPhase(activeTool.toolId, state.snapshot.turnInfo.phase)) {
+    return blockCommand(
+      state,
+      `${player.name} cannot use ${getToolDefinition(activeTool.toolId).label} during ${state.snapshot.turnInfo.phase}.`
+    );
   }
 
   const payloadValidationMessage = validateToolPayload(activeTool, payload);
@@ -1020,12 +1095,13 @@ function runUseToolCommand(
     actor: {
       id: player.id,
       characterId: player.characterId,
-      characterState: cloneCharacterState(player.characterState),
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
+      tags: clonePlayerTags(player.tags),
       turnFlags: [...player.turnFlags]
     },
     activeTool,
+    phase: state.snapshot.turnInfo.phase,
     ...(payload.direction ? { direction: payload.direction } : {}),
     ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
     ...(payload.targetPosition ? { targetPosition: clonePosition(payload.targetPosition) } : {}),
@@ -1043,13 +1119,24 @@ function runUseToolCommand(
   }
 
   player.position = clonePosition(resolution.actor.position);
-  applyCharacterState(player, resolution.actor.characterState);
+  applyPlayerTags(player, resolution.actor.tags);
   applyPlayerTurnFlags(player, resolution.actor.turnFlags);
-  applyToolInventory(player, resolution.tools);
+  applyToolInventory(player, resolution.tools, state.snapshot.turnInfo.phase);
   applyTileMutations(state.snapshot, resolution.tileMutations);
   applySummonMutations(state.snapshot, resolution.summonMutations);
   applyAffectedPlayerMoves(state.snapshot, resolution.affectedPlayers);
-  markOutOfTurnMovement(state.snapshot, player.id, resolution.affectedPlayers);
+  applyMovementResolvedEffects(
+    state.snapshot,
+    state.snapshot.turnInfo.phase,
+    resolution.actorMovement
+      ? {
+          movement: resolution.actorMovement.movement,
+          path: resolution.actorMovement.path,
+          playerId: resolution.actorMovement.playerId
+        }
+      : null,
+    resolution.affectedPlayers
+  );
 
   state.runtime.toolDieSeed = resolution.nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
@@ -1078,7 +1165,36 @@ function runUseToolCommand(
     return buildOkOutcome(resolution.summary);
   }
 
-  if (!resolution.endsTurn) {
+  if (resolution.phaseEffect?.rollMode) {
+    const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
+    state.runtime.moveDieSeed = movementRoll.nextSeed;
+
+    if (resolution.phaseEffect.rollMode === "standard") {
+      const toolRoll = rollToolDie(state.runtime.toolDieSeed);
+      state.runtime.toolDieSeed = toolRoll.nextSeed;
+      enterActionPhaseWithRoll(state, player, movementRoll.value, "standard", toolRoll.value);
+      pushEvent(
+        state,
+        "dice_rolled",
+        `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
+      );
+    } else {
+      enterActionPhaseWithRoll(state, player, movementRoll.value, "movement_only", null);
+      pushEvent(
+        state,
+        "dice_rolled",
+        `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
+      );
+    }
+
+    return buildOkOutcome(resolution.summary);
+  }
+
+  if (!(resolution.phaseEffect?.finishTurn || resolution.endsTurn)) {
+    if (resolution.phaseEffect?.nextPhase) {
+      state.snapshot.turnInfo.phase = resolution.phaseEffect.nextPhase;
+    }
+
     return buildOkOutcome(resolution.summary);
   }
 
@@ -1096,8 +1212,8 @@ function runEndTurnCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot end the turn right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "action") {
-    return blockCommand(state, `${player.name} must roll before ending the turn.`);
+  if (state.snapshot.turnInfo.phase !== "turn-action") {
+    return blockCommand(state, `${player.name} can only end the turn during the action phase.`);
   }
 
   finishTurn(state, player, `${player.name} ended the turn.`);
@@ -1115,8 +1231,8 @@ function runSetCharacterCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot switch character right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "roll") {
-    return blockCommand(state, `${player.name} can only switch character before rolling.`);
+  if (state.snapshot.turnInfo.phase !== "turn-start") {
+    return blockCommand(state, `${player.name} can only switch character during turn start.`);
   }
 
   if (!getCharacterIds().includes(characterId as PlayerSnapshot["characterId"])) {
@@ -1124,12 +1240,9 @@ function runSetCharacterCommand(
   }
 
   player.characterId = characterId as PlayerSnapshot["characterId"];
-  applyCharacterState(player, {});
-  refreshTurnStartActions(
-    state,
-    player,
-    [...getCharacterDefinition(player.characterId).turnStartActionIds]
-  );
+  applyPlayerTags(player, {});
+  clearPlayerTurnResources(player);
+  applyPhaseStartToPlayer(state, player, "turn-start");
   pushEvent(
     state,
     "character_switched",
@@ -1150,8 +1263,8 @@ function runGrantDebugToolCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot receive a debug tool right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "action") {
-    return blockCommand(state, `${player.name} must roll before granting a debug tool.`);
+  if (state.snapshot.turnInfo.phase !== "turn-action") {
+    return blockCommand(state, `${player.name} can only grant a debug tool during the action phase.`);
   }
 
   if (!state.snapshot.allowDebugTools) {
@@ -1169,7 +1282,7 @@ function runGrantDebugToolCommand(
       ? createMovementToolInstance(createToolInstanceId(state, "movement"), 4)
       : createDebugToolInstance(createToolInstanceId(state, toolId), toolId);
 
-  applyToolInventory(player, [...player.tools, grantedTool]);
+  applyToolInventory(player, [...player.tools, grantedTool], state.snapshot.turnInfo.phase);
   pushEvent(state, "debug_granted", `${player.name} debug gained ${definition.label}.`);
 
   return buildOkOutcome(`${player.name} gained ${definition.label}.`);
@@ -1182,8 +1295,6 @@ function dispatchGameCommand(
   switch (command.kind) {
     case "rollDice":
       return runRollDiceCommand(state, command.actorId);
-    case "useTurnStartAction":
-      return runUseTurnStartActionCommand(state, command.actorId, command.payload);
     case "useTool":
       return runUseToolCommand(state, command.actorId, command.payload);
     case "endTurn":
@@ -1295,13 +1406,13 @@ export function createGameOrchestrationStateFromScene(
     color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
     boardVisible: player.boardVisible ?? player.finishRank == null,
     characterId: player.characterId ?? "late",
-    characterState: cloneCharacterState(player.characterState ?? {}),
     finishRank: player.finishRank ?? null,
     finishedTurnNumber: player.finishedTurnNumber ?? null,
     isConnected: true,
     isReady: false,
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition ?? player.position),
+    tags: clonePlayerTags(player.tags ?? {}),
     tools: [],
     turnFlags: [...(player.turnFlags ?? [])]
   }));
@@ -1345,10 +1456,9 @@ export function createGameOrchestrationStateFromScene(
       latestPresentation: null,
       turnInfo: {
         currentPlayerId: sceneDefinition.turn?.currentPlayerId ?? firstPlayerId,
-        phase: sceneDefinition.turn?.phase ?? "action",
+        phase: sceneDefinition.turn?.phase ?? "turn-action",
         moveRoll: sceneDefinition.turn?.moveRoll ?? 0,
         lastRolledToolId: sceneDefinition.turn?.lastRolledToolId ?? null,
-        turnStartActions: [],
         toolDieSeed:
           sceneDefinition.turn?.toolDieSeed ??
           sceneDefinition.seeds?.toolDieSeed ??
@@ -1367,7 +1477,8 @@ export function createGameOrchestrationStateFromScene(
 
     applyToolInventory(
       player,
-      (scenePlayer.tools ?? []).map((tool) => materializeToolLoadout(state, tool))
+      (scenePlayer.tools ?? []).map((tool) => materializeToolLoadout(state, tool)),
+      state.snapshot.turnInfo.phase
     );
   }
 
@@ -1382,8 +1493,8 @@ export function createGameOrchestrationStateFromScene(
     state.runtime.nextToolInstanceSerial = detectNextToolInstanceSerial(state.snapshot.players);
   }
 
-  if (state.snapshot.turnInfo.phase === "roll" && state.snapshot.turnInfo.currentPlayerId) {
-    bootstrapExistingRollPhase(state);
+  if (state.snapshot.turnInfo.phase === "turn-start" && state.snapshot.turnInfo.currentPlayerId) {
+    bootstrapExistingTurnStartPhase(state);
 
     while (hasPendingAdvance(state.runtime)) {
       runAdvanceTurn(state);

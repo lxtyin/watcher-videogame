@@ -5,7 +5,6 @@ import {
   buildBlockedResolution
 } from "./rules/actionResolution";
 import { TOOL_EXECUTORS } from "./rules/toolExecutors";
-export { resolveCurrentTileStop } from "./rules/movementSystem";
 
 export {
   getDirectionVector,
@@ -72,7 +71,11 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     executedResolution.kind === "applied" && toolDefinition.endsTurnOnUse
       ? {
           ...executedResolution,
-          endsTurn: executedResolution.endsTurn || toolDefinition.endsTurnOnUse
+          endsTurn: executedResolution.endsTurn || toolDefinition.endsTurnOnUse,
+          phaseEffect: {
+            ...(executedResolution.phaseEffect ?? {}),
+            finishTurn: true
+          }
         }
       : executedResolution;
 

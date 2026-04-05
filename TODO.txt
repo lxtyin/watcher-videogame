@@ -2,17 +2,95 @@
 【如果你是AI，请不要参考这个文件中的内容】
 
 
-请你理解本项目，然后进行一次全方面的code review，重点思考以下几个问题：
-- 当前项目的几大核心机制（底层移动结算、工具模块、地形和召唤物系统、角色技能系统、动画与表现层）之间的耦合是否严重？
-- 几个未来可能包含重大扩展的模块（工具、地形、角色技能、召唤物）当前是否提供了良好的可拓展性？这些资源组织是否合理？
-- 当前的文档是否符合AI开发指南中的文档要求？
-然后，请你从专业软件设计师的角度给出重构建议
+
+下面做shared层的工具和角色系统彻底重构，我们先探讨一下方案可行性：
+ - 终极目标：高内聚、低耦合、强可扩展性、开闭原则
+ - 定义上区分：工具（Tool）是玩家主动操控的道具，每个工具（Tool）需要绑定一种交互模式（Interaction）和一个具体的执行函数（execute）
+    - 执行函数定义了它如何给玩家施加位移、影响地图状态等，它必须调用movementSystem来施加任何位移。
+    - 交互模式定义用户如何操作这个道具，这部分留着后面和表现层一起重构，现在只要注意到它的存在即可
+ - 技能（Skill）是自动触发的被动，可能在回合编排中的多种时机（回合开始、回合结束时等）触发
+    - 技能执行（execute）应当是比较简单的，例如直接施加一段无需交互的位移（通过movementSystem）、给予玩家一个特殊的Tool等，复杂逻辑都由Tool实现。
+    - 我觉得技能可以用修饰器（Modifier）实现，即包含了触发器，又能够维护仅属于技能自身的状态量。
+    - 触发器的类型应当可以拓展，后续按需加入新的触发器（例如，使用工具时、发生位移时）
+ - 角色（Character）是技能（Skill）的集合体
+ - 不再维护角色运行时状态，我希望所有的状态都定义在Modifier中
+ - 高内聚原则：一个工具/技能的完整信息尽量定义在一个文件中。
+ - 仅当目前的框架难以实现时某个需求时，才考虑增加主流程中的可控变量。无论如何，主流程中的变量只能是通用的（例如，骰子的面数），而不能是专门针对单个工具的
+
+我支持你的建议：
+ - 语义层叫做Skill，逻辑层叫Modifier，没有问题
+ - Modifier应当支持多种hook，没有问题；late在 "onGetTool" 时找到移动并改成制动，volaty 则在 "onDiceRoll" 时将移动改成飞跃
+ - 跨回合状态确实需要存储，但应当区分：状态应该是属于玩家（Player）的，而不是角色的。
+   - 我认为可以给玩家一个公用的标签库（Tag set）来做状态，避免大量的专用变量。它用Set来保证类型约束，插入标签时通过Skill前缀来避免命名冲突
+ - 吞掉turnStartAction，把回合做成三个阶段（回合开始阶段，行动阶段，回合结束阶段）；默认情况下投骰子、点击回合结束按钮为阶段之间的分界
+   - 每个阶段都可以使用Tool，Blaze和volaty的回合开始技能即一种Tool，它们都会立即结束回合开始阶段
+
+在落地顺序上，我认为需要更激进：旧的系统必须删除，因为是AI开发，旧系统的存在会对AI的判断造成干扰。
+如果没问题，请你先写一个文档定义好我们新的完整概念模型，并约束未来的AI不能随意引入新的概念，然后规划一下修改路线
+
+
+
+`Late`
+  - 【M_Late】: `onGetTool` 时，将获得的移动工具改为成制动工具。
+`Volaty`
+  - 【M_Volaty】: `onTurnStart`时，获得一个<T_Volaty_flyPrepare>工具
+  - <T_Volaty_flyPrepare>：立即跳过turn-start阶段，投掷点数骰并获得等距离的<飞跃>
+`Blaze`
+  - 【M_Blaze】
+    - `onTurnStart`时，如果角色没有Blaze:bombPrepared标签，获得一个<T_Blaze_bombPrepared>工具
+    - `onTurnActionStart`时，如果角色有Blaze:bomb_prepared标签，删除该标签并赋予玩家一个<T_Blaze_bombThrow>工具
+  - <T_Blaze_bombPrepare>：立即跳过turn-start阶段和action阶段，给玩家添加Blaze:bombPrepared标签
+  - <T_Blaze_bombThrow>：即旧框架中的 <bombThrow> 工具
+`Ehh`
+  - 【M_Ehh】：`onTurnActionStart`时，给予玩家一个<basketball>
+`Leader`
+  - 【M_Leader】：`onTurnEnd`时，获得一个<T_Leader_deployWallet>工具
+  - <T_Leader_deployWallet> 即旧框架中的 <deployWallet> 工具
+  - 召唤物系统暂时放着不变，wallet的机制也保持不变
+`Chain`
+  - 【M_Chain】：
+    - `onTurnEnd`时，给玩家添加Chain:unmoved标签
+    - `onMovementResolved`时，删除玩家的Chain:unmoved标签
+    - `onTurnActionStart`时，若玩家有Chain:unmoved标签，给予玩家一个长度为3的<hookshot>，并删除该标签
+`Father`
+  - 暂时删除
+
+新角色：`AWM` ：
+  - 描述：AWM可以发射子弹，令击中的玩家获得等同于自己移动点数的【束缚】
+  - 【M_AWM】：`onTurnActionStart`时，给予玩家一个<T_AWM_shoot>
+  - <T_AWM_shoot>: 选中一个方向，发射一枚子弹，击中的第一格所在的玩家获得Modifier【M_Basis_Bondage】，其层数等于AWM当前拥有的<translate>总点数
+  - 【M_Basis_Bondage】: 有一个束缚层数属性。`onTurnStart`时，令玩家的所有移动和制动工具层数 - x，然后移除这个Modifier。
+
+
+
+几点修改:
+1. 回合阶段的`action`改成`turn-action`，避免命名冲突
+2. 触发器的 `onPhaseStart, onPhaseEnd` 修改成 `onTurnStart, onTurnActionStart, onTurnEnd`，分别对应三个阶段的开始；同步修改skill的触发器
+3. MovementSystem还管理了一个resolveCurrentTileStop，把这个逻辑也放进回合编排里面。
+4. 整理Tool，把单个Tool的定义和实现放进一个文件；把所有这些Tool实现文件整理进一个文件夹。
+
+加入新角色：`AWM` ：
+  - 描述：AWM可以发射子弹，令击中的玩家获得等同于自己移动点数的【束缚】
+  - Modifier：`onTurnActionStart`时，给予玩家一个<AWMShoot>
+  - <AWMShoot>: 选中一个方向，发射一枚子弹，击中的第一格所在的玩家获得一个束缚Modifier（属于基础Modifier，不属于任何角色），束缚等于AWM当前拥有的总移动点数
+  - 束缚Modifier: 有一个束缚层数x。`onGetTool`时，如果获得<移动>或<制动>，令点数 - x。`onTurnEnd`时，移除这个Modifier
+这个角色主要用于验证：Modifier是可插拔的，如果不是，请实现Modifier的插拔逻辑，而不是为AWM写特判
 
 
 
 
-shared 层优化：
-做好注册表 + 修饰器结构，在主流程/主逻辑中不应该带有大量和的
+
+
+
+
+- 额外回合逻辑：增加一个回合阶段，获得特有的道具（主要用于点击“回合结束”后的行动）
+
+技能（Skill）：技能是在回合轮转中主动或被动触发的效果，触发时机分为：
+ - beforeTurnStart（投骰子之前）/ onTurnStart（投骰子之后） / onTurnEnd（点击结束回合时）
+ - onBeforeToolUse（工具使用前）/ onAfterToolUse（工具使用后）
+
+
+
 
 client 表现层优化
 
@@ -24,6 +102,7 @@ client 表现层优化
  - 修<砌墙>bug，不能在有玩家/召唤物的位置放置
  - 芙兰迪飞跃？（优化角色技能逻辑层）
  - 冲刺加不了制动
+ - 房间号复制
  
 AI建议TODO：
  - 消灭 JSON 字符串隧道。要么上更细的 Colyseus schema 子结构，要么至少做一层 shared codec，统一 serialize/deserialize 和版本控制。

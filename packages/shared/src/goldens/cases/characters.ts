@@ -5,7 +5,7 @@ export const GOLDEN_CHARACTER_CASES = [
     id: "blaze-prepares-bomb-and-throws-next-turn",
     title: "Blaze prepares a bomb and receives Bomb Throw next turn",
     description:
-      "Using Blaze's roll-phase action should end the turn immediately and grant Bomb Throw on the next turn.",
+      "Using Blaze's turn-start action should end the turn immediately and grant Bomb Throw on the next turn.",
     scene: {
       layout: [
         "########",
@@ -30,14 +30,14 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "blaze",
-        phase: "roll"
+        phase: "turn-start"
       }
     },
     steps: [
       {
-        kind: "useTurnStartAction",
+        kind: "useTool",
         actorId: "blaze",
-        actionId: "blazePrepareBomb",
+        tool: "blazePrepareBomb",
         label: "Blaze prepares the next-turn bomb"
       },
       {
@@ -76,7 +76,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       turnInfo: {
         currentPlayerId: "blaze",
-        phase: "action",
+        phase: "turn-action",
         moveRoll: 4,
         lastRolledToolId: "buildWall"
       },
@@ -90,7 +90,7 @@ export const GOLDEN_CHARACTER_CASES = [
     id: "volaty-skips-tool-die-and-leaps",
     title: "Volaty skips the tool die and turns movement into a leap",
     description:
-      "Volaty's roll-phase action should roll only movement and resolve the turn's Movement tool as a leap.",
+      "Volaty's turn-start action should roll only movement and resolve the turn's Movement tool as a leap.",
     scene: {
       layout: [
         "#######",
@@ -108,14 +108,14 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "volaty",
-        phase: "roll"
+        phase: "turn-start"
       }
     },
     steps: [
       {
-        kind: "useTurnStartAction",
+        kind: "useTool",
         actorId: "volaty",
-        actionId: "volatySkipToolDie",
+        tool: "volatySkipToolDie",
         label: "Volaty skips the tool die"
       },
       {
@@ -135,7 +135,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       turnInfo: {
         currentPlayerId: "volaty",
-        phase: "action",
+        phase: "turn-action",
         moveRoll: 3,
         lastRolledToolId: null
       },
@@ -167,7 +167,7 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "chain",
-        phase: "roll"
+        phase: "turn-start"
       }
     },
     steps: [
@@ -184,7 +184,7 @@ export const GOLDEN_CHARACTER_CASES = [
         }
       },
       turnInfo: {
-        phase: "action",
+        phase: "turn-action",
         moveRoll: 3,
         lastRolledToolId: "jump"
       }
@@ -228,7 +228,7 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "dummy",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [
@@ -259,7 +259,7 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       turnInfo: {
         currentPlayerId: "chain",
-        phase: "action",
+        phase: "turn-action",
         moveRoll: 3,
         lastRolledToolId: "jump"
       }
@@ -304,7 +304,7 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "farther",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [
@@ -395,7 +395,7 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "farther",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [
@@ -443,6 +443,144 @@ export const GOLDEN_CHARACTER_CASES = [
       },
       latestPresentation: {
         toolId: "movement",
+        eventKinds: ["player_motion"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "awm-shoot-applies-bondage-tags",
+    title: "AWM applies bondage through tags instead of character-specific runtime state",
+    description:
+      "AWM Shoot should tag the first hit player with bondage stacks equal to AWM's current movement pool.",
+    scene: {
+      layout: [
+        "########",
+        "#......#",
+        "#......#",
+        "########"
+      ],
+      players: [
+        {
+          id: "awm",
+          name: "AWM",
+          characterId: "awm",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 2
+              }
+            },
+            {
+              toolId: "awmShoot",
+              source: "character_skill"
+            }
+          ]
+        },
+        {
+          id: "target",
+          name: "Target",
+          characterId: "late",
+          position: { x: 3, y: 1 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "awm",
+        phase: "turn-action"
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "awm",
+        tool: "awmShoot",
+        direction: "right",
+        label: "AWM shoots the first player in line"
+      }
+    ],
+    expect: {
+      players: {
+        awm: {
+          position: { x: 1, y: 1 },
+          toolIds: ["movement"]
+        },
+        target: {
+          position: { x: 3, y: 1 },
+          tags: {
+            "basis:bondage-stacks": 2
+          }
+        }
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "bondage-modifier-reduces-next-movement-and-clears-on-turn-end",
+    title: "Bondage is a pluggable base modifier that reduces movement and clears on turn end",
+    description:
+      "A non-AWM player with bondage tags should receive reduced movement-derived tools on roll, then lose the tags at turn end.",
+    scene: {
+      layout: [
+        "########",
+        "#......#",
+        "#......#",
+        "########"
+      ],
+      players: [
+        {
+          id: "target",
+          name: "Target",
+          characterId: "late",
+          position: { x: 1, y: 1 },
+          tags: {
+            "basis:bondage-stacks": 2
+          }
+        },
+        {
+          id: "dummy",
+          name: "Dummy",
+          characterId: "ehh",
+          position: { x: 1, y: 2 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "target",
+        phase: "turn-start"
+      }
+    },
+    steps: [
+      {
+        kind: "rollDice",
+        actorId: "target",
+        label: "The tagged player rolls and receives reduced movement-derived tools"
+      },
+      {
+        kind: "useTool",
+        actorId: "target",
+        tool: "brake",
+        targetPosition: { x: 2, y: 1 },
+        label: "Late's transformed Brake is reduced to one tile by bondage"
+      },
+      {
+        kind: "endTurn",
+        actorId: "target",
+        label: "Ending the turn clears the bondage tags"
+      }
+    ],
+    expect: {
+      players: {
+        target: {
+          position: { x: 2, y: 1 },
+          tags: {},
+          toolIds: []
+        }
+      },
+      turnInfo: {
+        currentPlayerId: "dummy",
+        phase: "turn-start"
+      },
+      latestPresentation: {
+        toolId: "brake",
         eventKinds: ["player_motion"]
       }
     }

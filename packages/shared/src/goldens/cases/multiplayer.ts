@@ -43,7 +43,7 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       ],
       turn: {
         currentPlayerId: "hooker",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [
@@ -139,7 +139,7 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       ],
       turn: {
         currentPlayerId: "rocketeer",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [
@@ -245,7 +245,7 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       ],
       turn: {
         currentPlayerId: "rocketeer",
-        phase: "action"
+        phase: "turn-action"
       }
     },
     steps: [

@@ -30,7 +30,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             ],
             turn: {
                 currentPlayerId: "hero",
-                phase: "action"
+                phase: "turn-action"
             }
         },
         steps: [
@@ -91,7 +91,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             ],
             turn: {
                 currentPlayerId: "hero",
-                phase: "action"
+                phase: "turn-action"
             }
         },
         steps: [
@@ -120,7 +120,7 @@ export const GOLDEN_MOVEMENT_CASES = [
     defineGoldenCase({
         id: "turn-start-lucky-grants-pre-roll-tool",
         title: "Turn start stop triggers lucky before the roll",
-        description: "Starting a turn on a lucky tile should immediately grant one rolled tool during the roll phase.",
+        description: "Starting a turn on a lucky tile should immediately grant one rolled tool during the turn-start phase.",
         scene: {
             layout: [
                 "#####",
@@ -139,7 +139,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             ],
             turn: {
                 currentPlayerId: "hero",
-                phase: "action",
+                phase: "turn-action",
                 turnNumber: 1
             },
             seeds: {
@@ -169,7 +169,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             },
             turnInfo: {
                 currentPlayerId: "hero",
-                phase: "roll",
+                phase: "turn-start",
                 turnNumber: 2
             }
         }
@@ -197,7 +197,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             ],
             turn: {
                 currentPlayerId: "hero",
-                phase: "action",
+                phase: "turn-action",
                 turnNumber: 1
             }
         },
@@ -223,7 +223,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             },
             turnInfo: {
                 currentPlayerId: "hero",
-                phase: "roll",
+                phase: "turn-start",
                 turnNumber: 2
             },
             eventTypes: ["turn_ended", "turn_started", "player_respawned"]

@@ -6,6 +6,7 @@ import {
   type Direction,
   type GameSnapshot,
   type GridPosition,
+  type TurnPhase,
   type UseToolCommandPayload
 } from "@watcher/shared";
 
@@ -110,7 +111,7 @@ export function buildActionPreview(
   const activePlayer = snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId);
   const me = snapshot.players.find((player) => player.id === sessionId);
 
-  if (!activePlayer || !me || activePlayer.id !== sessionId || snapshot.turnInfo.phase !== "action") {
+  if (!activePlayer || !me || activePlayer.id !== sessionId) {
     return null;
   }
 
@@ -121,7 +122,7 @@ export function buildActionPreview(
       id: player.id,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
-      characterState: player.characterState,
+      tags: player.tags,
       position: player.position,
       spawnPosition: player.spawnPosition,
       turnFlags: player.turnFlags
@@ -135,7 +136,7 @@ export function buildActionPreview(
   const actor = {
     id: me.id,
     characterId: me.characterId,
-    characterState: me.characterState,
+    tags: me.tags,
     position: me.position,
     spawnPosition: me.spawnPosition,
     turnFlags: me.turnFlags
@@ -150,6 +151,7 @@ export function buildActionPreview(
     board,
     actor,
     activeTool,
+    phase: snapshot.turnInfo.phase as TurnPhase,
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
     tools: me.tools,
     summons,

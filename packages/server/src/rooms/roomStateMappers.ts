@@ -1,13 +1,12 @@
 import type {
   BoardPlayerState,
   BoardSummonState,
-  CharacterStateMap,
   Direction,
   GameSnapshot,
+  PlayerTagMap,
   PlayerTurnFlag,
   SequencedActionPresentation,
   TileType,
-  TurnStartActionSnapshot,
   TurnToolSnapshot
 } from "@watcher/shared";
 import {
@@ -43,7 +42,7 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
       id: entry.id,
       boardVisible: entry.boardVisible,
       characterId: entry.characterId,
-      characterState: parseCharacterState(entry.characterStateJson),
+      tags: parsePlayerTags(entry.tagsJson),
       position: {
         x: entry.x,
         y: entry.y
@@ -56,19 +55,11 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
     }));
 }
 
-export function parseCharacterState(characterStateJson: string): CharacterStateMap {
+export function parsePlayerTags(tagsJson: string): PlayerTagMap {
   try {
-    return JSON.parse(characterStateJson) as CharacterStateMap;
+    return JSON.parse(tagsJson) as PlayerTagMap;
   } catch {
     return {};
-  }
-}
-
-export function parseTurnStartActions(turnStartActionsJson: string): TurnStartActionSnapshot[] {
-  try {
-    return JSON.parse(turnStartActionsJson) as TurnStartActionSnapshot[];
-  } catch {
-    return [];
   }
 }
 
@@ -143,7 +134,7 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
       color: player.color,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
-      characterState: parseCharacterState(player.characterStateJson),
+      tags: parsePlayerTags(player.tagsJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
       finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,
       isConnected: player.isConnected,
@@ -173,7 +164,6 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
         state.turnInfo.lastRolledToolId === ""
           ? null
           : state.turnInfo.lastRolledToolId,
-      turnStartActions: parseTurnStartActions(state.turnInfo.turnStartActionsJson),
       toolDieSeed: state.turnInfo.toolDieSeed
     }
   };

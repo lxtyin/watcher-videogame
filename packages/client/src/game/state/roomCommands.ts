@@ -5,8 +5,7 @@ import type {
   GameSnapshot,
   GridPosition,
   SetReadyCommandPayload,
-  ToolId,
-  TurnStartActionId
+  ToolId
 } from "@watcher/shared";
 import {
   getUsableChoiceToolState,
@@ -101,17 +100,6 @@ export function sendInstantToolIfUsable(
 
   room.send("useTool", { toolInstanceId: selectedToolState.tool.instanceId });
   return true;
-}
-
-export function sendUseTurnStartAction(
-  room: Room | null,
-  actionId: TurnStartActionId
-): void {
-  if (!room) {
-    return;
-  }
-
-  room.send("useTurnStartAction", { actionId });
 }
 
 export function sendDirectionalToolIfUsable(

@@ -1,10 +1,11 @@
 import type {
   CharacterId,
-  CharacterStateMap,
   Direction,
   GameMode,
   GameSnapshot,
+  TurnPhase,
   RoomPhase,
+  PlayerTagMap,
   PlayerTurnFlag,
   RolledToolId,
   SequencedActionPresentation,
@@ -33,7 +34,7 @@ interface RoomPlayerState {
   color: string;
   boardVisible: boolean;
   characterId: CharacterId;
-  characterStateJson: string;
+  tagsJson: string;
   finishRank: number;
   finishedTurnNumber: number;
   x: number;
@@ -64,11 +65,10 @@ interface RoomSummonState {
 
 interface RoomTurnInfo {
   currentPlayerId: string;
-  phase: "roll" | "action";
+  phase: TurnPhase;
   turnNumber: number;
   moveRoll: number;
   lastRolledToolId: RolledToolId | "";
-  turnStartActionsJson: string;
   toolDieSeed: number;
 }
 
@@ -125,18 +125,11 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return {};
     }
   };
-  const parseCharacterState = (characterStateJson: string): CharacterStateMap => {
+  const parsePlayerTags = (tagsJson: string): PlayerTagMap => {
     try {
-      return JSON.parse(characterStateJson) as CharacterStateMap;
+      return JSON.parse(tagsJson) as PlayerTagMap;
     } catch {
       return {};
-    }
-  };
-  const parseTurnStartActions = () => {
-    try {
-      return JSON.parse(roomState.turnInfo.turnStartActionsJson) as GameSnapshot["turnInfo"]["turnStartActions"];
-    } catch {
-      return [];
     }
   };
   const parseLatestPresentation = (): SequencedActionPresentation | null => {
@@ -188,7 +181,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       color: player.color,
       boardVisible: player.boardVisible,
       characterId: player.characterId,
-      characterState: parseCharacterState(player.characterStateJson),
+      tags: parsePlayerTags(player.tagsJson),
       finishRank: player.finishRank > 0 ? player.finishRank : null,
       finishedTurnNumber: player.finishedTurnNumber > 0 ? player.finishedTurnNumber : null,
       isConnected: player.isConnected,
@@ -219,7 +212,6 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         roomState.turnInfo.lastRolledToolId === ""
           ? null
           : roomState.turnInfo.lastRolledToolId,
-      turnStartActions: parseTurnStartActions(),
       toolDieSeed: roomState.turnInfo.toolDieSeed
     },
     eventLog: Array.from(roomState.eventLog).map((entry) => ({

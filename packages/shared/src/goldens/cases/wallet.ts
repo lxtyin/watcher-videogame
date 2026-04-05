@@ -5,7 +5,7 @@ export const GOLDEN_WALLET_CASES = [
     id: "leader-deploy-wallet",
     title: "Leader wallet deploy ends the turn",
     description:
-      "Deploying a wallet should create a summon and immediately advance to the next roll phase.",
+      "Deploying a wallet should create a summon and immediately advance to the next turn-start phase.",
     scene: {
       layout: [
         "#####",
@@ -32,7 +32,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turn: {
         currentPlayerId: "leader",
-        phase: "action",
+        phase: "turn-action",
         turnNumber: 1
       }
     },
@@ -71,7 +71,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turnInfo: {
         currentPlayerId: "leader",
-        phase: "roll",
+        phase: "turn-start",
         turnNumber: 2
       },
       latestPresentation: {
@@ -117,7 +117,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turn: {
         currentPlayerId: "leader",
-        phase: "action"
+        phase: "turn-action"
       },
       seeds: {
         toolDieSeed: 1
@@ -189,7 +189,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turn: {
         currentPlayerId: "leader",
-        phase: "action"
+        phase: "turn-action"
       },
       seeds: {
         toolDieSeed: 1
@@ -261,7 +261,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turn: {
         currentPlayerId: "leader",
-        phase: "action"
+        phase: "turn-action"
       },
       seeds: {
         toolDieSeed: 1
@@ -341,7 +341,7 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turn: {
         currentPlayerId: "enemy",
-        phase: "action"
+        phase: "turn-action"
       },
       seeds: {
         toolDieSeed: 1

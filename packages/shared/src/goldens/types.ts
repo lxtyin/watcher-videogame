@@ -2,12 +2,12 @@ import type { LayoutSymbolDefinition } from "../content/boards/defaultBoard";
 import type {
   ActionPresentationEvent,
   CharacterId,
-  CharacterStateMap,
   Direction,
   EventType,
   GameMode,
   GameSnapshot,
   GridPosition,
+  PlayerTagMap,
   PlayerTurnFlag,
   SummonId,
   SummonSnapshot,
@@ -27,12 +27,12 @@ export interface GoldenToolLoadoutDefinition extends SimulationToolLoadoutDefini
 
 export interface GoldenPlayerDefinition {
   characterId?: CharacterId;
-  characterState?: CharacterStateMap;
   color?: string;
   id: string;
   name?: string;
   position: GridPosition;
   spawnPosition?: GridPosition;
+  tags?: PlayerTagMap;
   tools?: GoldenToolLoadoutDefinition[];
   turnFlags?: PlayerTurnFlag[];
 }
@@ -82,11 +82,6 @@ export interface GoldenUseToolStep extends GoldenCaseStepBase {
   tool: GoldenToolSelectorDefinition | ToolId;
 }
 
-export interface GoldenUseTurnStartActionStep extends GoldenCaseStepBase {
-  actionId: GameSnapshot["turnInfo"]["turnStartActions"][number]["actionId"];
-  kind: "useTurnStartAction";
-}
-
 export interface GoldenEndTurnStep extends GoldenCaseStepBase {
   kind: "endTurn";
 }
@@ -103,7 +98,6 @@ export interface GoldenGrantDebugToolStep extends GoldenCaseStepBase {
 
 export type GoldenCaseStep =
   | GoldenRollDiceStep
-  | GoldenUseTurnStartActionStep
   | GoldenUseToolStep
   | GoldenEndTurnStep
   | GoldenSetCharacterStep
@@ -115,6 +109,7 @@ export interface GoldenExpectedPlayerState {
   finishedTurnNumber?: number | null;
   position?: GridPosition;
   spawnPosition?: GridPosition;
+  tags?: PlayerTagMap;
   toolCount?: number;
   toolIds?: ToolId[];
   turnFlags?: PlayerTurnFlag[];
@@ -163,6 +158,7 @@ export interface GoldenCasePlayerSummary {
   finishedTurnNumber: number | null;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   toolCount: number;
   toolIds: ToolId[];
   turnFlags: PlayerTurnFlag[];

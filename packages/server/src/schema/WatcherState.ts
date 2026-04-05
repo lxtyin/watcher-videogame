@@ -34,7 +34,7 @@ export class PlayerState extends Schema {
   @type("string") color = "";
   @type("boolean") boardVisible = true;
   @type("string") characterId: CharacterId = "late";
-  @type("string") characterStateJson = "{}";
+  @type("string") tagsJson = "{}";
   @type("number") finishRank = 0;
   @type("number") finishedTurnNumber = 0;
   @type("boolean") isConnected = true;
@@ -57,11 +57,10 @@ export class SummonState extends Schema {
 
 export class TurnInfoState extends Schema {
   @type("string") currentPlayerId = "";
-  @type("string") phase = "roll";
+  @type("string") phase = "turn-start";
   @type("number") turnNumber = 1;
   @type("number") moveRoll = 0;
   @type("string") lastRolledToolId: RolledToolId | "" = "";
-  @type("string") turnStartActionsJson = "[]";
   @type("number") toolDieSeed = 1;
 }
 

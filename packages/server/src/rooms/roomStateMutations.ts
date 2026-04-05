@@ -1,7 +1,7 @@
 import type {
   AffectedPlayerMove,
-  CharacterStateMap,
   GameSnapshot,
+  PlayerTagMap,
   SummonMutation,
   TileMutation,
   TurnToolSnapshot
@@ -62,8 +62,8 @@ export function applyPlayerTurnFlags(player: PlayerState, turnFlags: string[]): 
   }
 }
 
-export function applyCharacterState(player: PlayerState, characterState: CharacterStateMap): void {
-  player.characterStateJson = JSON.stringify(characterState);
+export function applyPlayerTags(player: PlayerState, tags: PlayerTagMap): void {
+  player.tagsJson = JSON.stringify(tags);
 }
 
 // Tile mutations persist permanent board changes such as broken earth walls.
@@ -103,7 +103,7 @@ export function applyAffectedPlayerMoves(
   state: WatcherState,
   affectedPlayers: AffectedPlayerMove[],
   applyFlags: (player: PlayerState, turnFlags: string[]) => void,
-  applyCharacterStatePatch: (player: PlayerState, characterState: CharacterStateMap) => void
+  applyPlayerTagsPatch: (player: PlayerState, tags: PlayerTagMap) => void
 ): void {
   for (const affectedPlayer of affectedPlayers) {
     const player = state.players.get(affectedPlayer.playerId);
@@ -119,8 +119,8 @@ export function applyAffectedPlayerMoves(
       applyFlags(player, affectedPlayer.turnFlags);
     }
 
-    if (affectedPlayer.characterState) {
-      applyCharacterStatePatch(player, affectedPlayer.characterState);
+    if (affectedPlayer.tags) {
+      applyPlayerTagsPatch(player, affectedPlayer.tags);
     }
   }
 }
@@ -190,7 +190,7 @@ export function applyGameSnapshotToState(
     playerState.color = player.color;
     playerState.boardVisible = player.boardVisible;
     playerState.characterId = player.characterId;
-    playerState.characterStateJson = JSON.stringify(player.characterState);
+    playerState.tagsJson = JSON.stringify(player.tags);
     playerState.finishRank = player.finishRank ?? 0;
     playerState.finishedTurnNumber = player.finishedTurnNumber ?? 0;
     playerState.isConnected = player.isConnected;
@@ -228,7 +228,6 @@ export function applyGameSnapshotToState(
   state.turnInfo.turnNumber = snapshot.turnInfo.turnNumber;
   state.turnInfo.moveRoll = snapshot.turnInfo.moveRoll;
   state.turnInfo.lastRolledToolId = snapshot.turnInfo.lastRolledToolId ?? "";
-  state.turnInfo.turnStartActionsJson = JSON.stringify(snapshot.turnInfo.turnStartActions);
   state.turnInfo.toolDieSeed = snapshot.turnInfo.toolDieSeed;
 
   while (state.eventLog.length > 0) {

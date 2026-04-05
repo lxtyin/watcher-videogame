@@ -4,11 +4,11 @@ import { isMovementDisposition, isMovementType } from "./rules/displacement";
 import type {
   BoardSummonState,
   CharacterId,
-  CharacterStateMap,
   Direction,
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  PlayerTagMap,
   PlayerTurnFlag,
   SummonId,
   SummonMutation,
@@ -19,10 +19,10 @@ import { createRolledToolInstance } from "./tools";
 
 interface SummonTriggerTarget {
   characterId: CharacterId;
-  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -40,9 +40,9 @@ interface SummonTriggerContext {
 
 interface SummonTriggerResult {
   consumeSummon?: boolean;
-  nextCharacterState?: CharacterStateMap;
   nextDirection?: Direction;
   nextRemainingMovePoints?: number;
+  nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
   nextTurnFlags?: PlayerTurnFlag[];
@@ -62,9 +62,9 @@ interface SummonPhaseContext {
 }
 
 export interface SummonPhaseResolution {
-  nextCharacterState?: CharacterStateMap;
   nextDirection?: Direction;
   nextRemainingMovePoints?: number;
+  nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
   nextTurnFlags?: PlayerTurnFlag[];
@@ -179,9 +179,9 @@ function applySummonTriggerResult(
   remainingSummonIds: Set<string>,
   resolution: SummonPhaseResolution
 ): void {
-  if (result.nextCharacterState) {
-    resolution.nextCharacterState = {
-      ...result.nextCharacterState
+  if (result.nextTags) {
+    resolution.nextTags = {
+      ...result.nextTags
     };
   }
 
@@ -244,10 +244,10 @@ function runSummonPhase(
       movement: context.movement,
       player: {
         characterId: context.player.characterId,
-        characterState: context.player.characterState,
         id: context.player.id,
         position: context.position,
         spawnPosition: context.player.spawnPosition,
+        tags: context.player.tags,
         turnFlags: [...context.player.turnFlags]
       },
       position: context.position,

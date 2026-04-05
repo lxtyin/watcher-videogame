@@ -8,70 +8,43 @@ function defineCharacterRegistry<const Registry extends Record<string, Character
 
 export const CHARACTER_REGISTRY = defineCharacterRegistry({
   late: {
-    label: "罗素的关门弟子",
-    summary: "你的所有<移动>变为<制动>。",
-    turnStartGrants: [],
-    turnStartActionIds: [],
-    activeSkillLoadout: [],
-    toolTransforms: [
-      {
-        fromToolId: "movement",
-        toToolId: "brake",
-        paramMappings: [
-          {
-            fromParamId: "movePoints",
-            toParamId: "brakeRange"
-          }
-        ]
-      }
-    ]
+    label: "Late",
+    summary: "将获得的移动改为等距离制动。",
+    skillIds: ["late:brake-movement"]
   },
   ehh: {
-    label: "鹅哈哈",
-    summary: "每回合额外获得一颗<篮球>。",
-    turnStartGrants: [{ toolId: "basketball" }],
-    turnStartActionIds: [],
-    activeSkillLoadout: [],
-    toolTransforms: []
+    label: "Ehh",
+    summary: "每个行动阶段额外获得一个篮球。",
+    skillIds: ["ehh:extra-basketball"]
   },
   leader: {
-    label: "领导",
-    summary: "可以部署钱包，自己经过时拾取并获得一个工具骰。",
-    turnStartGrants: [],
-    turnStartActionIds: [],
-    activeSkillLoadout: [{ toolId: "deployWallet" }],
-    toolTransforms: []
+    label: "Leader",
+    summary: "每个行动阶段获得一个放置钱包。",
+    skillIds: ["leader:deploy-wallet"]
   },
   blaze: {
-    label: "布拉泽",
-    summary: "回合开始时可以进入投弹准备，并在下个回合获得<投弹>。",
-    turnStartGrants: [],
-    turnStartActionIds: ["blazePrepareBomb"],
-    activeSkillLoadout: [],
-    toolTransforms: []
+    label: "Blaze",
+    summary: "回合开始可准备炸弹，并在下个行动阶段获得投弹。",
+    skillIds: ["blaze:prepare-bomb"]
   },
   volaty: {
-    label: "芙兰迪",
-    summary: "回合开始时可以放弃工具骰，并让本回合的移动变为飞跃。",
-    turnStartGrants: [],
-    turnStartActionIds: ["volatySkipToolDie"],
-    activeSkillLoadout: [],
-    toolTransforms: []
+    label: "Volaty",
+    summary: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
+    skillIds: ["volaty:leap-roll"]
   },
   chain: {
-    label: "常",
-    summary: "若你在回合外未发生移动，本回合获得一个长度为 2 的小钩锁。",
-    turnStartGrants: [],
-    turnStartActionIds: [],
-    activeSkillLoadout: [],
-    toolTransforms: []
+    label: "Chain",
+    summary: "若回合外没有被移动，下个行动阶段获得短钩锁。",
+    skillIds: ["chain:hook-if-still"]
   },
   farther: {
-    label: "法真",
-    summary: "每回合获得一个<制衡>，并能把本回合的移动转存到下回合。",
-    turnStartGrants: [],
-    turnStartActionIds: [],
-    activeSkillLoadout: [],
-    toolTransforms: []
+    label: "Farther",
+    summary: "每个行动阶段获得制衡，并可把移动储存到下回合。",
+    skillIds: ["farther:balance-bank"]
+  },
+  awm: {
+    label: "AWM",
+    summary: "行动阶段开始时获得一发狙击，命中的玩家会获得束缚。",
+    skillIds: ["awm:grant-shot"]
   }
 } as const);

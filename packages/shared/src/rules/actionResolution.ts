@@ -2,6 +2,7 @@ import { getTile } from "../board";
 import { consumeToolInstance } from "../tools";
 import type {
   ActionPresentation,
+  ActionPhaseEffect,
   ActionResolution,
   ActionPresentationEvent,
   AffectedPlayerMove,
@@ -44,8 +45,8 @@ export function buildBlockedResolution(
     path,
     previewTiles,
     actor: {
-      characterState: actor.characterState,
       position: actor.position,
+      tags: actor.tags,
       turnFlags: actor.turnFlags
     },
     tools,
@@ -56,6 +57,7 @@ export function buildBlockedResolution(
     triggeredSummonEffects: [],
     presentation: null,
     endsTurn: false,
+    phaseEffect: null,
     nextToolDieSeed
   };
 }
@@ -75,7 +77,8 @@ export function buildAppliedResolution(
   summonMutations: SummonMutation[] = [],
   triggeredSummonEffects: TriggeredSummonEffect[] = [],
   endsTurn = false,
-  actorMovement: ResolvedPlayerMovement | null = null
+  actorMovement: ResolvedPlayerMovement | null = null,
+  phaseEffect: ActionPhaseEffect | null = null
 ): ActionResolution {
   return {
     kind: "applied",
@@ -84,8 +87,8 @@ export function buildAppliedResolution(
     path,
     previewTiles,
     actor: {
-      characterState: nextActor.characterState,
       position: nextActor.position,
+      tags: nextActor.tags,
       turnFlags: nextActor.turnFlags
     },
     tools,
@@ -96,6 +99,7 @@ export function buildAppliedResolution(
     triggeredSummonEffects,
     presentation,
     endsTurn,
+    phaseEffect,
     nextToolDieSeed
   };
 }

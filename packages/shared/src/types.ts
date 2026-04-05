@@ -28,16 +28,14 @@ export type SummonId = keyof typeof import("./content/summons").SUMMON_REGISTRY;
 export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
 export type GameMapId = keyof typeof import("./content/maps").GAME_MAP_REGISTRY;
 export type RolledToolId = typeof import("./content/tools").TOOL_DIE_FACES[number]["toolId"];
-export type TurnStartActionId =
-  keyof typeof import("./content/turnStartActions").TURN_START_ACTION_REGISTRY;
 export type ToolSource = ContentToolSource;
 export type ToolTargetMode = ContentToolTargetMode;
 export type TileTargetingMode = ContentTileTargetingMode;
 export type PlayerTurnFlag = "lucky_tile_claimed";
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
-export type CharacterStateValue = boolean | number | string;
-export type CharacterStateMap = Partial<Record<string, CharacterStateValue>>;
+export type PlayerTagValue = boolean | number | string;
+export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -81,15 +79,9 @@ export interface MovementDescriptor extends MovementContentDefinition {
   timing: MovementTiming;
 }
 
-export interface TurnStartActionSnapshot {
-  actionId: TurnStartActionId;
-  characterId: CharacterId;
-}
-
 export interface PlayerSnapshot {
   boardVisible: boolean;
   characterId: CharacterId;
-  characterState: CharacterStateMap;
   color: string;
   finishRank: number | null;
   finishedTurnNumber: number | null;
@@ -100,6 +92,7 @@ export interface PlayerSnapshot {
   petId: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   tools: TurnToolSnapshot[];
   turnFlags: PlayerTurnFlag[];
 }
@@ -116,7 +109,6 @@ export interface TurnInfoSnapshot {
   lastRolledToolId: RolledToolId | null;
   moveRoll: number;
   phase: TurnPhase;
-  turnStartActions: TurnStartActionSnapshot[];
   toolDieSeed: number;
   turnNumber: number;
 }
@@ -170,6 +162,7 @@ export interface ToolDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
+  phases: readonly TurnPhase[];
   id: ToolId;
   label: string;
   rollable: boolean;
@@ -204,11 +197,6 @@ export interface UseToolCommandPayload {
   toolInstanceId: string;
 }
 
-export interface UseTurnStartActionCommandPayload {
-  actionId: TurnStartActionId;
-  choiceId?: string;
-}
-
 export interface GrantDebugToolPayload {
   toolId: ToolId;
 }
@@ -227,10 +215,10 @@ export interface KickPlayerCommandPayload {
 
 export interface MovementActor {
   characterId: CharacterId;
-  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -257,10 +245,10 @@ export type MovementResolution =
 export interface BoardPlayerState {
   boardVisible: boolean;
   characterId: CharacterId;
-  characterState: CharacterStateMap;
   id: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -279,13 +267,13 @@ export interface TileMutation {
 }
 
 export interface AffectedPlayerMove {
-  characterState?: CharacterStateMap;
   movement: MovementDescriptor;
   path: GridPosition[];
   playerId: string;
   reason: string;
   startPosition: GridPosition;
   target: GridPosition;
+  tags?: PlayerTagMap;
   turnFlags?: PlayerTurnFlag[];
 }
 
@@ -311,6 +299,7 @@ export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
   choiceId?: string;
   direction?: Direction;
+  phase: TurnPhase;
   summons: BoardSummonState[];
   targetPosition?: GridPosition;
   toolDieSeed: number;
@@ -318,8 +307,8 @@ export interface ToolActionContext extends ActionContextBase {
 }
 
 export interface ResolvedActorState {
-  characterState: CharacterStateMap;
   position: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -483,12 +472,21 @@ export interface SequencedActionPresentation extends ActionPresentation {
   sequence: number;
 }
 
+export type ActionRollMode = "movement_only" | "standard";
+
+export interface ActionPhaseEffect {
+  finishTurn?: boolean;
+  nextPhase?: TurnPhase;
+  rollMode?: ActionRollMode;
+}
+
 export type ActionResolution =
   | {
       actorMovement: ResolvedPlayerMovement | null;
       actor: ResolvedActorState;
       affectedPlayers: AffectedPlayerMove[];
       endsTurn: boolean;
+      phaseEffect: ActionPhaseEffect | null;
       kind: "blocked";
       nextToolDieSeed: number;
       path: GridPosition[];
@@ -506,6 +504,7 @@ export type ActionResolution =
       actor: ResolvedActorState;
       affectedPlayers: AffectedPlayerMove[];
       endsTurn: boolean;
+      phaseEffect: ActionPhaseEffect | null;
       kind: "applied";
       nextToolDieSeed: number;
       path: GridPosition[];

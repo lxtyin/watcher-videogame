@@ -36,9 +36,6 @@ function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
     turnNumber: turnInfo.turnNumber,
     moveRoll: turnInfo.moveRoll,
     lastRolledToolId: turnInfo.lastRolledToolId,
-    turnStartActions: turnInfo.turnStartActions.map((action) => ({
-      ...action
-    })),
     toolDieSeed: turnInfo.toolDieSeed
   };
 }
@@ -113,15 +110,6 @@ function executeGoldenStep(
       execution = simulation.dispatch({
         kind: "rollDice",
         actorId: step.actorId
-      });
-      break;
-    case "useTurnStartAction":
-      execution = simulation.dispatch({
-        kind: "useTurnStartAction",
-        actorId: step.actorId,
-        payload: {
-          actionId: step.actionId
-        }
       });
       break;
     case "endTurn":
@@ -232,6 +220,7 @@ function summarizePlayers(
         finishedTurnNumber: player.finishedTurnNumber,
         position: clonePosition(player.position),
         spawnPosition: clonePosition(player.spawnPosition),
+        tags: { ...player.tags },
         toolCount: player.tools.length,
         toolIds: player.tools.map((tool) => tool.toolId),
         turnFlags: [...player.turnFlags]
@@ -324,6 +313,15 @@ function compareExpectedPlayerState(
   ) {
     mismatches.push(
       `Player "${playerId}" spawn mismatch: expected (${expected.spawnPosition.x}, ${expected.spawnPosition.y}), got (${actual.spawnPosition.x}, ${actual.spawnPosition.y}).`
+    );
+  }
+
+  if (
+    expected.tags &&
+    JSON.stringify(expected.tags) !== JSON.stringify(actual.tags)
+  ) {
+    mismatches.push(
+      `Player "${playerId}" tags mismatch: expected ${JSON.stringify(expected.tags)}, got ${JSON.stringify(actual.tags)}.`
     );
   }
 

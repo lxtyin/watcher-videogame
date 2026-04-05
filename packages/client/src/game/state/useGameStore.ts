@@ -6,7 +6,6 @@ import type {
   GameSnapshot,
   GridPosition,
   SequencedActionPresentation,
-  TurnStartActionId,
   ToolId
 } from "@watcher/shared";
 import { pumpActionPresentationPlayback } from "./presentationPlayback";
@@ -23,8 +22,7 @@ import {
   sendSetReady,
   sendStartGame,
   sendTileDirectionToolIfUsable,
-  sendTileTargetToolIfUsable,
-  sendUseTurnStartAction
+  sendTileTargetToolIfUsable
 } from "./roomCommands";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -62,7 +60,6 @@ interface GameStore {
   setSelectedToolInstanceId: (toolInstanceId: SelectedToolInstanceId) => void;
   showToolNotice: (message: string) => void;
   rollDice: () => void;
-  useTurnStartAction: (actionId: TurnStartActionId) => void;
   endTurn: () => void;
   setReady: (isReady: boolean) => void;
   kickPlayer: (playerId: string) => void;
@@ -258,9 +255,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   rollDice: () => {
     sendRollDice(get().room);
-  },
-  useTurnStartAction: (actionId) => {
-    sendUseTurnStartAction(get().room, actionId);
   },
   endTurn: () => {
     sendEndTurn(get().room);

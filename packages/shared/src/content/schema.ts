@@ -10,7 +10,7 @@ export type TileType =
 
 export type GameMode = "free" | "race";
 
-export type TurnPhase = "roll" | "action";
+export type TurnPhase = "turn-start" | "turn-action" | "turn-end";
 export type Direction = "up" | "down" | "left" | "right";
 export type ToolSource = "turn" | "character_skill";
 export type ToolTargetMode =
@@ -73,6 +73,8 @@ export interface ToolContentDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
+  label: string;
+  phases?: readonly TurnPhase[];
   rollable: boolean;
   source: ToolSource;
   targetMode: ToolTargetMode;
@@ -90,28 +92,10 @@ export interface ToolDieFaceContentDefinition extends ToolLoadoutContentDefiniti
   toolId: string;
 }
 
-export interface CharacterToolTransformContentDefinition {
-  fromToolId: string;
-  paramMappings: Array<{
-    fromParamId: ToolParameterId;
-    toParamId: ToolParameterId;
-  }>;
-  toToolId: string;
-}
-
 export interface CharacterContentDefinition {
-  activeSkillLoadout: ToolLoadoutContentDefinition[];
   label: string;
+  skillIds: readonly string[];
   summary: string;
-  toolTransforms: CharacterToolTransformContentDefinition[];
-  turnStartActionIds: readonly string[];
-  turnStartGrants: ToolLoadoutContentDefinition[];
-}
-
-export interface TurnStartActionContentDefinition {
-  color: string;
-  description: string;
-  label: string;
 }
 
 export interface SummonContentDefinition {
@@ -124,4 +108,3 @@ export interface PresentationEffectContentDefinition {
   description: string;
   label: string;
 }
-

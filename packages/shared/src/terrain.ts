@@ -4,11 +4,11 @@ import { isMovementType } from "./rules/displacement";
 import { createRolledToolInstance } from "./tools";
 import type {
   BoardDefinition,
-  CharacterStateMap,
   Direction,
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  PlayerTagMap,
   PlayerTurnFlag,
   TileDefinition,
   TriggeredTerrainEffect,
@@ -25,9 +25,9 @@ interface TerrainPassThroughContext {
 }
 
 interface TerrainPassThroughResult {
-  nextCharacterState?: CharacterStateMap;
   nextDirection?: Direction;
   nextRemainingMovePoints?: number;
+  nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
   nextTurnFlags?: PlayerTurnFlag[];
@@ -36,11 +36,11 @@ interface TerrainPassThroughResult {
 
 interface StopResolutionTarget {
   characterId: MovementActor["characterId"];
-  characterState: CharacterStateMap;
   id: string;
   isActor: boolean;
   position: GridPosition;
   spawnPosition: GridPosition;
+  tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -54,8 +54,8 @@ interface TerrainStopContext {
 }
 
 interface TerrainStopResult {
-  nextCharacterState?: CharacterStateMap;
   nextPosition?: GridPosition;
+  nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
   nextTurnFlags?: PlayerTurnFlag[];
@@ -236,11 +236,11 @@ export function createTerrainStopTarget(
 ): StopResolutionTarget {
   return {
     characterId: actor.characterId,
-    characterState: actor.characterState,
     id: actor.id,
     isActor,
     position,
     spawnPosition: actor.spawnPosition,
+    tags: actor.tags,
     turnFlags: [...actor.turnFlags]
   };
 }

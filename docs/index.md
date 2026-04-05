@@ -5,33 +5,36 @@
 1. [AI开发指南](./AI开发指南.md)
 2. [架构总览](./arch/架构总览.md)
 3. [共享规则层](./arch/共享规则层.md)
-4. [前后端联机原型](./arch/前后端联机原型.md)
+4. [能力系统统一模型](./arch/能力系统统一模型.md)
 5. [内容注册与资源组织](./arch/内容注册与资源组织.md)
-6. [角色系统原型](./arch/角色系统原型.md)
-7. [房间与大厅流程](./arch/房间与大厅流程.md)
-8. [progress](../progress.md)
+6. [角色与能力组织](./arch/角色系统原型.md)
+7. [前后端联机原型](./arch/前后端联机原型.md)
+8. [房间与大厅流程](./arch/房间与大厅流程.md)
+9. [progress](../progress.md)
 
 ## 当前硬约束
 
 - 回合编排的唯一实现位于 `packages/shared/src/gameOrchestration.ts`。
-- `packages/server/src/rooms/WatcherRoom.ts` 只能做房间生命周期、消息入口、状态映射、计时器调度，不能编写回合推进、换人、结算逻辑。
-- `packages/shared/src/simulation/engine.ts` 只是 shared orchestration 的本地包装层，不能重新实现回合逻辑。
-- 新增工具、地形、召唤物、角色能力时，优先扩展 shared 规则层与内容注册，不要把规则散落到 room、simulator 或 client。
-- 架构文档只描述当前实现与扩展边界；历史过程、试验记录放到 `progress.md`。
+- `packages/server/src/rooms/WatcherRoom.ts` 只能做房间生命周期、命令入口、状态映射和计时调度，不能再编写回合推进逻辑。
+- `packages/shared/src/simulation/engine.ts` 只能包装 shared orchestration，不能再维护第二套 turn flow。
+- 能力系统的唯一权威模型以 [能力系统统一模型](./arch/能力系统统一模型.md) 为准。未经明确批准，不应引入新的顶层概念，也不应恢复旧系统。
+- 架构文档只描述当前实现与已确认的稳定边界；历史过程、迁移记录、已完成事项统一写入 `progress.md`。
 
 ## 文档地图
 
 - [架构总览](./arch/架构总览.md)
-  - workspace 分层、核心数据流、关键入口文件。
+  - workspace 分层、主数据流、关键入口文件。
 - [共享规则层](./arch/共享规则层.md)
-  - shared 中的回合编排、移动系统、工具/地形/召唤物/角色运行时边界。
+  - shared 中的回合编排、动作结算、移动系统、地形、召唤物、能力管线。
+- [能力系统统一模型](./arch/能力系统统一模型.md)
+  - `Tool / Interaction / Skill / Modifier / Character / Player Tags / Turn Phase` 的正式定义与禁止事项。
+- [内容注册与资源组织](./arch/内容注册与资源组织.md)
+  - shared 与 client 的静态内容入口、资源目录与扩展落点。
+- [角色与能力组织](./arch/角色系统原型.md)
+  - 角色如何组合 `Skill`，以及 `Modifier`、`Tool`、`Player.tags` 的协作方式。
 - [前后端联机原型](./arch/前后端联机原型.md)
   - Colyseus room、schema 映射、客户端同步与表现层播放链路。
-- [内容注册与资源组织](./arch/内容注册与资源组织.md)
-  - shared 内容注册、客户端资源目录、扩展时应修改的位置。
-- [角色系统原型](./arch/角色系统原型.md)
-  - 角色状态、回合开始动作、角色专属工具与跨回合状态。
 - [房间与大厅流程](./arch/房间与大厅流程.md)
-  - 大厅、准备、开局、结算后回房等房间阶段流转。
+  - 房间生命周期、大厅、开局、结算、回房流程。
 - [progress](../progress.md)
-  - 迭代记录与最近完成项。
+  - 最近完成的重构与验证记录。
