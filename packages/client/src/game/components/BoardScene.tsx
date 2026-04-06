@@ -40,6 +40,7 @@ import {
   isChoiceStageActive,
   isInstantInteractionTool,
   isPointerStageActive,
+  shouldHideToolInteractionArc,
   type ToolInteractionSession,
   updateToolInteractionFromPointer
 } from "../interaction/toolInteraction";
@@ -692,8 +693,6 @@ export function BoardScene() {
   const fallbackTargetPosition = getToolInteractionTargetPosition(interactionSession);
   const scenePreview = useMemo(() => {
     const basePreview = resolveScenePreviewState({
-      actor: myPlayer,
-      displayedPlayerPositions,
       previewDescriptor,
       sessionId,
       snapshot,
@@ -1017,6 +1016,7 @@ export function BoardScene() {
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
+                showArc={!isMe || !shouldHideToolInteractionArc(interactionSession)}
                 onBeginPointerTool={(toolInstanceId, clientX, clientY) => {
                   if (!isMe || !canInteract) {
                     return;
@@ -1120,7 +1120,7 @@ export function BoardScene() {
           key={ring.key}
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
-          color={scenePreview.previewColor}
+          color={ring.color ?? scenePreview.previewColor}
           opacity={ring.opacity}
           position={ring.position}
           radius={ring.radius}

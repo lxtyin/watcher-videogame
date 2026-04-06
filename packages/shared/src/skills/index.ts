@@ -75,7 +75,6 @@ export {
   FARTHER_BANKED_MOVEMENT_TAG
 } from "./farther";
 export {
-  VOLATY_LEAP_PENDING_TAG,
   VOLATY_LEAP_TURN_TAG
 } from "./volaty";
 

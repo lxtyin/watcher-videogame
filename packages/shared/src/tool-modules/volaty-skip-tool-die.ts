@@ -1,6 +1,6 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { setPlayerTagValue } from "../playerTags";
-import { VOLATY_LEAP_PENDING_TAG } from "../skills";
+import { VOLATY_LEAP_TURN_TAG } from "../skills";
 import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import { buildAppliedResolution, consumeActiveTool } from "../rules/actionResolution";
@@ -27,14 +27,13 @@ function resolveVolatySkipToolDieTool(context: Parameters<ToolModule["execute"]>
   return buildAppliedResolution({
     actor: {
       ...context.actor,
-      tags: setPlayerTagValue(context.actor.tags, VOLATY_LEAP_PENDING_TAG, true)
+      tags: setPlayerTagValue(context.actor.tags, VOLATY_LEAP_TURN_TAG, true)
     },
     nextToolDieSeed: context.toolDieSeed,
     path: [],
-    phaseEffect: {
-      nextPhase: "turn-action",
-      rollMode: "movement_only"
-    },
+    // phaseEffect: {
+    //   nextPhase: "turn-action",
+    // },
     preview: createToolPreview(context, { valid: true }),
     summary: createUsedSummary(VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION.label),
     tools: consumeActiveTool(context)

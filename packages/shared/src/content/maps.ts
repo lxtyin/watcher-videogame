@@ -5,6 +5,7 @@ import {
   type LayoutSymbolDefinition
 } from "./boards/defaultBoard";
 import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./boards/raceBoard";
+import { RACE_BOARD2_LAYOUT, RACE_BOARD2_SYMBOLS } from "./boards/raceBoard2";
 
 interface MapGridPosition {
   x: number;
@@ -30,6 +31,7 @@ function defineGameMapRegistry<const Registry extends Record<string, GameMapCont
 
 export const DEFAULT_GAME_MAP_ID = "free_default" as const;
 export const RACE_GAME_MAP_ID = "race_sprint" as const;
+export const RACE_GAME2_MAP_ID = "race_sprint2" as const;
 
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
   [DEFAULT_GAME_MAP_ID]: {
@@ -59,6 +61,19 @@ export const GAME_MAP_REGISTRY = defineGameMapRegistry({
     },
     spawnMode: "shared",
     spawnPositions: [{ x: 2, y: 6 }]
+  },
+  [RACE_GAME2_MAP_ID]: {
+    label: "竞速模式测试地图2",
+    description: "所有玩家共享出生点，沿着加速带与机关冲向终点，先到先得。",
+    mode: "race",
+    allowDebugTools: false,
+    layout: RACE_BOARD2_LAYOUT,
+    symbols: {
+      ...DEFAULT_BOARD_SYMBOLS,
+      ...RACE_BOARD2_SYMBOLS
+    },
+    spawnMode: "shared",
+    spawnPositions: [{ x: 2, y: 1 }]
   }
 });
 

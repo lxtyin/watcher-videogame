@@ -59,7 +59,7 @@ import type {
   TurnInfoSnapshot,
   TurnToolSnapshot
 } from "./types";
-import type { ActionRollMode, UseToolCommandPayload } from "./types";
+import type { UseToolCommandPayload } from "./types";
 import type {
   GameOrchestrationState,
   GameRuntimeState,
@@ -753,7 +753,6 @@ function enterActionPhaseWithRoll(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
   moveRoll: number,
-  rollMode: ActionRollMode,
   rolledTool: ToolLoadoutLike | null
 ): void {
   const diceRollModifiers = applyDiceRollModifiers(
@@ -775,10 +774,17 @@ function enterActionPhaseWithRoll(
   applyToolInventory(
     player,
     [
-      createMovementToolInstance(
-        createToolInstanceId(state, "movement"),
-        diceRollModifiers.movementRoll
+      ...(diceRollModifiers.movementRoll > 0
+        ? [
+        createMovementToolInstance(
+          createToolInstanceId(state, "movement"),
+          diceRollModifiers.movementRoll)
+        ] : []
       ),
+      // createMovementToolInstance(
+      //   createToolInstanceId(state, "movement"),
+      //   diceRollModifiers.movementRoll
+      // ),
       ...(diceRollModifiers.rolledTool
         ? [
             materializeToolLoadout(state, {
@@ -1052,7 +1058,6 @@ function runRollDiceCommand(
     state,
     player,
     movementRoll.value,
-    "standard",
     toolRoll.value
   );
 
@@ -1164,30 +1169,30 @@ function runUseToolCommand(
     return buildOkOutcome(resolution.summary);
   }
 
-  if (resolution.phaseEffect?.rollMode) {
-    const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
-    state.runtime.moveDieSeed = movementRoll.nextSeed;
+  // if (resolution.phaseEffect?.rollMode) {
+  //   const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
+  //   state.runtime.moveDieSeed = movementRoll.nextSeed;
 
-    if (resolution.phaseEffect.rollMode === "standard") {
-      const toolRoll = rollToolDie(state.runtime.toolDieSeed);
-      state.runtime.toolDieSeed = toolRoll.nextSeed;
-      enterActionPhaseWithRoll(state, player, movementRoll.value, "standard", toolRoll.value);
-      pushEvent(
-        state,
-        "dice_rolled",
-        `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
-      );
-    } else {
-      enterActionPhaseWithRoll(state, player, movementRoll.value, "movement_only", null);
-      pushEvent(
-        state,
-        "dice_rolled",
-        `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
-      );
-    }
+  //   if (resolution.phaseEffect.rollMode === "standard") {
+  //     const toolRoll = rollToolDie(state.runtime.toolDieSeed);
+  //     state.runtime.toolDieSeed = toolRoll.nextSeed;
+  //     enterActionPhaseWithRoll(state, player, movementRoll.value, "standard", toolRoll.value);
+  //     pushEvent(
+  //       state,
+  //       "dice_rolled",
+  //       `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
+  //     );
+  //   } else {
+  //     enterActionPhaseWithRoll(state, player, movementRoll.value, "movement_only", null);
+  //     pushEvent(
+  //       state,
+  //       "dice_rolled",
+  //       `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
+  //     );
+  //   }
 
-    return buildOkOutcome(resolution.summary);
-  }
+  //   return buildOkOutcome(resolution.summary);
+  // }
 
   if (!(resolution.phaseEffect?.finishTurn || resolution.endsTurn)) {
     if (resolution.phaseEffect?.nextPhase) {

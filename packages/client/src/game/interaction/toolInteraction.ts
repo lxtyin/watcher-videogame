@@ -491,3 +491,11 @@ export function isPointerStageActive(session: ToolInteractionSession | null): bo
 export function isChoiceStageActive(session: ToolInteractionSession | null): boolean {
   return Boolean(session && getCurrentStage(session)?.kind === "modal-choice");
 }
+
+export function shouldHideToolInteractionArc(session: ToolInteractionSession | null): boolean {
+  if (!session || session.pointerActive) {
+    return false;
+  }
+
+  return getToolInteractionDefinition(session.toolId).stages.length > 1 && session.stageIndex > 0;
+}

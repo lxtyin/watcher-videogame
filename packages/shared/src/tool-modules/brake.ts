@@ -73,8 +73,6 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
-        effectTiles: [axisTarget.snappedTarget],
-        // selectionTiles,
         valid: false
       }),
       reason: "No brake range left",
@@ -110,7 +108,7 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
       path: resolution.path,
       preview: createToolPreview(context, {
         actorPath: resolution.path,
-        effectTiles: [axisTarget.snappedTarget],
+        effectTiles: resolution.path,
         // selectionTiles,
         valid: false
       }),
@@ -143,7 +141,7 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
     preview: createToolPreview(context, {
       actorPath: resolution.path,
       actorTarget: resolution.actor.position,
-      effectTiles: [axisTarget.snappedTarget],
+      effectTiles: resolution.path,
       // selectionTiles,
       valid: true
     }),

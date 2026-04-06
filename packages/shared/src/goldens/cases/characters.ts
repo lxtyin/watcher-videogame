@@ -119,11 +119,16 @@ export const GOLDEN_CHARACTER_CASES = [
         label: "Volaty skips the tool die"
       },
       {
+        kind: "rollDice",
+        actorId: "volaty",
+        label: "Volaty rolls after skipping the tool die"
+      },
+      {
         kind: "useTool",
         actorId: "volaty",
-        tool: "movement",
+        tool: "jump",
         direction: "right",
-        label: "Volaty leaps across the wall with Movement"
+        label: "Volaty leaps across the wall with jump"
       }
     ],
     expect: {
@@ -136,11 +141,11 @@ export const GOLDEN_CHARACTER_CASES = [
       turnInfo: {
         currentPlayerId: "volaty",
         phase: "turn-action",
-        moveRoll: 3,
+        // moveRoll: 3,
         lastRolledToolId: null
       },
       latestPresentation: {
-        toolId: "movement",
+        toolId: "jump",
         eventKinds: ["motion"]
       }
     }

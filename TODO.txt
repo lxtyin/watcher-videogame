@@ -73,21 +73,31 @@
 
 
 
+交互层已经完成重构，再修几个小bug，务必确保在当前的框架内修改，不要引入新的概念：
+ - 所有affectplayer的工具都应该在预览时展示所有玩家的落点（previewDescriptor中已有字段），每个玩家的落点用自己颜色的ring展示
+ - 像bomb-throw这种多步骤都交互，步骤之间不要显示工具栏的弧线UI
+ - selectionTiles的语义是工具在选择方块时可选择的范围，它使用统一的视觉要素展示；
 
 
-未来TODO：
- - 优化<投弹>的交互逻辑：按住鼠标拖动选择地块，松开后再次按住才能选择方向；
- - 修<砌墙>bug，不能在有玩家/召唤物的位置放置
- - 芙兰迪飞跃？（优化角色技能逻辑层）
- - 冲刺加不了制动
- - 房间号复制
- - 当前已经实现可插拔Modifier，需要注意Modifier本身不存储信息；未来把束缚做成一种通用状态/buffer，
- 
-AI建议TODO：
- - 消灭 JSON 字符串隧道。要么上更细的 Colyseus schema 子结构，要么至少做一层 shared codec，统一 serialize/deserialize 和版本控制。
+
 
 
 
 
 按照AI开发指南，整理现有文档并去除不符合约定的内容；
+
+
+
+
+
+未来TODO：
+ - 修<砌墙>bug，不能在有玩家/召唤物的位置放置
+ - 角色的summary定义在好几个地方，
+ - 冲刺加不了制动
+ - 房间号复制
+ - 当前已经实现可插拔Modifier，需要注意Modifier本身不存储信息；未来把束缚做成一种通用状态/buffer，
+ - 地形：高墙
+ 
+AI建议TODO：
+ - 消灭 JSON 字符串隧道。要么上更细的 Colyseus schema 子结构，要么至少做一层 shared codec，统一 serialize/deserialize 和版本控制。
 

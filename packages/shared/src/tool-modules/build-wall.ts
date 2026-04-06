@@ -56,7 +56,7 @@ function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): Ac
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
-        effectTiles: [targetPosition],
+        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
       }),
@@ -72,7 +72,7 @@ function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): Ac
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
-        effectTiles: [targetPosition],
+        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
       }),

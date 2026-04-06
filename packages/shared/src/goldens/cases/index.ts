@@ -12,3 +12,4 @@ export const GOLDEN_CASES = [
   ...GOLDEN_MULTIPLAYER_CASES,
   ...GOLDEN_RACE_CASES
 ];
+

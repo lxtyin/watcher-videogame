@@ -41,14 +41,14 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
 function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const targetPosition = requireTileSelection(context);
   const movement = createToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "teleport");
-  const selectionTiles = collectBoardSelectionTiles(context.board, context.actor.position);
+  // const selectionTiles = collectBoardSelectionTiles(context.board, context.actor.position);
 
   if (!targetPosition) {
     return buildBlockedResolution({
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
-        selectionTiles,
+        // selectionTiles,
         valid: false
       }),
       reason: "Teleport needs a target tile",
@@ -70,7 +70,7 @@ function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): Act
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
         effectTiles: [targetPosition],
-        selectionTiles,
+        // selectionTiles,
         valid: false
       }),
       reason: resolution.stopReason,
@@ -97,7 +97,7 @@ function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): Act
       actorPath: resolution.path,
       actorTarget: resolution.actor.position,
       effectTiles: [targetPosition],
-      selectionTiles,
+      // selectionTiles,
       valid: true
     }),
     summonMutations: resolution.summonMutations,

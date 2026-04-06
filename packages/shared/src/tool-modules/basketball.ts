@@ -63,16 +63,13 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
     timing: "out_of_turn"
   });
-  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
     return buildBlockedResolution({
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
-      preview: createToolPreview(context, {
-        selectionTiles,
-        valid: false
-      }),
+      preview: createToolPreview(context, { valid: false }),
       reason: "Basketball needs a direction",
       tools: context.tools
     });
@@ -144,10 +141,10 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     path: trace.path,
     presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
     preview: createToolPreview(context, {
-      actorPath: trace.path,
+      // actorPath: trace.path,
       affectedPlayers,
       effectTiles: trace.path,
-      selectionTiles,
+      // selectionTiles,
       valid: true
     }),
     summonMutations,

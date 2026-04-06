@@ -521,12 +521,9 @@ export interface SequencedActionPresentation extends ActionPresentation {
   sequence: number;
 }
 
-export type ActionRollMode = "movement_only" | "standard";
-
 export interface ActionPhaseEffect {
   finishTurn?: boolean;
   nextPhase?: TurnPhase;
-  rollMode?: ActionRollMode;
 }
 
 export type ActionResolution =

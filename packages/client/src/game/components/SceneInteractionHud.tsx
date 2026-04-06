@@ -34,6 +34,7 @@ interface SceneActionRingProps {
   screenOffsetX?: number;
   screenOffsetY?: number;
   selectedToolInstanceId: SelectedToolInstanceId;
+  showArc?: boolean;
   tools: TurnToolSnapshot[];
   onBeginPointerTool: (toolInstanceId: string, clientX: number, clientY: number) => void;
   onCommitChoice: (toolInstanceId: string, choiceId: string) => void;
@@ -131,6 +132,7 @@ export function SceneActionRing({
   screenOffsetX = 0,
   screenOffsetY = 0,
   selectedToolInstanceId,
+  showArc = true,
   tools,
   onBeginPointerTool,
   onCommitChoice,
@@ -298,35 +300,37 @@ export function SceneActionRing({
           .join(" ")}
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
-        <div className="scene-action-ring__arc" />
+        {showArc ? <div className="scene-action-ring__arc" /> : null}
         <div className="scene-action-ring__caption">
           {caption ?? getDefaultCaption(phase, selectedTool, tools)}
         </div>
-        {actions.map((action, index) => (
-          <button
-            key={action.id}
-            type="button"
-            className={[
-              "scene-action-button",
-              action.toolInstanceId && incomingToolInstanceIds.includes(action.toolInstanceId) ? "incoming" : "",
-              action.selected ? "selected" : "",
-              action.disabled ? "disabled" : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            data-testid={action.testId}
-            data-tool-id={action.toolId}
-            data-tool-instance-id={action.toolInstanceId}
-            style={{ ...getRingButtonStyle(index, actions.length), "--scene-accent": action.accent } as CSSProperties}
-            onPointerDown={interactive ? action.onPointerDown : undefined}
-            onClick={interactive ? action.onClick : undefined}
-            aria-disabled={action.disabled || !interactive}
-          >
-            <span className="scene-action-button__token">{action.token}</span>
-            <span className="scene-action-button__label">{action.label}</span>
-            <span className="scene-action-button__detail">{action.detail}</span>
-          </button>
-        ))}
+        {showArc
+          ? actions.map((action, index) => (
+              <button
+                key={action.id}
+                type="button"
+                className={[
+                  "scene-action-button",
+                  action.toolInstanceId && incomingToolInstanceIds.includes(action.toolInstanceId) ? "incoming" : "",
+                  action.selected ? "selected" : "",
+                  action.disabled ? "disabled" : ""
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                data-testid={action.testId}
+                data-tool-id={action.toolId}
+                data-tool-instance-id={action.toolInstanceId}
+                style={{ ...getRingButtonStyle(index, actions.length), "--scene-accent": action.accent } as CSSProperties}
+                onPointerDown={interactive ? action.onPointerDown : undefined}
+                onClick={interactive ? action.onClick : undefined}
+                aria-disabled={action.disabled || !interactive}
+              >
+                <span className="scene-action-button__token">{action.token}</span>
+                <span className="scene-action-button__label">{action.label}</span>
+                <span className="scene-action-button__detail">{action.detail}</span>
+              </button>
+            ))
+          : null}
         {selectedChoiceTool ? (
           <div className="scene-choice-panel">
             {choiceOptions.map((choice) => (

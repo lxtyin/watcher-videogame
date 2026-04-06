@@ -97,7 +97,7 @@ function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
     presentation: createActorMotionPresentation(context, "actor-jump", resolution.path, "arc"),
     preview: createToolPreview(context, {
       // actorPath: resolution.path,
-      // actorTarget: resolution.actor.position,
+      actorTarget: resolution.actor.position,
       // effectTiles: resolution.path,
       // selectionTiles,
       valid: true
