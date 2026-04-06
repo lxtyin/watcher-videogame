@@ -28,6 +28,10 @@ import {
 import { resolveStopSummonEffects } from "./summons";
 import { createTerrainStopTarget, resolveStopTerrainEffect } from "./terrain";
 import {
+  cloneToolSelectionRecord,
+  getDirectionSelection
+} from "./toolInteraction";
+import {
   canUseToolInPhase,
   createDebugToolInstance,
   createMovementToolInstance,
@@ -1025,31 +1029,6 @@ function blockCommand(
   return buildBlockedOutcome(message);
 }
 
-function validateToolPayload(
-  tool: TurnToolSnapshot,
-  payload: UseToolCommandPayload
-): string | null {
-  const toolDefinition = getToolDefinition(tool.toolId);
-
-  if (toolDefinition.targetMode === "direction" && !payload.direction) {
-    return `${toolDefinition.label} needs a direction.`;
-  }
-
-  if (toolDefinition.targetMode === "tile" && !payload.targetPosition) {
-    return `${toolDefinition.label} needs a target tile.`;
-  }
-
-  if (toolDefinition.targetMode === "choice" && !payload.choiceId) {
-    return `${toolDefinition.label} needs a choice.`;
-  }
-
-  if (toolDefinition.targetMode === "tile_direction" && (!payload.targetPosition || !payload.direction)) {
-    return `${toolDefinition.label} needs both a tile and a direction.`;
-  }
-
-  return null;
-}
-
 function runRollDiceCommand(
   state: MutableGameOrchestrationState,
   actorId: string
@@ -1110,12 +1089,6 @@ function runUseToolCommand(
     );
   }
 
-  const payloadValidationMessage = validateToolPayload(activeTool, payload);
-
-  if (payloadValidationMessage) {
-    return blockCommand(state, payloadValidationMessage);
-  }
-
   const resolution = resolveToolAction({
     board: buildBoardDefinition(state.snapshot),
     actor: {
@@ -1128,10 +1101,8 @@ function runUseToolCommand(
       turnFlags: [...player.turnFlags]
     },
     activeTool,
+    input: cloneToolSelectionRecord(payload.input),
     phase: state.snapshot.turnInfo.phase,
-    ...(payload.direction ? { direction: payload.direction } : {}),
-    ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
-    ...(payload.targetPosition ? { targetPosition: clonePosition(payload.targetPosition) } : {}),
     players: buildBoardPlayers(state.snapshot),
     summons: buildBoardSummons(state.snapshot),
     toolDieSeed: state.runtime.toolDieSeed,
@@ -1178,10 +1149,11 @@ function runUseToolCommand(
   const goalProgress = applyRaceGoalProgress(state, player.id, resolution.triggeredTerrainEffects);
 
   if (activeTool.toolId === "movement") {
+    const movementDirection = getDirectionSelection(payload.input);
     pushEvent(
       state,
       "piece_moved",
-      `${player.name} used Movement ${payload.direction} to (${player.position.x}, ${player.position.y}).`
+      `${player.name} used Movement ${movementDirection ?? "unknown"} to (${player.position.x}, ${player.position.y}).`
     );
   } else {
     pushEvent(state, "tool_used", `${player.name} used ${getToolDefinition(activeTool.toolId).label}.`);

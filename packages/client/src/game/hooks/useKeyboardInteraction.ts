@@ -1,5 +1,10 @@
 import { useEffect } from "react";
-import { isDirectionalTool, isTileTargetTool, type Direction } from "@watcher/shared";
+import {
+  createDirectionSelection,
+  isDirectionalTool,
+  isTileTargetTool,
+  type Direction
+} from "@watcher/shared";
 import { useGameStore } from "../state/useGameStore";
 import { getSelectedToolState } from "../state/toolSelection";
 
@@ -19,10 +24,9 @@ export function useKeyboardInteraction(): void {
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
   const selectedToolInstanceId = useGameStore((state) => state.selectedToolInstanceId);
-  const performDirectionalAction = useGameStore((state) => state.performDirectionalAction);
+  const useToolPayload = useGameStore((state) => state.useToolPayload);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
-  const useInstantTool = useGameStore((state) => state.useInstantTool);
 
   useEffect(() => {
     // One handler keeps keyboard shortcuts aligned with the current selected tool.
@@ -53,7 +57,14 @@ export function useKeyboardInteraction(): void {
         isDirectionalTool(selectedToolState.tool.toolId)
       ) {
         event.preventDefault();
-        performDirectionalAction(direction, selectedToolState.tool.instanceId);
+        useToolPayload(
+          {
+            input: {
+              direction: createDirectionSelection(direction)
+            }
+          },
+          selectedToolState.tool.instanceId
+        );
         return;
       }
 
@@ -74,7 +85,7 @@ export function useKeyboardInteraction(): void {
         !isTileTargetTool(selectedToolState.tool.toolId)
       ) {
         event.preventDefault();
-        useInstantTool(selectedToolState.tool.instanceId);
+        useToolPayload({ input: {} }, selectedToolState.tool.instanceId);
       }
     };
 
@@ -85,11 +96,10 @@ export function useKeyboardInteraction(): void {
     };
   }, [
     endTurn,
-    performDirectionalAction,
     rollDice,
     selectedToolInstanceId,
     sessionId,
     snapshot,
-    useInstantTool
+    useToolPayload
   ]);
 }

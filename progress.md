@@ -7,6 +7,41 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-04-06
+
+- 完成 shared 侧工具交互协议重构：
+  - `ToolContentDefinition` 删除 `targetMode / tileTargeting`
+  - 新增 `packages/shared/src/toolInteraction.ts`
+  - `UseToolCommandPayload` 统一改为 `{ toolInstanceId, input }`
+  - `ToolDefinition` 统一挂载 `interaction`
+- 将 shared 的工具可用性判断与执行入口同步到新协议：
+  - `packages/shared/src/actions.ts`
+  - `packages/shared/src/gameOrchestration.ts`
+  - `packages/shared/src/rules/actionResolution.ts`
+  - `packages/shared/src/tools.ts`
+- 将预览辅助改为围绕 `PreviewDescriptor` 与选择 slot 工作：
+  - `packages/shared/src/rules/previewDescriptor.ts`
+  - `packages/shared/src/tool-modules/helpers.ts`
+- 重写并统一 shared 工具模块的交互与执行入口，至少覆盖：
+  - `movement`
+  - `jump`
+  - `brake`
+  - `hookshot`
+  - `basketball`
+  - `rocket`
+  - `bombThrow`
+- 将 client / server / golden runner 全链路同步到新 payload 结构：
+  - `packages/client/src/game/interaction/toolInteraction.ts`
+  - `packages/client/src/game/state/useGameStore.ts`
+  - `packages/client/src/game/state/roomCommands.ts`
+  - `packages/client/src/game/utils/boardMath.ts`
+  - `packages/shared/src/goldens/runner.ts`
+- 浏览器烟测补充验证：
+  - 统一 Playwright 客户端验证了“创建房间并进入联机房间”链路
+  - 自定义浏览器脚本验证了 shared 新 `input` 结构可真实穿透 server：
+    - `buildWall` 的 `tile` 选择成功把 `(1,2)` 改成 `earthWall`
+    - `balance` 的 `choice` 选择成功写入 `farther:banked-movement = 1`
+
 ## 2026-04-05
 
 - 新增能力系统权威文档 `docs/arch/能力系统统一模型.md`，并冻结顶层概念边界。
@@ -51,5 +86,7 @@
 - `npm.cmd run typecheck --workspace @watcher/shared`
 - `npm.cmd run typecheck --workspace @watcher/server`
 - `npm.cmd run typecheck --workspace @watcher/client`
+- `npm.cmd run typecheck`
 - `node_modules/.bin/tsx.cmd -e "...runGoldenCases(GOLDEN_CASES)..."`
+- `npm.cmd run goldens`
 - 结果：`22/22` golden cases passed

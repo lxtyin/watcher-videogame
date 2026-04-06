@@ -1,19 +1,13 @@
 import type { Room } from "colyseus.js";
 import type {
   CharacterId,
-  Direction,
   GameSnapshot,
-  GridPosition,
   SetReadyCommandPayload,
-  ToolId
+  ToolId,
+  UseToolCommandPayload
 } from "@watcher/shared";
-import {
-  getUsableChoiceToolState,
-  getUsableDirectionalToolState,
-  getUsableInstantToolState,
-  getUsableTileDirectionToolState,
-  getUsableTileToolState
-} from "./toolSelection";
+import { cloneToolSelectionRecord } from "@watcher/shared";
+import { getSelectedToolState } from "./toolSelection";
 
 type SelectedToolInstanceId = string | null;
 
@@ -81,133 +75,35 @@ export function sendGrantDebugTool(room: Room | null, toolId: ToolId): void {
   room.send("grantDebugTool", { toolId });
 }
 
+function cloneToolPayload(
+  payload: Omit<UseToolCommandPayload, "toolInstanceId">
+): Omit<UseToolCommandPayload, "toolInstanceId"> {
+  return {
+    input: cloneToolSelectionRecord(payload.input)
+  }
+}
+
 // Tool command helpers keep store actions thin and centralize local usability guards.
-export function sendInstantToolIfUsable(
-  room: Room | null,
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): boolean {
-  if (!room || !selectedToolInstanceId) {
-    return false;
-  }
-
-  const selectedToolState = getUsableInstantToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (!selectedToolState) {
-    return false;
-  }
-
-  room.send("useTool", { toolInstanceId: selectedToolState.tool.instanceId });
-  return true;
-}
-
-export function sendDirectionalToolIfUsable(
+export function sendToolPayloadIfUsable(
   room: Room | null,
   snapshot: GameSnapshot | null,
   sessionId: string | null,
   selectedToolInstanceId: SelectedToolInstanceId,
-  direction: Direction
+  payload: Omit<UseToolCommandPayload, "toolInstanceId">
 ): boolean {
   if (!room || !selectedToolInstanceId) {
     return false;
   }
 
-  const selectedToolState = getUsableDirectionalToolState(
-    snapshot,
-    sessionId,
-    selectedToolInstanceId
-  );
+  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
 
-  if (!selectedToolState) {
+  if (!selectedToolState || !selectedToolState.availability.usable) {
     return false;
   }
 
   room.send("useTool", {
     toolInstanceId: selectedToolState.tool.instanceId,
-    direction
-  });
-  return true;
-}
-
-export function sendTileTargetToolIfUsable(
-  room: Room | null,
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId,
-  targetPosition: GridPosition
-): boolean {
-  if (!room || !selectedToolInstanceId) {
-    return false;
-  }
-
-  const selectedToolState = getUsableTileToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (!selectedToolState) {
-    return false;
-  }
-
-  room.send("useTool", {
-    toolInstanceId: selectedToolState.tool.instanceId,
-    targetPosition
-  });
-  return true;
-}
-
-export function sendTileDirectionToolIfUsable(
-  room: Room | null,
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId,
-  targetPosition: GridPosition,
-  direction: Direction
-): boolean {
-  if (!room || !selectedToolInstanceId) {
-    return false;
-  }
-
-  const selectedToolState = getUsableTileDirectionToolState(
-    snapshot,
-    sessionId,
-    selectedToolInstanceId
-  );
-
-  if (!selectedToolState) {
-    return false;
-  }
-
-  room.send("useTool", {
-    toolInstanceId: selectedToolState.tool.instanceId,
-    targetPosition,
-    direction
-  });
-  return true;
-}
-
-export function sendChoiceToolIfUsable(
-  room: Room | null,
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId,
-  choiceId: string
-): boolean {
-  if (!room || !selectedToolInstanceId) {
-    return false;
-  }
-
-  const selectedToolState = getUsableChoiceToolState(
-    snapshot,
-    sessionId,
-    selectedToolInstanceId
-  );
-
-  if (!selectedToolState) {
-    return false;
-  }
-
-  room.send("useTool", {
-    toolInstanceId: selectedToolState.tool.instanceId,
-    choiceId
+    ...cloneToolPayload(payload)
   });
   return true;
 }

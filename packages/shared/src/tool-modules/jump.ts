@@ -1,4 +1,5 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { createDragDirectionInteraction } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import {
   buildAppliedResolution,
@@ -8,11 +9,13 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement } from "../rules/movementSystem";
+import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   toMovementSubject
@@ -23,11 +26,11 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
     type: "leap",
     disposition: "active"
   },
-  label: "飞跃",
-  description: "朝一个方向飞跃，可以越过中间阻挡，但落点不能是墙。",
-  disabledHint: "当前还不能使用这个飞跃工具。",
+  label: "跳跃",
+  description: "沿选择方向飞跃固定距离，忽略途中停留。",
+  disabledHint: "当前不能使用跳跃。",
   source: "turn",
-  targetMode: "direction",
+  interaction: createDragDirectionInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -43,6 +46,7 @@ function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
   const direction = requireDirection(context);
   const jumpDistance = getToolParamValue(context.activeTool, "jumpDistance", 2);
   const movement = createToolMovementDescriptor(context, JUMP_TOOL_DEFINITION, "leap");
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
   const resolution = direction
     ? resolveLeapDisplacement(buildMovementSystemContext(context), {
         direction,
@@ -55,42 +59,56 @@ function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
     : null;
 
   if (!direction || !resolution) {
-    return buildBlockedResolution(context.actor, context.tools, "Jump needs a direction", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "Jump needs a direction",
+      tools: context.tools
+    });
   }
 
   if (!resolution.path.length) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      resolution.stopReason,
-      context.toolDieSeed,
-      resolution.path,
-      [],
-      resolution.path
-    );
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      path: resolution.path,
+      preview: createToolPreview(context, { valid: false }),
+      reason: resolution.stopReason,
+      tools: context.tools
+    });
   }
 
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       position: resolution.actor.position,
       tags: resolution.actor.tags,
       turnFlags: resolution.actor.turnFlags
     },
-    resolution.tools,
-    createUsedSummary(JUMP_TOOL_DEFINITION.label),
-    resolution.nextToolDieSeed,
-    resolution.path,
-    resolution.tileMutations,
-    [],
-    resolution.triggeredTerrainEffects,
-    resolution.path,
-    createActorMotionPresentation(context, "actor-jump", resolution.path, "arc"),
-    resolution.summonMutations,
-    resolution.triggeredSummonEffects,
-    false,
-    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
-  );
+    actorMovement: createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      resolution.path,
+      movement
+    ),
+    nextToolDieSeed: resolution.nextToolDieSeed,
+    path: resolution.path,
+    presentation: createActorMotionPresentation(context, "actor-jump", resolution.path, "arc"),
+    preview: createToolPreview(context, {
+      // actorPath: resolution.path,
+      // actorTarget: resolution.actor.position,
+      // effectTiles: resolution.path,
+      // selectionTiles,
+      valid: true
+    }),
+    summonMutations: resolution.summonMutations,
+    summary: createUsedSummary(JUMP_TOOL_DEFINITION.label),
+    tileMutations: resolution.tileMutations,
+    tools: resolution.tools,
+    triggeredSummonEffects: resolution.triggeredSummonEffects,
+    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+  });
 }
 
 export const JUMP_TOOL_MODULE: ToolModule<"jump"> = {

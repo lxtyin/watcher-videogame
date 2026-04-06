@@ -1,17 +1,18 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { setPlayerTagValue } from "../playerTags";
 import { VOLATY_LEAP_PENDING_TAG } from "../skills";
+import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import { buildAppliedResolution, consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createUsedSummary } from "./helpers";
+import { createToolPreview, createUsedSummary } from "./helpers";
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "飞跃",
   description: "跳过工具骰，只获得移动骰，并把本回合平移改成飞跃。",
   disabledHint: "当前无法进入飞跃模式。",
   source: "character_skill",
-  targetMode: "instant",
+  interaction: INSTANT_TOOL_INTERACTION,
   conditions: [],
   defaultCharges: 1,
   defaultParams: {},
@@ -23,29 +24,21 @@ export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
 };
 
 function resolveVolatySkipToolDieTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       tags: setPlayerTagValue(context.actor.tags, VOLATY_LEAP_PENDING_TAG, true)
     },
-    consumeActiveTool(context),
-    createUsedSummary(VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION.label),
-    context.toolDieSeed,
-    [],
-    [],
-    [],
-    [],
-    [],
-    null,
-    [],
-    [],
-    false,
-    null,
-    {
+    nextToolDieSeed: context.toolDieSeed,
+    path: [],
+    phaseEffect: {
       nextPhase: "turn-action",
       rollMode: "movement_only"
-    }
-  );
+    },
+    preview: createToolPreview(context, { valid: true }),
+    summary: createUsedSummary(VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION.label),
+    tools: consumeActiveTool(context)
+  });
 }
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_MODULE: ToolModule<"volatySkipToolDie"> = {

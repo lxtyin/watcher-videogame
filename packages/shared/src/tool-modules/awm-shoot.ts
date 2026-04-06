@@ -2,6 +2,7 @@ import type { ToolContentDefinition } from "../content/schema";
 import { attachModifier } from "../modifiers";
 import { setPlayerTagValue } from "../playerTags";
 import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../skills/bondage";
+import { createDragDirectionInteraction } from "../toolInteraction";
 import type { AffectedPlayerMove, ActionResolution } from "../types";
 import {
   buildAppliedResolution,
@@ -10,9 +11,11 @@ import {
   requireDirection
 } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
+import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   getTotalMovementPoints,
@@ -24,7 +27,7 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   description: "向一个方向发射子弹，命中的第一格玩家获得等同于你当前总移动点数的束缚。",
   disabledHint: "当前还不能发射这次狙击。",
   source: "character_skill",
-  targetMode: "direction",
+  interaction: createDragDirectionInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -39,9 +42,19 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
 function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const direction = requireDirection(context);
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
+  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution(context.actor, context.tools, "AWM Shoot needs a direction", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        selectionTiles,
+        valid: false
+      }),
+      reason: "AWM Shoot needs a direction",
+      tools: context.tools
+    });
   }
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
@@ -63,17 +76,21 @@ function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): Act
         )
       : [];
 
-  return buildAppliedResolution(
-    context.actor,
-    consumeActiveTool(context),
-    createUsedSummary(AWM_SHOOT_TOOL_DEFINITION.label),
-    context.toolDieSeed,
-    trace.path,
-    [],
+  return buildAppliedResolution({
+    actor: context.actor,
     affectedPlayers,
-    [],
-    trace.path
-  );
+    nextToolDieSeed: context.toolDieSeed,
+    path: trace.path,
+    preview: createToolPreview(context, {
+      actorPath: trace.path,
+      affectedPlayers,
+      effectTiles: trace.path,
+      selectionTiles,
+      valid: true
+    }),
+    summary: createUsedSummary(AWM_SHOOT_TOOL_DEFINITION.label),
+    tools: consumeActiveTool(context)
+  });
 }
 
 export const AWM_SHOOT_TOOL_MODULE: ToolModule<"awmShoot"> = {

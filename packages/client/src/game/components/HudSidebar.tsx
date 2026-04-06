@@ -7,14 +7,16 @@ import {
   getDebugGrantableToolIds,
   getNextCharacterId,
   getToolAvailability,
-  getToolChoiceDefinitions,
   getToolDisabledMessage,
-  isAimTool,
-  isChoiceTool,
   type ToolId,
   type TurnPhase,
   type TurnToolSnapshot
 } from "@watcher/shared";
+import {
+  isChoiceInteractionTool,
+  isInstantInteractionTool,
+  isPointerDrivenInteractionTool
+} from "../interaction/toolInteraction";
 import { findSelectedTool } from "../state/toolSelection";
 import { useGameStore } from "../state/useGameStore";
 import { PetThumbnail } from "./PetThumbnail";
@@ -93,11 +95,11 @@ function describeInteractionHint(
     return `${label} 当前不可用：${availability.reason ?? "条件不足"}。`;
   }
 
-  if (isChoiceTool(selectedTool.toolId)) {
+  if (isChoiceInteractionTool(selectedTool.toolId)) {
     return `先选择 ${label} 的结算方式。`;
   }
 
-  if (isAimTool(selectedTool.toolId)) {
+  if (isPointerDrivenInteractionTool(selectedTool.toolId)) {
     return `${label} 需要在场景里瞄准后释放。`;
   }
 
@@ -126,8 +128,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const returnToRoom = useGameStore((state) => state.returnToRoom);
   const setCharacter = useGameStore((state) => state.setCharacter);
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
-  const useInstantTool = useGameStore((state) => state.useInstantTool);
-  const useChoiceTool = useGameStore((state) => state.useChoiceTool);
+  const useToolPayload = useGameStore((state) => state.useToolPayload);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
@@ -149,13 +150,11 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const nextRoleDefinition = getCharacterDefinition(nextCharacterId);
   const tools = useMemo(() => me?.tools ?? [], [me]);
   const otherPlayers = snapshot?.players.filter((player) => player.id !== sessionId) ?? [];
-  const selectedChoiceOptions =
-    selectedTool && isChoiceTool(selectedTool.toolId) ? getToolChoiceDefinitions(selectedTool.toolId) : [];
+  const selectedChoiceOptions: readonly { description: string; id: string; label: string }[] = [];
   const instantToolReady = Boolean(
     selectedTool &&
       selectedToolDefinition &&
-      !isAimTool(selectedTool.toolId) &&
-      !isChoiceTool(selectedTool.toolId) &&
+      isInstantInteractionTool(selectedTool.toolId) &&
       selectedToolAvailability?.usable
   );
   const interactionHint = describeInteractionHint(
@@ -190,11 +189,11 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       return;
     }
 
-    if (isAimTool(tool.toolId) || isChoiceTool(tool.toolId)) {
+    if (!isInstantInteractionTool(tool.toolId)) {
       return;
     }
 
-    useInstantTool(tool.instanceId);
+    useToolPayload({ input: {} }, tool.instanceId);
   };
 
   if (!snapshot) {
@@ -474,7 +473,19 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                     key={choice.id}
                     type="button"
                     className="tool-button"
-                    onClick={() => useChoiceTool(choice.id, selectedTool.instanceId)}
+                    onClick={() =>
+                      useToolPayload(
+                        {
+                          input: {
+                            choiceId: {
+                              choiceId: choice.id,
+                              kind: "choice"
+                            }
+                          }
+                        },
+                        selectedTool.instanceId
+                      )
+                    }
                     disabled={!selectedToolAvailability?.usable}
                   >
                     {choice.label}
@@ -495,7 +506,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               <button
                 type="button"
                 data-testid="use-instant-tool-button"
-                onClick={() => useInstantTool(selectedTool.instanceId)}
+                onClick={() => useToolPayload({ input: {} }, selectedTool.instanceId)}
               >
                 使用 {selectedToolDefinition?.label}
               </button>

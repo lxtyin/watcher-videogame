@@ -1,4 +1,5 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { createDragDirectionInteraction } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import {
   buildAppliedResolution,
@@ -8,11 +9,13 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
+import { collectDirectionSelectionTiles, createPreviewDescriptor } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   toMovementSubject
@@ -24,10 +27,10 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "移动",
-  description: "朝一个方向移动，最多消耗该工具携带的点数。",
-  disabledHint: "这个移动工具已经没有可用点数了。",
+  description: "沿选择方向前进，消耗本工具的移动点数。",
+  disabledHint: "没有可用的移动点数时不能使用移动。",
   source: "turn",
-  targetMode: "direction",
+  interaction: createDragDirectionInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -48,72 +51,82 @@ function resolveMovementTool(context: Parameters<ToolModule["execute"]>[0]): Act
   const movePoints = getToolParamValue(context.activeTool, "movePoints", 4);
   const movement = createToolMovementDescriptor(context, MOVEMENT_TOOL_DEFINITION, "translate");
   const nextTools = consumeActiveTool(context);
-
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  
   if (!direction) {
-    return buildBlockedResolution(context.actor, context.tools, "Movement needs a direction", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "Movement needs a direction",
+      tools: context.tools
+    });
   }
 
   if (movePoints < 1) {
-    return buildBlockedResolution(context.actor, context.tools, "No move points left", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "No move points left",
+      tools: context.tools
+    });
   }
 
-  const resolution =
-    movement.type === "leap"
-      ? resolveLeapDisplacement(buildMovementSystemContext(context), {
-          direction,
-          maxDistance: movePoints,
-          movement,
-          player: toMovementSubject(context.actor),
-          toolDieSeed: context.toolDieSeed,
-          tools: nextTools
-        })
-      : resolveLinearDisplacement(buildMovementSystemContext(context), {
-          direction,
-          movePoints,
-          movement,
-          player: toMovementSubject(context.actor),
-          toolDieSeed: context.toolDieSeed,
-          tools: nextTools
-        });
+  const resolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+    direction,
+    movePoints,
+    movement,
+    player: toMovementSubject(context.actor),
+    toolDieSeed: context.toolDieSeed,
+    tools: nextTools
+  });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      resolution.stopReason,
-      context.toolDieSeed,
-      resolution.path,
-      [],
-      resolution.path
-    );
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      path: resolution.path,
+      preview: createToolPreview(context, { valid: false }),
+      reason: resolution.stopReason,
+      tools: context.tools
+    });
   }
 
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       position: resolution.actor.position,
       tags: resolution.actor.tags,
       turnFlags: resolution.actor.turnFlags
     },
-    resolution.tools,
-    createUsedSummary(MOVEMENT_TOOL_DEFINITION.label),
-    resolution.nextToolDieSeed,
-    resolution.path,
-    resolution.tileMutations,
-    [],
-    resolution.triggeredTerrainEffects,
-    resolution.path,
-    createActorMotionPresentation(
+    actorMovement: createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      resolution.path,
+      movement
+    ),
+    nextToolDieSeed: resolution.nextToolDieSeed,
+    path: resolution.path,
+    presentation: createActorMotionPresentation(
       context,
       "actor-move",
       resolution.path,
       movement.type === "leap" ? "arc" : "ground"
     ),
-    resolution.summonMutations,
-    resolution.triggeredSummonEffects,
-    false,
-    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
-  );
+    preview: createToolPreview(context, {
+      actorPath: resolution.path,
+      actorTarget: resolution.actor.position,
+      effectTiles: resolution.path,
+      valid: true
+    }),
+    summonMutations: resolution.summonMutations,
+    summary: createUsedSummary(MOVEMENT_TOOL_DEFINITION.label),
+    tileMutations: resolution.tileMutations,
+    tools: resolution.tools,
+    triggeredSummonEffects: resolution.triggeredSummonEffects,
+    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+  });
 }
 
 export const MOVEMENT_TOOL_MODULE: ToolModule<"movement"> = {

@@ -1,62 +1,9 @@
 import { Camera, Plane, Raycaster, Vector2, Vector3 } from "three";
-import {
-  getToolDefinition,
-  type Direction,
-  type GridPosition,
-  type TileTargetingMode,
-  type ToolId
-} from "@watcher/shared";
+import type { Direction, GridPosition } from "@watcher/shared";
 import {
   clampGridPositionToBoard,
   toGridPositionFromWorld
 } from "../utils/boardMath";
-
-interface TileAimStrategyContext {
-  actorPosition: GridPosition;
-  deltaX: number;
-  deltaY: number;
-  snappedPointer: GridPosition;
-}
-
-type TileAimStrategy = (context: TileAimStrategyContext) => GridPosition | null;
-
-const TILE_AIM_STRATEGIES: Record<TileTargetingMode, TileAimStrategy> = {
-  axis_line: ({ actorPosition, deltaX, deltaY, snappedPointer }) => {
-    if (!deltaX && !deltaY) {
-      return null;
-    }
-
-    if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
-      return {
-        x: snappedPointer.x,
-        y: actorPosition.y
-      };
-    }
-
-    if (deltaY !== 0) {
-      return {
-        x: actorPosition.x,
-        y: snappedPointer.y
-      };
-    }
-
-    return null;
-  },
-  adjacent_ring: ({ actorPosition, deltaX, deltaY }) => {
-    const clampedX = Math.max(-1, Math.min(1, deltaX));
-    const clampedY = Math.max(-1, Math.min(1, deltaY));
-
-    if (!clampedX && !clampedY) {
-      return null;
-    }
-
-    return {
-      x: actorPosition.x + clampedX,
-      y: actorPosition.y + clampedY
-    };
-  },
-  board_any: ({ deltaX, deltaY, snappedPointer }) => (deltaX || deltaY ? snappedPointer : null)
-};
 
 // Dragging resolves to one cardinal direction once the pointer leaves a dead zone.
 export function getDragDirection(deltaX: number, deltaZ: number): Direction | null {
@@ -115,28 +62,44 @@ export function projectClientToGround(
   };
 }
 
-// Tile-target tools route through a targeting-mode registry instead of per-scene branches.
-export function resolveTileAimTarget(
+// Tile stages only snap to board cells. Legality is resolved entirely by shared preview logic.
+export function resolveBoardTileAimTarget(
   worldX: number,
   worldZ: number,
-  toolId: ToolId,
-  actorPosition: GridPosition,
   boardWidth: number,
   boardHeight: number
-): GridPosition | null {
-  const targetingMode = getToolDefinition(toolId).tileTargeting ?? "board_any";
-  const snappedPointer = clampGridPositionToBoard(
+): GridPosition {
+  return clampGridPositionToBoard(
     toGridPositionFromWorld(worldX, worldZ, boardWidth, boardHeight),
     boardWidth,
     boardHeight
   );
+}
+
+export function resolveAxisTileAimTarget(
+  worldX: number,
+  worldZ: number,
+  actorPosition: GridPosition,
+  boardWidth: number,
+  boardHeight: number
+): GridPosition | null {
+  const snappedPointer = resolveBoardTileAimTarget(worldX, worldZ, boardWidth, boardHeight);
   const deltaX = snappedPointer.x - actorPosition.x;
   const deltaY = snappedPointer.y - actorPosition.y;
 
-  return TILE_AIM_STRATEGIES[targetingMode]({
-    actorPosition,
-    deltaX,
-    deltaY,
-    snappedPointer
-  });
+  if (!deltaX && !deltaY) {
+    return null;
+  }
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX !== 0) {
+    return {
+      x: snappedPointer.x,
+      y: actorPosition.y
+    };
+  }
+
+  return {
+    x: actorPosition.x,
+    y: snappedPointer.y
+  };
 }

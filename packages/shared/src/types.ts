@@ -3,14 +3,15 @@
   MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
   MovementType as ContentMovementType,
-  TileTargetingMode as ContentTileTargetingMode,
   TileType as ContentTileType,
   ToolChoiceContentDefinition,
   ToolButtonValueContentDefinition,
+  ToolInteractionAnchorDefinition as ContentToolInteractionAnchorDefinition,
+  ToolInteractionDefinition as ContentToolInteractionDefinition,
+  ToolInteractionStageDefinition as ContentToolInteractionStageDefinition,
   ToolParameterId as ContentToolParameterId,
   ToolParameterValueMap as ContentToolParameterValueMap,
   ToolSource as ContentToolSource,
-  ToolTargetMode as ContentToolTargetMode,
   TurnPhase as ContentTurnPhase
 } from "./content/schema";
 
@@ -31,13 +32,30 @@ export type ToolId = keyof typeof import("./content/tools").TOOL_REGISTRY;
 export type GameMapId = keyof typeof import("./content/maps").GAME_MAP_REGISTRY;
 export type RolledToolId = typeof import("./content/tools").TOOL_DIE_FACES[number]["toolId"];
 export type ToolSource = ContentToolSource;
-export type ToolTargetMode = ContentToolTargetMode;
-export type TileTargetingMode = ContentTileTargetingMode;
+export type ToolInteractionAnchor = ContentToolInteractionAnchorDefinition;
+export type ToolInteractionStageDefinition = ContentToolInteractionStageDefinition;
+export type ToolInteractionDefinition = ContentToolInteractionDefinition;
 export type PlayerTurnFlag = "lucky_tile_claimed";
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
 export type PlayerTagValue = boolean | number | string;
 export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
+
+export type ToolSelectionValue =
+  | {
+      direction: Direction;
+      kind: "direction";
+    }
+  | {
+      kind: "tile";
+      position: GridPosition;
+    }
+  | {
+      choiceId: string;
+      kind: "choice";
+    };
+
+export type ToolSelectionRecord = Partial<Record<string, ToolSelectionValue>>;
 export type EventType =
   | "piece_moved"
   | "move_blocked"
@@ -167,11 +185,10 @@ export interface ToolDefinition {
   endsTurnOnUse: boolean;
   phases: readonly TurnPhase[];
   id: ToolId;
+  interaction: ToolInteractionDefinition;
   label: string;
   rollable: boolean;
   source: ToolSource;
-  targetMode: ToolTargetMode;
-  tileTargeting?: TileTargetingMode;
 }
 
 export interface GameSnapshot {
@@ -194,9 +211,7 @@ export interface GameSnapshot {
 }
 
 export interface UseToolCommandPayload {
-  choiceId?: string;
-  direction?: Direction;
-  targetPosition?: GridPosition;
+  input: ToolSelectionRecord;
   toolInstanceId: string;
 }
 
@@ -303,11 +318,9 @@ export interface DirectionalActionContext extends ActionContextBase {
 
 export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
-  choiceId?: string;
-  direction?: Direction;
+  input: ToolSelectionRecord;
   phase: TurnPhase;
   summons: BoardSummonState[];
-  targetPosition?: GridPosition;
   toolDieSeed: number;
   tools: TurnToolSnapshot[];
 }

@@ -3,12 +3,18 @@ import {
   TOOL_PARAMETER_LABELS,
   TOOL_REGISTRY
 } from "./content/tools";
+import {
+  isChoiceInteractionDefinition,
+  isInstantInteractionDefinition,
+  isPointerDrivenInteractionDefinition
+} from "./toolInteraction";
 import type {
   RolledToolId,
   ToolAvailability,
   ToolChoiceDefinition,
   ToolCondition,
   ToolDefinition,
+  ToolInteractionDefinition,
   ToolDieFaceDefinition,
   ToolId,
   ToolLoadoutDefinition,
@@ -69,29 +75,38 @@ export function canUseToolInPhase(toolId: ToolId, phase: ToolDefinition["phases"
   return TOOL_DEFINITIONS[toolId].phases.includes(phase);
 }
 
-// Directional tools need a cardinal input before they can execute.
-export function isDirectionalTool(toolId: ToolId): boolean {
-  return TOOL_DEFINITIONS[toolId].targetMode === "direction";
+export function getToolInteractionDefinition(toolId: ToolId): ToolInteractionDefinition {
+  return TOOL_DEFINITIONS[toolId].interaction;
 }
 
-// Tile-target tools aim at a snapped board cell instead of a plain direction.
+export function isDirectionalTool(toolId: ToolId): boolean {
+  const stages = getToolInteractionDefinition(toolId).stages;
+
+  return stages.length === 1 && stages[0]?.kind === "drag-direction-release";
+}
+
 export function isTileTargetTool(toolId: ToolId): boolean {
-  return TOOL_DEFINITIONS[toolId].targetMode === "tile";
+  const stages = getToolInteractionDefinition(toolId).stages;
+
+  return stages.length === 1 && stages[0]?.kind === "drag-tile-release";
 }
 
 export function isChoiceTool(toolId: ToolId): boolean {
-  return TOOL_DEFINITIONS[toolId].targetMode === "choice";
+  return isChoiceInteractionDefinition(getToolInteractionDefinition(toolId));
 }
 
 export function isTileDirectionTool(toolId: ToolId): boolean {
-  return TOOL_DEFINITIONS[toolId].targetMode === "tile_direction";
+  return getToolInteractionDefinition(toolId).stages.some(
+    (stage) => stage.kind === "drag-axis-tile-release"
+  );
 }
 
-// Aim tools share the same press-drag-release interaction path in the client.
 export function isAimTool(toolId: ToolId): boolean {
-  const targetMode = TOOL_DEFINITIONS[toolId].targetMode;
+  return isPointerDrivenInteractionDefinition(getToolInteractionDefinition(toolId));
+}
 
-  return targetMode === "direction" || targetMode === "tile" || targetMode === "tile_direction";
+export function isInstantTool(toolId: ToolId): boolean {
+  return isInstantInteractionDefinition(getToolInteractionDefinition(toolId));
 }
 
 export function isCharacterSkillTool(tool: TurnToolSnapshot): boolean {

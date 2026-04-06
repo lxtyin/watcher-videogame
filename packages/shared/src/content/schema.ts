@@ -13,13 +13,6 @@ export type GameMode = "free" | "race";
 export type TurnPhase = "turn-start" | "turn-action" | "turn-end";
 export type Direction = "up" | "down" | "left" | "right";
 export type ToolSource = "turn" | "character_skill";
-export type ToolTargetMode =
-  | "direction"
-  | "tile"
-  | "instant"
-  | "choice"
-  | "tile_direction";
-export type TileTargetingMode = "axis_line" | "adjacent_ring" | "board_any";
 export type MovementType = "translate" | "leap" | "drag" | "teleport";
 export type MovementDisposition = "active" | "passive";
 
@@ -56,6 +49,39 @@ export interface ToolChoiceContentDefinition {
   label: string;
 }
 
+export type ToolInteractionAnchorDefinition =
+  | {
+      kind: "actor";
+    }
+  | {
+      kind: "tile_slot";
+      slotKey: string;
+    };
+
+export type ToolInteractionStageDefinition =
+  | {
+      anchor: ToolInteractionAnchorDefinition;
+      directionKey: string;
+      kind: "drag-direction-release";
+    }
+  | {
+      kind: "drag-tile-release";
+      tileKey: string;
+    }
+  | {
+      directionKey: string;
+      kind: "drag-axis-tile-release";
+      tileKey: string;
+    }
+  | {
+      choiceKey: string;
+      kind: "modal-choice";
+    };
+
+export interface ToolInteractionDefinition {
+  stages: readonly ToolInteractionStageDefinition[];
+}
+
 export interface MovementContentDefinition {
   disposition: MovementDisposition;
   type: MovementType;
@@ -73,12 +99,11 @@ export interface ToolContentDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
+  interaction: ToolInteractionDefinition;
   label: string;
   phases?: readonly TurnPhase[];
   rollable: boolean;
   source: ToolSource;
-  targetMode: ToolTargetMode;
-  tileTargeting?: TileTargetingMode;
 }
 
 export interface ToolLoadoutContentDefinition {

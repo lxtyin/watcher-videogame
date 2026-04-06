@@ -1603,6 +1603,7 @@ button:disabled {
   display: grid;
   gap: 0.6rem;
   min-width: 18rem;
+  pointer-events: auto;
   transform: translateX(-50%);
 }
 
@@ -1612,6 +1613,7 @@ button:disabled {
   padding: 0.78rem 0.9rem;
   border: none;
   border-radius: 18px;
+  pointer-events: auto;
   color: #fff9ef;
   background:
     linear-gradient(180deg, rgba(21, 28, 40, 0.94) 0%, rgba(15, 19, 29, 0.92) 100%);

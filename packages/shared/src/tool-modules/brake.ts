@@ -1,18 +1,22 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { createDragAxisTileInteraction } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
-  consumeActiveTool
+  consumeActiveTool,
+  requireTileSelection
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
+import { collectAxisSelectionTiles } from "../rules/previewDescriptor";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   toMovementSubject
@@ -24,11 +28,10 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "制动",
-  description: "沿一个轴向移动至多指定格数，并停在实际可达的目标格。",
-  disabledHint: "这个制动工具已经没有可用距离了。",
+  description: "先选方向，再在该方向上指定一格，立即沿该轴线移动过去。",
+  disabledHint: "当前不能使用制动。",
   source: "turn",
-  targetMode: "tile",
-  tileTargeting: "axis_line",
+  interaction: createDragAxisTileInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -46,16 +49,37 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
 
 function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const maxRange = getToolParamValue(context.activeTool, "brakeRange", 3);
-  const axisTarget = normalizeAxisTarget(context.actor.position, context.targetPosition);
+  const targetPosition = requireTileSelection(context);
+  const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
   const movement = createToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");
   const nextTools = consumeActiveTool(context);
+  // const selectionTiles = collectAxisSelectionTiles(context.board, context.actor.position);
 
   if (!axisTarget) {
-    return buildBlockedResolution(context.actor, context.tools, "Brake needs a target tile", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        // selectionTiles,
+        valid: false
+      }),
+      reason: "Brake needs a target tile",
+      tools: context.tools
+    });
   }
 
   if (maxRange < 1) {
-    return buildBlockedResolution(context.actor, context.tools, "No brake range left", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [axisTarget.snappedTarget],
+        // selectionTiles,
+        valid: false
+      }),
+      reason: "No brake range left",
+      tools: context.tools
+    });
   }
 
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
@@ -80,43 +104,56 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
         });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution(
-      context.actor,
-      context.tools,
-      resolution.stopReason,
-      context.toolDieSeed,
-      resolution.path,
-      [],
-      [axisTarget.snappedTarget]
-    );
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      path: resolution.path,
+      preview: createToolPreview(context, {
+        actorPath: resolution.path,
+        effectTiles: [axisTarget.snappedTarget],
+        // selectionTiles,
+        valid: false
+      }),
+      reason: resolution.stopReason,
+      tools: context.tools
+    });
   }
 
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       position: resolution.actor.position,
       tags: resolution.actor.tags,
       turnFlags: resolution.actor.turnFlags
     },
-    resolution.tools,
-    createUsedSummary(BRAKE_TOOL_DEFINITION.label),
-    resolution.nextToolDieSeed,
-    resolution.path,
-    resolution.tileMutations,
-    [],
-    resolution.triggeredTerrainEffects,
-    resolution.path,
-    createActorMotionPresentation(
+    actorMovement: createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      resolution.path,
+      movement
+    ),
+    nextToolDieSeed: resolution.nextToolDieSeed,
+    path: resolution.path,
+    presentation: createActorMotionPresentation(
       context,
       "actor-brake",
       resolution.path,
       movement.type === "leap" ? "arc" : "ground"
     ),
-    resolution.summonMutations,
-    resolution.triggeredSummonEffects,
-    false,
-    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
-  );
+    preview: createToolPreview(context, {
+      actorPath: resolution.path,
+      actorTarget: resolution.actor.position,
+      effectTiles: [axisTarget.snappedTarget],
+      // selectionTiles,
+      valid: true
+    }),
+    summonMutations: resolution.summonMutations,
+    summary: createUsedSummary(BRAKE_TOOL_DEFINITION.label),
+    tileMutations: resolution.tileMutations,
+    tools: resolution.tools,
+    triggeredSummonEffects: resolution.triggeredSummonEffects,
+    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+  });
 }
 
 export const BRAKE_TOOL_MODULE: ToolModule<"brake"> = {

@@ -1,17 +1,29 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { getPlayerTagNumber, setPlayerTagValue } from "../playerTags";
 import { FARTHER_BANKED_MOVEMENT_TAG } from "../skills";
+import { createModalChoiceInteraction } from "../toolInteraction";
 import type { ActionResolution } from "../types";
-import { buildAppliedResolution, buildBlockedResolution, consumeActiveTool } from "../rules/actionResolution";
+import {
+  buildAppliedResolution,
+  buildBlockedResolution,
+  consumeActiveTool,
+  requireChoiceSelection
+} from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { adjustMovementTools, clearMovementTools, createUsedSummary, getTotalMovementPoints } from "./helpers";
+import {
+  adjustMovementTools,
+  clearMovementTools,
+  createToolPreview,
+  createUsedSummary,
+  getTotalMovementPoints
+} from "./helpers";
 
 export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "制衡",
-  description: "压缩本回合移动，或把本回合移动转存到下回合之间二选一。",
+  description: "压缩本回合移动，或把本回合移动转存到下回合，二选一。",
   disabledHint: "需要保留一个有剩余点数的移动时才能使用。",
   source: "turn",
-  targetMode: "choice",
+  interaction: createModalChoiceInteraction(),
   choices: [
     {
       id: "trim_and_bank",
@@ -34,19 +46,37 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
 };
 
 function resolveBalanceTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
-  const choiceId = context.choiceId;
+  const choiceId = requireChoiceSelection(context);
   const totalMovePoints = getTotalMovementPoints(context.tools);
 
   if (!choiceId) {
-    return buildBlockedResolution(context.actor, context.tools, "Balance needs a choice", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "Balance needs a choice",
+      tools: context.tools
+    });
   }
 
   if (!BALANCE_TOOL_DEFINITION.choices?.some((choice) => choice.id === choiceId)) {
-    return buildBlockedResolution(context.actor, context.tools, "Unknown balance choice", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "Unknown balance choice",
+      tools: context.tools
+    });
   }
 
   if (totalMovePoints < 1) {
-    return buildBlockedResolution(context.actor, context.tools, "No move points available", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, { valid: false }),
+      reason: "No move points available",
+      tools: context.tools
+    });
   }
 
   let nextTools = consumeActiveTool(context);
@@ -56,16 +86,17 @@ function resolveBalanceTool(context: Parameters<ToolModule["execute"]>[0]): Acti
 
   nextTools = choiceId === "trim_and_bank" ? adjustMovementTools(nextTools, -1) : clearMovementTools(nextTools);
 
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       tags: setPlayerTagValue(context.actor.tags, FARTHER_BANKED_MOVEMENT_TAG, nextBankedMovement)
     },
-    nextTools,
-    createUsedSummary(BALANCE_TOOL_DEFINITION.label),
-    context.toolDieSeed,
-    []
-  );
+    nextToolDieSeed: context.toolDieSeed,
+    path: [],
+    preview: createToolPreview(context, { valid: true }),
+    summary: createUsedSummary(BALANCE_TOOL_DEFINITION.label),
+    tools: nextTools
+  });
 }
 
 export const BALANCE_TOOL_MODULE: ToolModule<"balance"> = {

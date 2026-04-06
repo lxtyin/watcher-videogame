@@ -1,4 +1,3 @@
-import type { ToolContentDefinition } from "../content/schema";
 import type {
   AffectedPlayerMove,
   ActionPresentationEvent,
@@ -8,6 +7,8 @@ import type {
   TriggeredSummonEffect,
   TriggeredTerrainEffect
 } from "../types";
+import type { ToolContentDefinition } from "../content/schema";
+import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   buildMotionPositions,
   createEffectEvent,
@@ -24,6 +25,7 @@ import {
 } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
+import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
   CARDINAL_DIRECTIONS,
   collectExplosionPreviewTiles,
@@ -35,6 +37,7 @@ import {
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   toAffectedPlayerMove,
@@ -43,10 +46,10 @@ import {
 
 export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "火箭",
-  description: "向一个方向发射火箭，在碰撞点爆炸并击飞周围目标。",
-  disabledHint: "当前还不能使用这个火箭工具。",
+  description: "沿选择方向发射火箭，命中后在落点爆炸并击飞周围玩家。",
+  disabledHint: "当前不能使用火箭。",
   source: "turn",
-  targetMode: "direction",
+  interaction: createDragDirectionInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -73,9 +76,19 @@ function resolveRocketTool(context: Parameters<ToolModule["execute"]>[0]): Actio
     tags: [`tool:${context.activeTool.toolId}`, "rocket:splash"],
     timing: "out_of_turn"
   });
+  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution(context.actor, context.tools, "Rocket needs a direction", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Rocket needs a direction",
+      tools: context.tools
+    });
   }
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
@@ -91,7 +104,17 @@ function resolveRocketTool(context: Parameters<ToolModule["execute"]>[0]): Actio
       : getOppositeDirection(trace.collision.direction);
 
   if (!explosionPosition) {
-    return buildBlockedResolution(context.actor, context.tools, "No rocket flight path", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        actorPath: trace.path,
+        selectionTiles,
+        valid: false
+      }),
+      reason: "No rocket flight path",
+      tools: context.tools
+    });
   }
 
   const projectileEvent = createProjectileEvent(
@@ -213,20 +236,26 @@ function resolveRocketTool(context: Parameters<ToolModule["execute"]>[0]): Actio
     )
   );
 
-  return buildAppliedResolution(
-    context.actor,
-    nextTools,
-    createUsedSummary(ROCKET_TOOL_DEFINITION.label),
-    nextToolDieSeed,
-    trace.path,
-    tileMutations,
+  return buildAppliedResolution({
+    actor: context.actor,
     affectedPlayers,
-    triggeredTerrainEffects,
-    effectTiles,
-    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    nextToolDieSeed,
+    path: trace.path,
+    presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    preview: createToolPreview(context, {
+      actorPath: trace.path,
+      affectedPlayers,
+      effectTiles,
+      selectionTiles,
+      valid: true
+    }),
     summonMutations,
-    triggeredSummonEffects
-  );
+    summary: createUsedSummary(ROCKET_TOOL_DEFINITION.label),
+    tileMutations,
+    tools: nextTools,
+    triggeredSummonEffects,
+    triggeredTerrainEffects
+  });
 }
 
 export const ROCKET_TOOL_MODULE: ToolModule<"rocket"> = {

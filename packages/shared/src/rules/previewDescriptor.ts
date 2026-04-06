@@ -1,15 +1,22 @@
 import { isWithinBoard } from "../board";
-import { getToolDefinition } from "../tools";
 import type {
-  ActionResolution,
+  AffectedPlayerMove,
+  BoardDefinition,
   GridPosition,
+  MovementActor,
   PreviewDescriptor,
-  PreviewPlayerTarget,
-  ToolActionContext
+  PreviewPlayerTarget
 } from "../types";
 import { CARDINAL_DIRECTIONS, stepPosition } from "./spatial";
 
-function dedupePositions(positions: GridPosition[]): GridPosition[] {
+function clonePosition(position: GridPosition): GridPosition {
+  return {
+    x: position.x,
+    y: position.y
+  };
+}
+
+export function dedupePreviewPositions(positions: GridPosition[]): GridPosition[] {
   const seen = new Set<string>();
 
   return positions.filter((position) => {
@@ -24,27 +31,84 @@ function dedupePositions(positions: GridPosition[]): GridPosition[] {
   });
 }
 
-function collectDirectionSelectionTiles(context: ToolActionContext): GridPosition[] {
-  return CARDINAL_DIRECTIONS.map((direction) => stepPosition(context.actor.position, direction)).filter(
-    (position) => isWithinBoard(context.board, position)
+export function createPreviewPlayerTargets(
+  actor: MovementActor,
+  actorTarget: GridPosition,
+  affectedPlayers: AffectedPlayerMove[] = [],
+  boardVisibleByPlayerId: Partial<Record<string, boolean>> = {}
+): PreviewPlayerTarget[] {
+  const targetsById = new Map<string, PreviewPlayerTarget>();
+
+  targetsById.set(actor.id, {
+    boardVisible: true,
+    playerId: actor.id,
+    startPosition: clonePosition(actor.position),
+    targetPosition: clonePosition(actorTarget)
+  });
+
+  for (const affectedPlayer of affectedPlayers) {
+    targetsById.set(affectedPlayer.playerId, {
+      boardVisible: boardVisibleByPlayerId[affectedPlayer.playerId] ?? true,
+      playerId: affectedPlayer.playerId,
+      startPosition: clonePosition(affectedPlayer.startPosition),
+      targetPosition: clonePosition(affectedPlayer.target)
+    });
+  }
+
+  return [...targetsById.values()];
+}
+
+export function createPreviewDescriptor(
+  preview: Partial<PreviewDescriptor> & Pick<PreviewDescriptor, "valid">
+): PreviewDescriptor {
+  return {
+    actorPath: dedupePreviewPositions([...(preview.actorPath ?? [])]),
+    effectTiles: dedupePreviewPositions([...(preview.effectTiles ?? [])]),
+    playerTargets: (preview.playerTargets ?? []).map((target) => ({
+      boardVisible: target.boardVisible,
+      playerId: target.playerId,
+      startPosition: clonePosition(target.startPosition),
+      targetPosition: clonePosition(target.targetPosition)
+    })),
+    selectionTiles: dedupePreviewPositions([...(preview.selectionTiles ?? [])]),
+    valid: preview.valid
+  };
+}
+
+export function createEmptyPreview(valid = false): PreviewDescriptor {
+  return createPreviewDescriptor({
+    valid
+  });
+}
+
+export function collectDirectionSelectionTiles(
+  board: BoardDefinition,
+  origin: GridPosition
+): GridPosition[] {
+  return CARDINAL_DIRECTIONS.map((direction) => stepPosition(origin, direction)).filter((position) =>
+    isWithinBoard(board, position)
   );
 }
 
-function collectAdjacentRingSelectionTiles(context: ToolActionContext): GridPosition[] {
+export function collectAdjacentSelectionTiles(
+  board: BoardDefinition,
+  origin: GridPosition,
+  range = 1
+): GridPosition[] {
   const positions: GridPosition[] = [];
 
-  for (let deltaY = -1; deltaY <= 1; deltaY += 1) {
-    for (let deltaX = -1; deltaX <= 1; deltaX += 1) {
+  for (let deltaY = -range; deltaY <= range; deltaY += 1) {
+    for (let deltaX = -range; deltaX <= range; deltaX += 1) {
       if (!deltaX && !deltaY) {
         continue;
       }
 
       const position = {
-        x: context.actor.position.x + deltaX,
-        y: context.actor.position.y + deltaY
+        x: origin.x + deltaX,
+        y: origin.y + deltaY
       };
 
-      if (isWithinBoard(context.board, position)) {
+      if (isWithinBoard(board, position)) {
         positions.push(position);
       }
     }
@@ -53,40 +117,42 @@ function collectAdjacentRingSelectionTiles(context: ToolActionContext): GridPosi
   return positions;
 }
 
-function collectAxisLineSelectionTiles(context: ToolActionContext): GridPosition[] {
+export function collectAxisSelectionTiles(
+  board: BoardDefinition,
+  origin: GridPosition
+): GridPosition[] {
   const positions: GridPosition[] = [];
 
-  for (let x = 0; x < context.board.width; x += 1) {
-    if (x === context.actor.position.x) {
-      continue;
+  for (let x = 0; x < board.width; x += 1) {
+    if (x !== origin.x) {
+      positions.push({
+        x,
+        y: origin.y
+      });
     }
-
-    positions.push({
-      x,
-      y: context.actor.position.y
-    });
   }
 
-  for (let y = 0; y < context.board.height; y += 1) {
-    if (y === context.actor.position.y) {
-      continue;
+  for (let y = 0; y < board.height; y += 1) {
+    if (y !== origin.y) {
+      positions.push({
+        x: origin.x,
+        y
+      });
     }
-
-    positions.push({
-      x: context.actor.position.x,
-      y
-    });
   }
 
   return positions;
 }
 
-function collectBoardSelectionTiles(context: ToolActionContext): GridPosition[] {
+export function collectBoardSelectionTiles(
+  board: BoardDefinition,
+  excludedPosition?: GridPosition
+): GridPosition[] {
   const positions: GridPosition[] = [];
 
-  for (let y = 0; y < context.board.height; y += 1) {
-    for (let x = 0; x < context.board.width; x += 1) {
-      if (x === context.actor.position.x && y === context.actor.position.y) {
+  for (let y = 0; y < board.height; y += 1) {
+    for (let x = 0; x < board.width; x += 1) {
+      if (excludedPosition && x === excludedPosition.x && y === excludedPosition.y) {
         continue;
       }
 
@@ -95,100 +161,4 @@ function collectBoardSelectionTiles(context: ToolActionContext): GridPosition[] 
   }
 
   return positions;
-}
-
-function buildSelectionTiles(context: ToolActionContext): GridPosition[] {
-  const toolDefinition = getToolDefinition(context.activeTool.toolId);
-
-  if (toolDefinition.targetMode === "direction") {
-    return collectDirectionSelectionTiles(context);
-  }
-
-  if (toolDefinition.targetMode !== "tile" && toolDefinition.targetMode !== "tile_direction") {
-    return [];
-  }
-
-  switch (toolDefinition.tileTargeting ?? "board_any") {
-    case "adjacent_ring":
-      return collectAdjacentRingSelectionTiles(context);
-    case "axis_line":
-      return collectAxisLineSelectionTiles(context);
-    case "board_any":
-      return collectBoardSelectionTiles(context);
-  }
-}
-
-function buildPlayerTargets(
-  context: ToolActionContext,
-  resolution: ActionResolution
-): PreviewPlayerTarget[] {
-  const targetsById = new Map(
-    context.players.map((player) => [
-      player.id,
-      {
-        boardVisible: player.boardVisible,
-        playerId: player.id,
-        startPosition: player.position,
-        targetPosition: player.position
-      } satisfies PreviewPlayerTarget
-    ] as const)
-  );
-
-  targetsById.set(context.actor.id, {
-    boardVisible: true,
-    playerId: context.actor.id,
-    startPosition: context.actor.position,
-    targetPosition: resolution.actor.position
-  });
-
-  for (const affectedPlayer of resolution.affectedPlayers) {
-    const currentTarget = targetsById.get(affectedPlayer.playerId);
-
-    targetsById.set(affectedPlayer.playerId, {
-      boardVisible: currentTarget?.boardVisible ?? true,
-      playerId: affectedPlayer.playerId,
-      startPosition: affectedPlayer.startPosition,
-      targetPosition: affectedPlayer.target
-    });
-  }
-
-  return [...targetsById.values()];
-}
-
-export function createPreviewDescriptor(
-  context: ToolActionContext,
-  resolution: ActionResolution,
-  effectTiles: GridPosition[]
-): PreviewDescriptor {
-  return {
-    actorPath: [...resolution.path],
-    effectTiles: dedupePositions(effectTiles),
-    playerTargets: buildPlayerTargets(context, resolution),
-    selectionTiles: dedupePositions(buildSelectionTiles(context)),
-    valid: resolution.kind === "applied"
-  };
-}
-
-export function createPlaceholderPreview(
-  valid: boolean,
-  actorPath: GridPosition[],
-  effectTiles: GridPosition[]
-): PreviewDescriptor {
-  return {
-    actorPath: [...actorPath],
-    effectTiles: dedupePositions(effectTiles),
-    playerTargets: [],
-    selectionTiles: [],
-    valid
-  };
-}
-
-export function attachPreviewDescriptor(
-  context: ToolActionContext,
-  resolution: ActionResolution
-): ActionResolution {
-  return {
-    ...resolution,
-    preview: createPreviewDescriptor(context, resolution, resolution.preview.effectTiles)
-  };
 }

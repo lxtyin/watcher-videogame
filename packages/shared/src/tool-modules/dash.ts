@@ -1,15 +1,16 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
 import type { ActionResolution } from "../types";
 import { buildAppliedResolution, consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createUsedSummary, getToolParamValue } from "./helpers";
+import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
 
 export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "冲刺",
   description: "让本回合剩余的所有移动工具额外获得指定点数。",
   disabledHint: "需要保留一个可用的移动时才能使用。",
   source: "turn",
-  targetMode: "instant",
+  interaction: INSTANT_TOOL_INTERACTION,
   conditions: [{ kind: "tool_present", toolId: "movement" }],
   defaultCharges: 1,
   defaultParams: {
@@ -35,13 +36,16 @@ function resolveDashTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
       : tool
   );
 
-  return buildAppliedResolution(
-    context.actor,
-    nextTools,
-    createUsedSummary(DASH_TOOL_DEFINITION.label),
-    context.toolDieSeed,
-    []
-  );
+  return buildAppliedResolution({
+    actor: context.actor,
+    nextToolDieSeed: context.toolDieSeed,
+    path: [],
+    preview: createToolPreview(context, {
+      valid: true
+    }),
+    summary: createUsedSummary(DASH_TOOL_DEFINITION.label),
+    tools: nextTools
+  });
 }
 
 export const DASH_TOOL_MODULE: ToolModule<"dash"> = {

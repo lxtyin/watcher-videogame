@@ -1,4 +1,3 @@
-import type { ToolContentDefinition } from "../content/schema";
 import type {
   AffectedPlayerMove,
   ActionPresentationEvent,
@@ -8,31 +7,49 @@ import type {
   TriggeredSummonEffect,
   TriggeredTerrainEffect
 } from "../types";
+import type { ToolContentDefinition } from "../content/schema";
+import { createSequentialInteraction } from "../toolInteraction";
 import { buildMotionPositions, createPlayerMotionEvent, createPresentation } from "../rules/actionPresentation";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
   consumeActiveTool,
-  requireDirection
+  requireDirection,
+  requireTileSelection
 } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
+import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
-  toAffectedPlayerMove
+  toAffectedPlayerMove,
+  toMovementSubject
 } from "./helpers";
 
 export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
   label: "投弹",
-  description: "选择周围八格内的一格，并指定一个方向，让其中所有玩家位移 2 格。",
-  disabledHint: "请先选择一个有效目标格，并指定推动方向。",
+  description: "先选择周围一格作为投弹点，再选择一个方向，将该格上的玩家推出去。",
+  disabledHint: "当前不能使用投弹。",
   source: "turn",
-  targetMode: "tile_direction",
-  tileTargeting: "adjacent_ring",
+  interaction: createSequentialInteraction([
+    {
+      kind: "drag-tile-release",
+      tileKey: "targetPosition"
+    },
+    {
+      anchor: {
+        kind: "tile_slot",
+        slotKey: "targetPosition"
+      },
+      directionKey: "direction",
+      kind: "drag-direction-release"
+    }
+  ]),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -46,7 +63,7 @@ export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
 };
 
 function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
-  const targetPosition = context.targetPosition;
+  const targetPosition = requireTileSelection(context);
   const direction = requireDirection(context);
   const targetRange = getToolParamValue(context.activeTool, "targetRange", 1);
   const pushDistance = getToolParamValue(context.activeTool, "pushDistance", 2);
@@ -54,26 +71,66 @@ function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): Ac
     tags: [`tool:${context.activeTool.toolId}`, "bomb:push"],
     timing: "out_of_turn"
   });
+  const selectionTiles = collectAdjacentSelectionTiles(context.board, context.actor.position, targetRange);
 
   if (!targetPosition) {
-    return buildBlockedResolution(context.actor, context.tools, "Bomb Throw needs a target tile", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Bomb Throw needs a target tile",
+      tools: context.tools
+    });
   }
 
   if (!direction) {
-    return buildBlockedResolution(context.actor, context.tools, "Bomb Throw needs a direction", context.toolDieSeed, [], [], [targetPosition]);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [targetPosition],
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Bomb Throw needs a direction",
+      tools: context.tools
+    });
   }
 
   const deltaX = Math.abs(targetPosition.x - context.actor.position.x);
   const deltaY = Math.abs(targetPosition.y - context.actor.position.y);
 
   if ((deltaX === 0 && deltaY === 0) || deltaX > targetRange || deltaY > targetRange) {
-    return buildBlockedResolution(context.actor, context.tools, "Target tile is outside the bomb range", context.toolDieSeed, [], [], [targetPosition]);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [targetPosition],
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Target tile is outside the bomb range",
+      tools: context.tools
+    });
   }
 
   const targetPlayers = findPlayersAtPosition(context.players, targetPosition, []);
 
   if (!targetPlayers.length) {
-    return buildBlockedResolution(context.actor, context.tools, "No players are standing on the target tile", context.toolDieSeed, [], [], [targetPosition]);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [targetPosition],
+        selectionTiles,
+        valid: false
+      }),
+      reason: "No players are standing on the target tile",
+      tools: context.tools
+    });
   }
 
   const affectedPlayers: AffectedPlayerMove[] = [];
@@ -91,15 +148,7 @@ function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): Ac
       maxSteps: pushDistance,
       movePoints: pushDistance,
       movement: pushMovement,
-      player: {
-        characterId: targetPlayer.characterId,
-        id: targetPlayer.id,
-        modifiers: targetPlayer.modifiers,
-        position: targetPlayer.position,
-        spawnPosition: targetPlayer.spawnPosition,
-        tags: targetPlayer.tags,
-        turnFlags: targetPlayer.turnFlags
-      },
+      player: toMovementSubject(targetPlayer),
       priorSummonMutations: summonMutations,
       priorTileMutations: tileMutations,
       toolDieSeed: nextToolDieSeed,
@@ -133,23 +182,38 @@ function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): Ac
   }
 
   if (!affectedPlayers.length) {
-    return buildBlockedResolution(context.actor, context.tools, "Targets cannot be displaced", context.toolDieSeed, [], [], [targetPosition]);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [targetPosition],
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Targets cannot be displaced",
+      tools: context.tools
+    });
   }
 
-  return buildAppliedResolution(
-    context.actor,
-    nextTools,
-    createUsedSummary(BOMB_THROW_TOOL_DEFINITION.label),
-    nextToolDieSeed,
-    [],
-    tileMutations,
+  return buildAppliedResolution({
+    actor: context.actor,
     affectedPlayers,
-    triggeredTerrainEffects,
-    [targetPosition],
-    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    nextToolDieSeed,
+    path: [],
+    presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    preview: createToolPreview(context, {
+      affectedPlayers,
+      effectTiles: [targetPosition],
+      selectionTiles,
+      valid: true
+    }),
     summonMutations,
-    triggeredSummonEffects
-  );
+    summary: createUsedSummary(BOMB_THROW_TOOL_DEFINITION.label),
+    tileMutations,
+    tools: nextTools,
+    triggeredSummonEffects,
+    triggeredTerrainEffects
+  });
 }
 
 export const BOMB_THROW_TOOL_MODULE: ToolModule<"bombThrow"> = {

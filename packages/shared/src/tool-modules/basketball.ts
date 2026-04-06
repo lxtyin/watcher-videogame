@@ -1,4 +1,3 @@
-import type { ToolContentDefinition } from "../content/schema";
 import type {
   AffectedPlayerMove,
   ActionPresentationEvent,
@@ -8,6 +7,8 @@ import type {
   TriggeredSummonEffect,
   TriggeredTerrainEffect
 } from "../types";
+import type { ToolContentDefinition } from "../content/schema";
+import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   buildMotionPositions,
   createPlayerMotionEvent,
@@ -22,10 +23,12 @@ import {
 } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
+import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
+  createToolPreview,
   createUsedSummary,
   getToolParamValue,
   toAffectedPlayerMove,
@@ -34,10 +37,10 @@ import {
 
 export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "篮球",
-  description: "向一个方向投出篮球，遇墙会反弹，命中玩家会推开并返还新的篮球。",
-  disabledHint: "当前还不能使用这个篮球工具。",
+  description: "朝一个方向投出篮球，命中的玩家会被击退。",
+  disabledHint: "当前不能使用篮球。",
   source: "turn",
-  targetMode: "direction",
+  interaction: createDragDirectionInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
@@ -60,9 +63,19 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
     timing: "out_of_turn"
   });
+  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution(context.actor, context.tools, "Basketball needs a direction", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Basketball needs a direction",
+      tools: context.tools
+    });
   }
 
   const trace = traceProjectile(context, direction, projectileRange, bounceCount);
@@ -124,20 +137,26 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     }
   }
 
-  return buildAppliedResolution(
-    context.actor,
-    nextTools,
-    createUsedSummary(BASKETBALL_TOOL_DEFINITION.label),
-    nextToolDieSeed,
-    trace.path,
-    tileMutations,
+  return buildAppliedResolution({
+    actor: context.actor,
     affectedPlayers,
-    triggeredTerrainEffects,
-    [],
-    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    nextToolDieSeed,
+    path: trace.path,
+    presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
+    preview: createToolPreview(context, {
+      actorPath: trace.path,
+      affectedPlayers,
+      effectTiles: trace.path,
+      selectionTiles,
+      valid: true
+    }),
     summonMutations,
-    triggeredSummonEffects
-  );
+    summary: createUsedSummary(BASKETBALL_TOOL_DEFINITION.label),
+    tileMutations,
+    tools: nextTools,
+    triggeredSummonEffects,
+    triggeredTerrainEffects
+  });
 }
 
 export const BASKETBALL_TOOL_MODULE: ToolModule<"basketball"> = {

@@ -1,12 +1,20 @@
 import type { ToolContentDefinition } from "../content/schema";
+import { createDragTileInteraction } from "../toolInteraction";
 import type { ActionResolution } from "../types";
-import { buildAppliedResolution, buildBlockedResolution, consumeActiveTool } from "../rules/actionResolution";
+import {
+  buildAppliedResolution,
+  buildBlockedResolution,
+  consumeActiveTool,
+  requireTileSelection
+} from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveTeleportDisplacement } from "../rules/movementSystem";
+import { collectBoardSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
   buildMovementSystemContext,
   createToolMovementDescriptor,
+  createToolPreview,
   createUsedSummary,
   toMovementSubject
 } from "./helpers";
@@ -20,8 +28,7 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   description: "选择全场任意一个可落脚地块，直接瞬移到目标位置。",
   disabledHint: "当前还不能瞬移到这个位置。",
   source: "turn",
-  targetMode: "tile",
-  tileTargeting: "board_any",
+  interaction: createDragTileInteraction(),
   conditions: [],
   defaultCharges: 1,
   defaultParams: {},
@@ -32,11 +39,21 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
 };
 
 function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
-  const targetPosition = context.targetPosition;
+  const targetPosition = requireTileSelection(context);
   const movement = createToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "teleport");
+  const selectionTiles = collectBoardSelectionTiles(context.board, context.actor.position);
 
   if (!targetPosition) {
-    return buildBlockedResolution(context.actor, context.tools, "Teleport needs a target tile", context.toolDieSeed);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        selectionTiles,
+        valid: false
+      }),
+      reason: "Teleport needs a target tile",
+      tools: context.tools
+    });
   }
 
   const resolution = resolveTeleportDisplacement(buildMovementSystemContext(context), {
@@ -48,30 +65,48 @@ function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): Act
   });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution(context.actor, context.tools, resolution.stopReason, context.toolDieSeed, [], [], [targetPosition]);
+    return buildBlockedResolution({
+      actor: context.actor,
+      nextToolDieSeed: context.toolDieSeed,
+      preview: createToolPreview(context, {
+        effectTiles: [targetPosition],
+        selectionTiles,
+        valid: false
+      }),
+      reason: resolution.stopReason,
+      tools: context.tools
+    });
   }
 
-  return buildAppliedResolution(
-    {
+  return buildAppliedResolution({
+    actor: {
       ...context.actor,
       position: resolution.actor.position,
       tags: resolution.actor.tags,
       turnFlags: resolution.actor.turnFlags
     },
-    resolution.tools,
-    createUsedSummary(TELEPORT_TOOL_DEFINITION.label),
-    resolution.nextToolDieSeed,
-    resolution.path,
-    resolution.tileMutations,
-    [],
-    resolution.triggeredTerrainEffects,
-    [targetPosition],
-    null,
-    resolution.summonMutations,
-    resolution.triggeredSummonEffects,
-    false,
-    createResolvedPlayerMovement(context.actor.id, context.actor.position, resolution.path, movement)
-  );
+    actorMovement: createResolvedPlayerMovement(
+      context.actor.id,
+      context.actor.position,
+      resolution.path,
+      movement
+    ),
+    nextToolDieSeed: resolution.nextToolDieSeed,
+    path: resolution.path,
+    preview: createToolPreview(context, {
+      actorPath: resolution.path,
+      actorTarget: resolution.actor.position,
+      effectTiles: [targetPosition],
+      selectionTiles,
+      valid: true
+    }),
+    summonMutations: resolution.summonMutations,
+    summary: createUsedSummary(TELEPORT_TOOL_DEFINITION.label),
+    tileMutations: resolution.tileMutations,
+    tools: resolution.tools,
+    triggeredSummonEffects: resolution.triggeredSummonEffects,
+    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+  });
 }
 
 export const TELEPORT_TOOL_MODULE: ToolModule<"teleport"> = {

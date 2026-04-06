@@ -15,5 +15,6 @@ export * from "./content/maps";
 export * from "./skills";
 export * from "./summons";
 export * from "./terrain";
+export * from "./toolInteraction";
 export * from "./tools";
 export * from "./types";

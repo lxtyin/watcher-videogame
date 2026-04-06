@@ -6,6 +6,11 @@ import type {
   TurnInfoSnapshot,
   TurnToolSnapshot
 } from "../types";
+import {
+  createChoiceSelection,
+  createDirectionSelection,
+  createTileSelection
+} from "../toolInteraction";
 import { findToolInstance } from "../tools";
 import { serializeGoldenBoardLayout } from "./layout";
 import type {
@@ -160,9 +165,13 @@ function executeGoldenStep(
         actorId: step.actorId,
         payload: {
           toolInstanceId: activeTool.instanceId,
-          ...(step.choiceId ? { choiceId: step.choiceId } : {}),
-          ...(step.direction ? { direction: step.direction } : {}),
-          ...(step.targetPosition ? { targetPosition: clonePosition(step.targetPosition) } : {})
+          input: {
+            ...(step.choiceId ? { choiceId: createChoiceSelection(step.choiceId) } : {}),
+            ...(step.direction ? { direction: createDirectionSelection(step.direction) } : {}),
+            ...(step.targetPosition
+              ? { targetPosition: createTileSelection(clonePosition(step.targetPosition)) }
+              : {})
+          }
         }
       });
       break;

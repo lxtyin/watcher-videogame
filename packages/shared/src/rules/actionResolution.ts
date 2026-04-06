@@ -1,4 +1,9 @@
 import { getTile } from "../board";
+import {
+  getChoiceSelection,
+  getDirectionSelection,
+  getTileSelection
+} from "../toolInteraction";
 import { consumeToolInstance } from "../tools";
 import type {
   ActionPresentation,
@@ -10,6 +15,7 @@ import type {
   Direction,
   GridPosition,
   MovementActor,
+  PreviewDescriptor,
   ResolvedPlayerMovement,
   SummonPresentationState,
   SummonStateTransition,
@@ -27,83 +33,91 @@ import {
   createStateTransitionEvent,
   getMotionArrivalStartMs
 } from "./actionPresentation";
-import { createPlaceholderPreview } from "./previewDescriptor";
+import { createEmptyPreview } from "./previewDescriptor";
+
+interface BlockedResolutionParams {
+  actor: MovementActor;
+  nextToolDieSeed: number;
+  path?: GridPosition[];
+  preview?: PreviewDescriptor;
+  reason: string;
+  tools: TurnToolSnapshot[];
+  triggeredTerrainEffects?: TriggeredTerrainEffect[];
+}
+
+interface AppliedResolutionParams {
+  actor: MovementActor;
+  actorMovement?: ResolvedPlayerMovement | null;
+  affectedPlayers?: AffectedPlayerMove[];
+  endsTurn?: boolean;
+  nextToolDieSeed: number;
+  path: GridPosition[];
+  phaseEffect?: ActionPhaseEffect | null;
+  presentation?: ActionPresentation | null;
+  preview?: PreviewDescriptor;
+  summonMutations?: SummonMutation[];
+  summary: string;
+  tileMutations?: TileMutation[];
+  tools: TurnToolSnapshot[];
+  triggeredSummonEffects?: TriggeredSummonEffect[];
+  triggeredTerrainEffects?: TriggeredTerrainEffect[];
+}
 
 // Blocked resolutions preserve tool inventory so previews can explain why an action failed.
 export function buildBlockedResolution(
-  actor: MovementActor,
-  tools: TurnToolSnapshot[],
-  reason: string,
-  nextToolDieSeed: number,
-  path: GridPosition[] = [],
-  triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
-  effectTiles: GridPosition[] = []
+  params: BlockedResolutionParams
 ): ActionResolution {
   return {
     kind: "blocked",
     actorMovement: null,
-    reason,
-    path,
-    preview: createPlaceholderPreview(false, path, effectTiles),
+    reason: params.reason,
+    path: params.path ?? [],
+    preview: params.preview ?? createEmptyPreview(false),
     actor: {
-      modifiers: actor.modifiers,
-      position: actor.position,
-      tags: actor.tags,
-      turnFlags: actor.turnFlags
+      modifiers: params.actor.modifiers,
+      position: params.actor.position,
+      tags: params.actor.tags,
+      turnFlags: params.actor.turnFlags
     },
-    tools,
+    tools: params.tools,
     affectedPlayers: [],
     tileMutations: [],
     summonMutations: [],
-    triggeredTerrainEffects,
+    triggeredTerrainEffects: params.triggeredTerrainEffects ?? [],
     triggeredSummonEffects: [],
     presentation: null,
     endsTurn: false,
     phaseEffect: null,
-    nextToolDieSeed
+    nextToolDieSeed: params.nextToolDieSeed
   };
 }
 
 // Applied resolutions capture the fully resolved tool result after movement-trigger processing.
 export function buildAppliedResolution(
-  nextActor: MovementActor,
-  tools: TurnToolSnapshot[],
-  summary: string,
-  nextToolDieSeed: number,
-  path: GridPosition[],
-  tileMutations: TileMutation[] = [],
-  affectedPlayers: AffectedPlayerMove[] = [],
-  triggeredTerrainEffects: TriggeredTerrainEffect[] = [],
-  effectTiles: GridPosition[] = [],
-  presentation: ActionPresentation | null = null,
-  summonMutations: SummonMutation[] = [],
-  triggeredSummonEffects: TriggeredSummonEffect[] = [],
-  endsTurn = false,
-  actorMovement: ResolvedPlayerMovement | null = null,
-  phaseEffect: ActionPhaseEffect | null = null
+  params: AppliedResolutionParams
 ): ActionResolution {
   return {
     kind: "applied",
-    actorMovement,
-    summary,
-    path,
-    preview: createPlaceholderPreview(true, path, effectTiles),
+    actorMovement: params.actorMovement ?? null,
+    summary: params.summary,
+    path: params.path,
+    preview: params.preview ?? createEmptyPreview(true),
     actor: {
-      modifiers: nextActor.modifiers,
-      position: nextActor.position,
-      tags: nextActor.tags,
-      turnFlags: nextActor.turnFlags
+      modifiers: params.actor.modifiers,
+      position: params.actor.position,
+      tags: params.actor.tags,
+      turnFlags: params.actor.turnFlags
     },
-    tools,
-    affectedPlayers,
-    tileMutations,
-    summonMutations,
-    triggeredTerrainEffects,
-    triggeredSummonEffects,
-    presentation,
-    endsTurn,
-    phaseEffect,
-    nextToolDieSeed
+    tools: params.tools,
+    affectedPlayers: params.affectedPlayers ?? [],
+    tileMutations: params.tileMutations ?? [],
+    summonMutations: params.summonMutations ?? [],
+    triggeredTerrainEffects: params.triggeredTerrainEffects ?? [],
+    triggeredSummonEffects: params.triggeredSummonEffects ?? [],
+    presentation: params.presentation ?? null,
+    endsTurn: params.endsTurn ?? false,
+    phaseEffect: params.phaseEffect ?? null,
+    nextToolDieSeed: params.nextToolDieSeed
   };
 }
 
@@ -291,6 +305,23 @@ export function consumeActiveTool(context: ToolActionContext): TurnToolSnapshot[
 }
 
 // Directional executors read from the optional payload through one shared helper.
-export function requireDirection(context: ToolActionContext): Direction | null {
-  return context.direction ?? null;
+export function requireDirection(
+  context: ToolActionContext,
+  selectionKey = "direction"
+): Direction | null {
+  return getDirectionSelection(context.input, selectionKey);
+}
+
+export function requireTileSelection(
+  context: ToolActionContext,
+  selectionKey = "targetPosition"
+): GridPosition | null {
+  return getTileSelection(context.input, selectionKey);
+}
+
+export function requireChoiceSelection(
+  context: ToolActionContext,
+  selectionKey = "choiceId"
+): string | null {
+  return getChoiceSelection(context.input, selectionKey);
 }

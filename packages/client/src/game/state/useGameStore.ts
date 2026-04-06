@@ -1,28 +1,28 @@
 import { create } from "zustand";
 import type { Client as ColyseusClient, Room } from "colyseus.js";
-import type {
-  CharacterId,
-  Direction,
-  GameSnapshot,
-  GridPosition,
-  SequencedActionPresentation,
-  ToolId
+import {
+  createChoiceSelection,
+  createDirectionSelection,
+  createTileSelection,
+  type CharacterId,
+  type Direction,
+  type GameSnapshot,
+  type GridPosition,
+  type SequencedActionPresentation,
+  type ToolId,
+  type UseToolCommandPayload
 } from "@watcher/shared";
 import { pumpPresentationQueue } from "./presentationQueue";
 import {
-  sendChoiceToolIfUsable,
-  sendDirectionalToolIfUsable,
   sendEndTurn,
   sendKickPlayer,
   sendGrantDebugTool,
   sendReturnToRoom,
-  sendInstantToolIfUsable,
   sendRollDice,
   sendSetCharacter,
   sendSetReady,
   sendStartGame,
-  sendTileDirectionToolIfUsable,
-  sendTileTargetToolIfUsable
+  sendToolPayloadIfUsable
 } from "./roomCommands";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -67,15 +67,22 @@ interface GameStore {
   returnToRoom: () => void;
   setCharacter: (characterId: CharacterId) => void;
   grantDebugTool: (toolId: ToolId) => void;
-  useInstantTool: (toolInstanceId?: string | null) => void;
-  useChoiceTool: (choiceId: string, toolInstanceId?: string | null) => void;
-  performDirectionalAction: (direction: Direction, toolInstanceId?: string | null) => void;
-  performTileTargetAction: (targetPosition: GridPosition, toolInstanceId?: string | null) => void;
-  performTileDirectionAction: (
-    targetPosition: GridPosition,
-    direction: Direction,
+  useInstantTool: (toolInstanceId?: string | null) => boolean;
+  useChoiceTool: (choiceId: string, toolInstanceId?: string | null) => boolean;
+  performDirectionalAction: (direction: Direction | null, toolInstanceId?: string | null) => boolean;
+  performTileTargetAction: (
+    targetPosition: GridPosition | null,
     toolInstanceId?: string | null
-  ) => void;
+  ) => boolean;
+  performTileDirectionAction: (
+    targetPosition: GridPosition | null,
+    direction: Direction | null,
+    toolInstanceId?: string | null
+  ) => boolean;
+  useToolPayload: (
+    payload?: Omit<UseToolCommandPayload, "toolInstanceId">,
+    toolInstanceId?: string | null
+  ) => boolean;
   advanceTime: (ms: number) => void;
   tickRealTime: (ms: number) => void;
 }
@@ -303,99 +310,80 @@ export const useGameStore = create<GameStore>((set, get) => ({
     sendGrantDebugTool(state.room, toolId);
   },
   useInstantTool: (toolInstanceId) => {
-    const state = get();
-
-    if (isPresentationBusy(state)) {
-      return;
-    }
-
-    const didSend = sendInstantToolIfUsable(
-      state.room,
-      state.snapshot,
-      state.sessionId,
-      toolInstanceId ?? state.selectedToolInstanceId
-    );
-
-    if (didSend) {
-      set({ selectedToolInstanceId: null });
-    }
+    return get().useToolPayload({ input: {} }, toolInstanceId);
   },
   useChoiceTool: (choiceId, toolInstanceId) => {
-    const state = get();
-
-    if (isPresentationBusy(state)) {
-      return;
-    }
-
-    const didSend = sendChoiceToolIfUsable(
-      state.room,
-      state.snapshot,
-      state.sessionId,
-      toolInstanceId ?? state.selectedToolInstanceId,
-      choiceId
+    return get().useToolPayload(
+      {
+        input: {
+          choiceId: createChoiceSelection(choiceId)
+        }
+      },
+      toolInstanceId
     );
-
-    if (didSend) {
-      set({ selectedToolInstanceId: null });
-    }
   },
   performDirectionalAction: (direction, toolInstanceId) => {
-    const state = get();
-
-    if (isPresentationBusy(state)) {
-      return;
+    if (!direction) {
+      return false;
     }
 
-    const didSend = sendDirectionalToolIfUsable(
-      state.room,
-      state.snapshot,
-      state.sessionId,
-      toolInstanceId ?? state.selectedToolInstanceId,
-      direction
+    return get().useToolPayload(
+      {
+        input: {
+          direction: createDirectionSelection(direction)
+        }
+      },
+      toolInstanceId
     );
-
-    if (didSend) {
-      set({ selectedToolInstanceId: null });
-    }
   },
   performTileTargetAction: (targetPosition, toolInstanceId) => {
-    const state = get();
-
-    if (isPresentationBusy(state)) {
-      return;
+    if (!targetPosition) {
+      return false;
     }
 
-    const didSend = sendTileTargetToolIfUsable(
-      state.room,
-      state.snapshot,
-      state.sessionId,
-      toolInstanceId ?? state.selectedToolInstanceId,
-      targetPosition
+    return get().useToolPayload(
+      {
+        input: {
+          targetPosition: createTileSelection(targetPosition)
+        }
+      },
+      toolInstanceId
     );
-
-    if (didSend) {
-      set({ selectedToolInstanceId: null });
-    }
   },
   performTileDirectionAction: (targetPosition, direction, toolInstanceId) => {
+    if (!targetPosition || !direction) {
+      return false;
+    }
+
+    return get().useToolPayload(
+      {
+        input: {
+          direction: createDirectionSelection(direction),
+          targetPosition: createTileSelection(targetPosition)
+        }
+      },
+      toolInstanceId
+    );
+  },
+  useToolPayload: (payload = { input: {} }, toolInstanceId) => {
     const state = get();
 
     if (isPresentationBusy(state)) {
-      return;
+      return false;
     }
 
-    const didSend = sendTileDirectionToolIfUsable(
+    const didSend = sendToolPayloadIfUsable(
       state.room,
       state.snapshot,
       state.sessionId,
       toolInstanceId ?? state.selectedToolInstanceId,
-      targetPosition,
-      direction
+      payload
     );
 
     if (didSend) {
       set({ selectedToolInstanceId: null });
     }
+    return didSend;
   },
   // Automation can take over time progression for deterministic text checks.
   advanceTime: (ms) => {

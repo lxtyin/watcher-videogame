@@ -3,8 +3,10 @@ import { resolveToolMovementType } from "../skills";
 import type { ToolContentDefinition } from "../content/schema";
 import type {
   AffectedPlayerMove,
+  GridPosition,
   MovementActor,
   MovementDescriptor,
+  PreviewDescriptor,
   ToolActionContext,
   TurnToolSnapshot
 } from "../types";
@@ -17,6 +19,10 @@ import {
   createMovementDescriptor,
   materializeMovementDescriptor
 } from "../rules/displacement";
+import {
+  createPreviewDescriptor,
+  createPreviewPlayerTargets
+} from "../rules/previewDescriptor";
 import type {
   resolveLeapDisplacement,
   resolveLinearDisplacement
@@ -144,6 +150,51 @@ export function toAffectedPlayerMove(
     tags: resolution.actor.tags,
     turnFlags: resolution.actor.turnFlags
   };
+}
+
+export function createToolPreview(
+  context: ToolActionContext,
+  {
+    actorPath = [],
+    actorTarget = context.actor.position,
+    affectedPlayers = [],
+    effectTiles = [],
+    selectionTiles = [],
+    valid
+  }: {
+    actorPath?: GridPosition[];
+    actorTarget?: GridPosition;
+    affectedPlayers?: AffectedPlayerMove[];
+    effectTiles?: GridPosition[];
+    selectionTiles?: GridPosition[];
+    valid: boolean;
+  }
+): PreviewDescriptor {
+  const boardVisibleByPlayerId = Object.fromEntries(
+    context.players.map((player) => [player.id, player.boardVisible] as const)
+  );
+
+  // let playerTargets = affectedPlayers.map((player) => (
+  //   {
+  //     boardVisible: true,
+  //     playerId: player.playerId,
+  //     startPosition: clonePosition(player.startPosition),
+  //     targetPosition: clonePosition(player.target
+  //   }
+  // ));
+
+  return createPreviewDescriptor({
+    actorPath,
+    effectTiles,
+    playerTargets: createPreviewPlayerTargets(
+      context.actor,
+      actorTarget,
+      affectedPlayers,
+      boardVisibleByPlayerId
+    ),
+    selectionTiles,
+    valid
+  });
 }
 
 export function toTaggedPlayerPatch(

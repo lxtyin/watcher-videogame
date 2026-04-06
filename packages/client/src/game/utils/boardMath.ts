@@ -1,4 +1,5 @@
 import {
+  cloneToolSelectionRecord,
   findToolInstance,
   resolveToolAction,
   type BoardDefinition,
@@ -153,13 +154,11 @@ export function buildActionPreview(
     board,
     actor,
     activeTool,
+    input: cloneToolSelectionRecord(payload.input),
     phase: snapshot.turnInfo.phase as TurnPhase,
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
     tools: me.tools,
     summons,
-    ...(payload.choiceId ? { choiceId: payload.choiceId } : {}),
-    ...(payload.direction ? { direction: payload.direction } : {}),
-    ...(payload.targetPosition ? { targetPosition: payload.targetPosition } : {}),
     players
   }).preview;
 }

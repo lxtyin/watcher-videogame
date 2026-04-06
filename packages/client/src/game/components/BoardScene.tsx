@@ -4,17 +4,10 @@ import { Color, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
   findToolInstance,
   getToolAvailability,
-  getToolDefinition,
-  isAimTool,
-  isChoiceTool,
-  isDirectionalTool,
-  isTileDirectionTool,
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
   type SummonSnapshot,
-  type ToolId,
-  type ToolTargetMode,
   type TurnToolSnapshot
 } from "@watcher/shared";
 import { BoardTileVisual } from "../assets/board/BoardTileVisual";
@@ -27,15 +20,29 @@ import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset"
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
 import { evaluatePlaybackEngine } from "../animation/playbackEngine";
-import {
-  getDragDirection,
-  projectClientToGround,
-  resolveTileAimTarget
-} from "../interaction/aiming";
+import { projectClientToGround } from "../interaction/aiming";
 import {
   resolveScenePreviewState,
   type TilePreviewVariant
 } from "../interaction/previewState";
+import {
+  applyToolInteractionChoice,
+  beginToolInteractionPointer,
+  buildToolInteractionPreviewPayload,
+  clearToolInteractionDraft,
+  createToolInteractionSession,
+  finalizeToolInteractionStage,
+  getToolInteractionCaption,
+  getToolInteractionChoiceOptions,
+  getToolInteractionDirectionState,
+  getToolInteractionTargetPosition,
+  hasToolInteractionPreviewPayload,
+  isChoiceStageActive,
+  isInstantInteractionTool,
+  isPointerStageActive,
+  type ToolInteractionSession,
+  updateToolInteractionFromPointer
+} from "../interaction/toolInteraction";
 import {
   describePlayerInspection,
   describeSummonInspection,
@@ -52,32 +59,6 @@ import {
   toWorldPosition
 } from "../utils/boardMath";
 
-interface AimStateBase {
-  toolId: ToolId;
-  toolInstanceId: string;
-  targetMode: Exclude<ToolTargetMode, "instant">;
-  startClientX: number;
-  startClientY: number;
-}
-
-interface DirectionAimState extends AimStateBase {
-  targetMode: "direction";
-  direction: Direction | null;
-}
-
-interface TileAimState extends AimStateBase {
-  targetMode: "tile";
-  targetPosition: GridPosition | null;
-}
-
-interface TileDirectionAimState extends AimStateBase {
-  direction: Direction | null;
-  targetMode: "tile_direction";
-  targetPosition: GridPosition | null;
-}
-
-type AimState = DirectionAimState | TileAimState | TileDirectionAimState;
-
 interface SceneHudOffset {
   x: number;
   y: number;
@@ -88,7 +69,6 @@ interface PlayerStackLayout {
   index: number;
 }
 
-const AIM_DRAG_THRESHOLD_PX = 14;
 const INSPECTION_HOLD_DELAY_MS = 320;
 const PLAYER_STACK_STEP_Y = 0.88;
 const PLAYER_BASE_Y = -0.28;
@@ -189,21 +169,17 @@ export function BoardScene() {
   const showToolNotice = useGameStore((state) => state.showToolNotice);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
-  const useInstantTool = useGameStore((state) => state.useInstantTool);
-  const useChoiceTool = useGameStore((state) => state.useChoiceTool);
-  const performDirectionalAction = useGameStore((state) => state.performDirectionalAction);
-  const performTileTargetAction = useGameStore((state) => state.performTileTargetAction);
-  const performTileDirectionAction = useGameStore((state) => state.performTileDirectionAction);
+  const useToolPayload = useGameStore((state) => state.useToolPayload);
   const simulationTimeMs = useGameStore((state) => state.simulationTimeMs);
   const activeActionPresentation = useGameStore((state) => state.activeActionPresentation);
   const activeActionPresentationStartedAtMs = useGameStore(
     (state) => state.activeActionPresentationStartedAtMs
   );
   const actionPresentationQueue = useGameStore((state) => state.actionPresentationQueue);
-  const [aimState, setAimState] = useState<AimState | null>(null);
+  const [interactionSession, setInteractionSession] = useState<ToolInteractionSession | null>(null);
   const [inspectionCard, setInspectionCard] = useState<SceneInspectionCardData | null>(null);
   const [cellEntrySerialByPlayer, setCellEntrySerialByPlayer] = useState<Record<string, number>>({});
-  const aimStateRef = useRef<AimState | null>(null);
+  const interactionSessionRef = useRef<ToolInteractionSession | null>(null);
   const inspectionTimerRef = useRef<number | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
@@ -222,27 +198,24 @@ export function BoardScene() {
   const canInteract = isMyTurn && !isPresentationBusy;
   const selectedTool =
     myPlayer && selectedToolInstanceId ? findToolInstance(myPlayer.tools, selectedToolInstanceId) ?? null : null;
-  const selectedAimTool =
+  const selectedInteractiveTool =
     selectedTool &&
-    isAimTool(selectedTool.toolId) &&
+    !isInstantInteractionTool(selectedTool.toolId) &&
     canInteract &&
     getToolAvailability(selectedTool, myPlayer?.tools ?? []).usable
       ? selectedTool
       : null;
-  const selectedDirectionalTool =
-    selectedAimTool && isDirectionalTool(selectedAimTool.toolId) ? selectedAimTool : null;
-  const selectedTileDirectionTool =
-    selectedAimTool && isTileDirectionTool(selectedAimTool.toolId) ? selectedAimTool : null;
-  const isAiming = Boolean(aimState);
+  const directionState =
+    interactionSession && myPlayer
+      ? getToolInteractionDirectionState(interactionSession, myPlayer.position)
+      : null;
+  const isPointerInteractionActive = Boolean(interactionSession?.pointerActive);
   const canShowDirectionArrows = Boolean(
     myPlayer &&
       canInteract &&
-      (selectedDirectionalTool || (selectedTileDirectionTool && aimState?.targetMode === "tile_direction"))
+      selectedInteractiveTool &&
+      directionState
   );
-  const focusedDirection =
-    aimState?.targetMode === "direction" || aimState?.targetMode === "tile_direction"
-      ? aimState.direction
-      : null;
   const playbackState = useMemo(
     () =>
       evaluatePlaybackEngine({
@@ -365,8 +338,8 @@ export function BoardScene() {
   }, [snapshot]);
 
   useEffect(() => {
-    aimStateRef.current = aimState;
-  }, [aimState]);
+    interactionSessionRef.current = interactionSession;
+  }, [interactionSession]);
 
   useLayoutEffect(() => {
     if (!snapshot) {
@@ -506,198 +479,175 @@ export function BoardScene() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!selectedAimTool || !myPlayer || !canInteract) {
-      aimStateRef.current = null;
-      setAimState(null);
-    }
-  }, [canInteract, myPlayer, selectedAimTool]);
+  const cancelInspection = () => {
+    clearInspectionTimer(inspectionTimerRef);
+    setInspectionCard(null);
+  };
 
-  useEffect(() => {
-    if (!aimState || !myPlayer || !snapshot || !canInteract) {
+  const projectPointerToGround = (clientX: number, clientY: number) => {
+    return projectClientToGround(
+      clientX,
+      clientY,
+      gl.domElement,
+      camera,
+      dragRaycaster,
+      dragPointer,
+      dragPlane,
+      dragIntersection
+    );
+  };
+
+  const startToolInteractionPointer = (tool: TurnToolSnapshot, clientX: number, clientY: number) => {
+    if (!snapshot || !myPlayer || !canInteract || isInstantInteractionTool(tool.toolId)) {
       return;
     }
 
-    const [startWorldX, , startWorldZ] = toWorldPosition(
-      myPlayer.position,
-      snapshot.boardWidth,
-      snapshot.boardHeight
-    );
+    const currentSession = interactionSessionRef.current;
+    const baseSession =
+      currentSession && currentSession.toolInstanceId === tool.instanceId
+        ? currentSession
+        : createToolInteractionSession(tool);
+    const nextSession = updateToolInteractionFromPointer(beginToolInteractionPointer(baseSession), {
+      actorPosition: myPlayer.position,
+      boardHeight: snapshot.boardHeight,
+      boardWidth: snapshot.boardWidth,
+      pointerWorld: projectPointerToGround(clientX, clientY)
+    });
 
-    // Pointer movement updates the current aim target without committing the tool.
-    const resolveAim = (clientX: number, clientY: number, currentState: AimState) => {
-      const screenDelta = Math.hypot(
-        clientX - currentState.startClientX,
-        clientY - currentState.startClientY
-      );
+    interactionSessionRef.current = nextSession;
+    setSelectedToolInstanceId(tool.instanceId);
+    setInteractionSession(nextSession);
+    cancelInspection();
+  };
 
-      if (screenDelta < AIM_DRAG_THRESHOLD_PX) {
-        if (currentState.targetMode === "direction") {
-          return { ...currentState, direction: null };
-        }
+  const startSelectedInteractionPointer = (clientX: number, clientY: number): boolean => {
+    if (!selectedInteractiveTool) {
+      return false;
+    }
 
-        if (currentState.targetMode === "tile_direction") {
-          return { ...currentState, direction: null, targetPosition: null };
-        }
+    startToolInteractionPointer(selectedInteractiveTool, clientX, clientY);
+    return true;
+  };
 
-        return { ...currentState, targetPosition: null };
+  useEffect(() => {
+    if (!selectedInteractiveTool || !myPlayer || !canInteract) {
+      interactionSessionRef.current = null;
+      setInteractionSession(null);
+      return;
+    }
+
+    setInteractionSession((currentSession) => {
+      if (
+        currentSession &&
+        currentSession.toolInstanceId === selectedInteractiveTool.instanceId &&
+        currentSession.toolId === selectedInteractiveTool.toolId
+      ) {
+        interactionSessionRef.current = currentSession;
+        return currentSession;
       }
 
-      const projectedPoint = projectClientToGround(
-        clientX,
-        clientY,
-        gl.domElement,
-        camera,
-        dragRaycaster,
-        dragPointer,
-        dragPlane,
-        dragIntersection
-      );
+      const nextSession = createToolInteractionSession(selectedInteractiveTool);
+      interactionSessionRef.current = nextSession;
+      return nextSession;
+    });
+  }, [canInteract, myPlayer, selectedInteractiveTool]);
 
-      if (!projectedPoint) {
-        if (currentState.targetMode === "direction") {
-          return { ...currentState, direction: null };
-        }
+  useEffect(() => {
+    if (!snapshot || !myPlayer || !canInteract) {
+      return;
+    }
 
-        if (currentState.targetMode === "tile_direction") {
-          return { ...currentState, direction: null, targetPosition: null };
-        }
-
-        return { ...currentState, targetPosition: null };
-      }
-
-      if (currentState.targetMode === "direction") {
-        return {
-          ...currentState,
-          direction: getDragDirection(projectedPoint.x - startWorldX, projectedPoint.z - startWorldZ)
-        };
-      }
-
-      if (currentState.targetMode === "tile_direction") {
-        const targetPosition = resolveTileAimTarget(
-          projectedPoint.x,
-          projectedPoint.z,
-          currentState.toolId,
-          myPlayer.position,
-          snapshot.boardWidth,
-          snapshot.boardHeight
-        );
-
-        if (!targetPosition) {
-          return {
-            ...currentState,
-            direction: null,
-            targetPosition: null
-          };
-        }
-
-        const [targetWorldX, , targetWorldZ] = toWorldPosition(
-          targetPosition,
-          snapshot.boardWidth,
-          snapshot.boardHeight
-        );
-
-        return {
-          ...currentState,
-          direction: getDragDirection(projectedPoint.x - targetWorldX, projectedPoint.z - targetWorldZ),
-          targetPosition
-        };
-      }
-
-      return {
-        ...currentState,
-        targetPosition: resolveTileAimTarget(
-          projectedPoint.x,
-          projectedPoint.z,
-          currentState.toolId,
-          myPlayer.position,
-          snapshot.boardWidth,
-          snapshot.boardHeight
-        )
-      };
-    };
-
-    // Global move tracking keeps drag aiming alive even when the cursor leaves the canvas.
     const onPointerMove = (event: PointerEvent) => {
-      setAimState((currentState) => {
-        if (!currentState) {
-          return currentState;
-        }
+      const currentSession = interactionSessionRef.current;
 
-        const nextState = resolveAim(event.clientX, event.clientY, currentState);
-        aimStateRef.current = nextState;
+      if (!currentSession?.pointerActive) {
+        return;
+      }
 
-        return nextState;
+      const nextSession = updateToolInteractionFromPointer(currentSession, {
+        actorPosition: myPlayer.position,
+        boardHeight: snapshot.boardHeight,
+        boardWidth: snapshot.boardWidth,
+        pointerWorld: projectPointerToGround(event.clientX, event.clientY)
       });
+
+      interactionSessionRef.current = nextSession;
+      setInteractionSession(nextSession);
     };
 
-    // Releasing the left button commits the current preview target if one is valid.
     const onPointerUp = (event: PointerEvent) => {
       if (event.button !== 0) {
         return;
       }
 
-      const currentState = aimStateRef.current;
+      const currentSession = interactionSessionRef.current;
 
-      if (currentState?.targetMode === "direction" && currentState.direction) {
-        performDirectionalAction(currentState.direction, currentState.toolInstanceId);
+      if (!currentSession?.pointerActive) {
+        return;
       }
 
-      if (currentState?.targetMode === "tile" && currentState.targetPosition) {
-        performTileTargetAction(currentState.targetPosition, currentState.toolInstanceId);
+      const result = finalizeToolInteractionStage(currentSession);
+
+      if (result.kind === "execute" && result.payload) {
+        const didSend = useToolPayload(result.payload, currentSession.toolInstanceId);
+
+        if (didSend) {
+          interactionSessionRef.current = null;
+          setInteractionSession(null);
+          return;
+        }
       }
 
-      if (
-        currentState?.targetMode === "tile_direction" &&
-        currentState.targetPosition &&
-        currentState.direction
-      ) {
-        performTileDirectionAction(
-          currentState.targetPosition,
-          currentState.direction,
-          currentState.toolInstanceId
-        );
-      }
-
-      aimStateRef.current = null;
-      setAimState(null);
+      interactionSessionRef.current = result.session;
+      setInteractionSession(result.session);
     };
 
-    // A single cancel helper keeps right-click cancel behavior consistent across handlers.
-    const cancelAim = () => {
-      aimStateRef.current = null;
-      setAimState(null);
+    const cancelInteraction = () => {
+      interactionSessionRef.current = null;
+      setInteractionSession(null);
+      setSelectedToolInstanceId(null);
+      cancelInspection();
     };
 
-    // Pointer down is watched so right-click can cancel even before the browser menu opens.
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 2) {
         return;
       }
 
       event.preventDefault();
-      cancelAim();
+      cancelInteraction();
     };
 
-    // Mouse down mirrors the pointer handler for browsers that dispatch cancel paths differently.
     const onMouseDown = (event: MouseEvent) => {
       if (event.button !== 2) {
         return;
       }
 
       event.preventDefault();
-      cancelAim();
+      cancelInteraction();
     };
 
-    // Context menu is always suppressed while the board is in interactive mode.
+    const onPointerCancel = () => {
+      const currentSession = interactionSessionRef.current;
+
+      if (!currentSession?.pointerActive) {
+        return;
+      }
+
+      const nextSession = clearToolInteractionDraft(currentSession);
+      interactionSessionRef.current = nextSession;
+      setInteractionSession(nextSession);
+    };
+
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
-      cancelAim();
+      cancelInteraction();
     };
 
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("contextmenu", onContextMenu);
 
@@ -705,11 +655,11 @@ export function BoardScene() {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [
-    aimState,
     camera,
     canInteract,
     dragIntersection,
@@ -718,87 +668,58 @@ export function BoardScene() {
     dragRaycaster,
     gl,
     myPlayer,
-    performDirectionalAction,
-    performTileDirectionAction,
-    performTileTargetAction,
-    snapshot
+    setSelectedToolInstanceId,
+    snapshot,
+    useToolPayload
   ]);
 
   const previewDescriptor = useMemo(() => {
-    if (!snapshot || !sessionId || !aimState || !canInteract) {
+    if (
+      !snapshot ||
+      !sessionId ||
+      !interactionSession ||
+      !canInteract ||
+      !hasToolInteractionPreviewPayload(interactionSession)
+    ) {
       return null;
     }
 
-    if (aimState.targetMode === "direction" && aimState.direction) {
-      // The board preview uses the shared action resolver so the drag hint
-      // matches the authoritative room outcome as closely as possible.
-      return buildActionPreview(snapshot, sessionId, {
-        toolInstanceId: aimState.toolInstanceId,
-        direction: aimState.direction
-      });
-    }
-
-    if (aimState.targetMode === "tile" && aimState.targetPosition) {
-      return buildActionPreview(snapshot, sessionId, {
-        toolInstanceId: aimState.toolInstanceId,
-        targetPosition: aimState.targetPosition
-      });
-    }
-
-    if (
-      aimState.targetMode === "tile_direction" &&
-      aimState.targetPosition &&
-      aimState.direction
-    ) {
-      return buildActionPreview(snapshot, sessionId, {
-        toolInstanceId: aimState.toolInstanceId,
-        targetPosition: aimState.targetPosition,
-        direction: aimState.direction
-      });
-    }
-
-    return null;
-  }, [aimState, canInteract, sessionId, snapshot]);
-  const scenePreview = useMemo(
-    () => {
-      const basePreview = resolveScenePreviewState({
-        actor: myPlayer,
-        displayedPlayerPositions,
-        previewDescriptor,
-        sessionId,
-        snapshot,
-        toolId: aimState?.toolId ?? null
-      });
-
-      if (
-        aimState?.targetMode === "tile_direction" &&
-        aimState.targetPosition &&
-        !previewDescriptor &&
-        snapshot
-      ) {
-        const previewKeys = new Set(basePreview.previewKeys);
-        previewKeys.add(`${aimState.targetPosition.x},${aimState.targetPosition.y}`);
-
-        return {
-          ...basePreview,
-          previewKeys
-        };
-      }
-
-      return basePreview;
-    },
-    [
-      aimState?.targetMode,
-      aimState?.toolId,
-      aimState && "targetPosition" in aimState ? aimState.targetPosition?.x : null,
-      aimState && "targetPosition" in aimState ? aimState.targetPosition?.y : null,
+    return buildActionPreview(snapshot, sessionId, {
+      toolInstanceId: interactionSession.toolInstanceId,
+      ...buildToolInteractionPreviewPayload(interactionSession)
+    });
+  }, [canInteract, interactionSession, sessionId, snapshot]);
+  const fallbackTargetPosition = getToolInteractionTargetPosition(interactionSession);
+  const scenePreview = useMemo(() => {
+    const basePreview = resolveScenePreviewState({
+      actor: myPlayer,
       displayedPlayerPositions,
-      myPlayer,
       previewDescriptor,
       sessionId,
-      snapshot
-    ]
-  );
+      snapshot,
+      toolId: interactionSession?.toolId ?? null
+    });
+
+    if (fallbackTargetPosition && !previewDescriptor && snapshot) {
+      const previewKeys = new Set(basePreview.previewKeys);
+      previewKeys.add(`${fallbackTargetPosition.x},${fallbackTargetPosition.y}`);
+
+      return {
+        ...basePreview,
+        previewKeys
+      };
+    }
+
+    return basePreview;
+  }, [
+    displayedPlayerPositions,
+    fallbackTargetPosition,
+    interactionSession?.toolId,
+    myPlayer,
+    previewDescriptor,
+    sessionId,
+    snapshot
+  ]);
 
   useLayoutEffect(() => {
     if (!snapshot) {
@@ -900,57 +821,6 @@ export function BoardScene() {
     ? displayedPlayerPositions[currentPlayer.id] ?? currentPlayer.position
     : null;
 
-  // Entering aim mode captures the tool id and starting pointer so drag intent can be derived later.
-  const beginAim = (
-    tool: TurnToolSnapshot,
-    startClientX: number,
-    startClientY: number
-  ) => {
-    const targetMode = getToolDefinition(tool.toolId).targetMode;
-
-    if (targetMode === "instant" || targetMode === "choice") {
-      return;
-    }
-
-    const nextState: AimState =
-      targetMode === "direction"
-        ? {
-            toolId: tool.toolId,
-            toolInstanceId: tool.instanceId,
-            targetMode,
-            direction: null,
-            startClientX,
-            startClientY
-          }
-        : targetMode === "tile_direction"
-          ? {
-              toolId: tool.toolId,
-              toolInstanceId: tool.instanceId,
-              targetMode,
-              direction: null,
-              targetPosition: null,
-              startClientX,
-              startClientY
-            }
-          : {
-            toolId: tool.toolId,
-            toolInstanceId: tool.instanceId,
-            targetMode,
-            targetPosition: null,
-            startClientX,
-            startClientY
-          };
-
-    aimStateRef.current = nextState;
-    setSelectedToolInstanceId(tool.instanceId);
-    setAimState(nextState);
-  };
-
-  const cancelInspection = () => {
-    clearInspectionTimer(inspectionTimerRef);
-    setInspectionCard(null);
-  };
-
   // Long-press inspection waits briefly so normal taps do not spawn scene cards.
   const queueInspection = (nextInspectionCard: SceneInspectionCardData) => {
     clearInspectionTimer(inspectionTimerRef);
@@ -960,25 +830,24 @@ export function BoardScene() {
     }, INSPECTION_HOLD_DELAY_MS);
   };
 
-  // The local piece acts as the primary drag handle for directional and tile-target tools.
+  const canStartScenePointerInteraction = Boolean(
+    canInteract &&
+      myPlayer &&
+      interactionSession &&
+      isPointerStageActive(interactionSession) &&
+      !interactionSession.pointerActive
+  );
+
   const handlePiecePointerDown = (
     player: PlayerSnapshot,
     event: ThreeEvent<PointerEvent>
   ) => {
-    if (
-      player.id === sessionId &&
-      selectedAimTool &&
-      myPlayer &&
-      canInteract
-    ) {
+    if (canStartScenePointerInteraction) {
       event.stopPropagation();
       cancelInspection();
-      beginAim(
-        selectedAimTool,
-        event.nativeEvent.clientX,
-        event.nativeEvent.clientY
-      );
-      return;
+      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        return;
+      }
     }
 
     event.stopPropagation();
@@ -989,8 +858,12 @@ export function BoardScene() {
     tile: typeof displayedTiles[number],
     event: ThreeEvent<PointerEvent>
   ) => {
-    if (aimStateRef.current) {
-      return;
+    if (canStartScenePointerInteraction) {
+      event.stopPropagation();
+      cancelInspection();
+      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        return;
+      }
     }
 
     event.stopPropagation();
@@ -1001,8 +874,12 @@ export function BoardScene() {
     summon: SummonSnapshot,
     event: ThreeEvent<PointerEvent>
   ) => {
-    if (aimStateRef.current) {
-      return;
+    if (canStartScenePointerInteraction) {
+      event.stopPropagation();
+      cancelInspection();
+      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        return;
+      }
     }
 
     event.stopPropagation();
@@ -1114,13 +991,11 @@ export function BoardScene() {
         const activeRingColor = mixSceneColor(player.color, "#fff4ce", 0.5);
         const directionArrowPosition: [number, number, number] =
           isMe &&
-          aimState?.targetMode === "tile_direction" &&
-          aimState.targetPosition &&
-          isTileDirectionTool(aimState.toolId)
+          directionState?.anchorPosition
             ? [
-                aimState.targetPosition.x - displayedGridPosition.x,
+                directionState.anchorPosition.x - displayedGridPosition.x,
                 0.02,
-                aimState.targetPosition.y - displayedGridPosition.y
+                directionState.anchorPosition.y - displayedGridPosition.y
               ]
             : [0, 0.02, 0];
 
@@ -1132,7 +1007,9 @@ export function BoardScene() {
           >
             {isActive ? (
               <SceneActionRing
-                hidden={isAiming && isMe}
+                caption={isMe && selectedInteractiveTool ? getToolInteractionCaption(selectedInteractiveTool, interactionSession) : null}
+                choiceOptions={isMe ? getToolInteractionChoiceOptions(interactionSession) : []}
+                hidden={isPointerInteractionActive && isMe}
                 interactive={isMe && canInteract}
                 tools={player.tools}
                 phase={snapshot.turnInfo.phase}
@@ -1140,29 +1017,64 @@ export function BoardScene() {
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
-                onEndTurn={isMe && canInteract ? endTurn : () => {}}
-                onPressAimTool={(toolInstanceId, clientX, clientY) => {
+                onBeginPointerTool={(toolInstanceId, clientX, clientY) => {
                   if (!isMe || !canInteract) {
                     return;
                   }
 
                   const tool = findToolInstance(player.tools, toolInstanceId);
 
-                  if (tool && isAimTool(tool.toolId)) {
-                    beginAim(tool, clientX, clientY);
+                  if (tool) {
+                    startToolInteractionPointer(tool, clientX, clientY);
                   }
                 }}
+                onCommitChoice={(toolInstanceId, choiceId) => {
+                  if (!isMe || !canInteract) {
+                    return;
+                  }
+
+                  const currentSession = interactionSessionRef.current;
+
+                  if (
+                    !currentSession ||
+                    currentSession.toolInstanceId !== toolInstanceId ||
+                    !isChoiceStageActive(currentSession)
+                  ) {
+                    return;
+                  }
+
+                  const result = applyToolInteractionChoice(currentSession, choiceId);
+
+                  if (result.kind === "execute" && result.payload) {
+                    const didSend = useToolPayload(result.payload, toolInstanceId);
+
+                    if (didSend) {
+                      interactionSessionRef.current = null;
+                      setInteractionSession(null);
+                      return;
+                    }
+                  }
+
+                  interactionSessionRef.current = result.session;
+                  setInteractionSession(result.session);
+                }}
+                onEndTurn={isMe && canInteract ? endTurn : () => {}}
                 onRollDice={isMe && canInteract ? rollDice : () => {}}
                 onSelectTool={isMe && canInteract ? setSelectedToolInstanceId : () => {}}
                 onShowUnavailableToolNotice={isMe && canInteract ? showToolNotice : () => {}}
-                onUseChoiceTool={isMe && canInteract ? useChoiceTool : () => {}}
-                onUseInstantTool={isMe && canInteract ? useInstantTool : () => {}}
+                onUseInstantTool={
+                  isMe && canInteract
+                    ? (toolInstanceId) => {
+                        useToolPayload({ input: {} }, toolInstanceId);
+                      }
+                    : () => {}
+                }
               />
             ) : null}
-            {isMe && canShowDirectionArrows && (selectedDirectionalTool || selectedTileDirectionTool) ? (
+            {isMe && canShowDirectionArrows && selectedInteractiveTool && directionState ? (
               <SceneDirectionArrows
-                actionId={(selectedDirectionalTool ?? selectedTileDirectionTool)!.toolId}
-                activeDirection={focusedDirection}
+                actionId={selectedInteractiveTool.toolId}
+                activeDirection={directionState.activeDirection}
                 position={directionArrowPosition}
               />
             ) : null}
