@@ -1,28 +1,24 @@
-import type {
-  AffectedPlayerMove,
-  ActionPresentationEvent,
-  ActionResolution,
-  SummonMutation,
-  TileMutation,
-  TriggeredSummonEffect,
-  TriggeredTerrainEffect
-} from "../types";
+import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   createLinkReactionEvent,
   createPlayerMotionEvent,
-  offsetPresentationEvents,
   createPresentation,
   getProjectileTravelDurationMs,
-  HOOKSHOT_PULL_DELAY_MS
+  HOOKSHOT_PULL_DELAY_MS,
+  offsetPresentationEvents
 } from "../rules/actionPresentation";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
-  consumeActiveTool,
-  requireDirection
-} from "../rules/actionResolution";
+  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
@@ -34,7 +30,6 @@ import {
 } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  buildMovementSystemContext,
   createPassiveToolMovementDescriptor,
   createToolMovementDescriptor,
   createToolPreview,
@@ -42,7 +37,6 @@ import {
   getToolParamValue,
   getTile,
   isWithinBoard,
-  toAffectedPlayerMove,
   toMovementSubject
 } from "./helpers";
 
@@ -52,7 +46,7 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "钩锁",
-  description: "沿选择方向发射钩锁。命中墙体时把自己拉过去，命中玩家时把对方拖回。",
+  description: "沿所选方向发射钩锁，命中墙体时拉自己过去，命中玩家时把对方拖回来。",
   disabledHint: "当前不能使用钩锁。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -69,24 +63,33 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
 
 const HOOKSHOT_FLIGHT_SPEED = 1.8;
 
-function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveHookshotTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const direction = requireDirection(context);
   const hookLength = getToolParamValue(context.activeTool, "hookLength", 3);
-  const actorMovement = createToolMovementDescriptor(context, HOOKSHOT_TOOL_DEFINITION, "drag", ["hookshot:self"]);
-  const pulledMovement = createPassiveToolMovementDescriptor(context.activeTool.toolId, "drag", ["hookshot:pull"]);
+  const actorMovement = createToolMovementDescriptor(
+    context,
+    HOOKSHOT_TOOL_DEFINITION,
+    "drag",
+    ["hookshot:self"]
+  );
+  const pulledMovement = createPassiveToolMovementDescriptor(
+    context.activeTool.toolId,
+    "drag",
+    ["hookshot:pull"]
+  );
   const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Hookshot needs a direction", {
       preview: createToolPreview(context, {
         selectionTiles,
         valid: false
-      }),
-      reason: "Hookshot needs a direction",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   const rayPath: typeof context.actor.position[] = [];
@@ -104,48 +107,47 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       const pullDistance = distance - 1;
 
       if (pullDistance < 1) {
-        return buildBlockedResolution({
-          actor: context.actor,
-          nextToolDieSeed: context.toolDieSeed,
+        setDraftBlocked(draft, "No hookshot landing space", {
           path: rayPath,
           preview: createToolPreview(context, {
             actorPath: rayPath,
             effectTiles: rayPath,
             selectionTiles,
             valid: false
-          }),
-          reason: "No hookshot landing space",
-          tools: context.tools
+          })
         });
+        return;
       }
 
-      const actorResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+      setDraftToolInventory(draft, consumeActiveTool(context));
+      const presentationMark = markDraftPresentation(draft);
+      const actorResolution = resolveLinearDisplacement(draft, {
         direction,
         maxSteps: pullDistance,
         movePoints: pullDistance,
         movement: actorMovement,
-        player: toMovementSubject(context.actor),
-        toolDieSeed: context.toolDieSeed,
-        tools: consumeActiveTool(context)
+        player: toMovementSubject(context.actor)
       });
 
       if (!actorResolution.path.length) {
-        return buildBlockedResolution({
-          actor: context.actor,
-          nextToolDieSeed: context.toolDieSeed,
+        setDraftToolInventory(draft, context.tools);
+        setDraftBlocked(draft, actorResolution.stopReason, {
           path: rayPath,
           preview: createToolPreview(context, {
             actorPath: rayPath,
             effectTiles: rayPath,
             selectionTiles,
             valid: false
-          }),
-          reason: actorResolution.stopReason,
-          tools: context.tools
+          })
         });
+        return;
       }
 
-      const outboundDurationMs = getProjectileTravelDurationMs(rayPath.length + 1, HOOKSHOT_FLIGHT_SPEED);
+      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
+      const outboundDurationMs = getProjectileTravelDurationMs(
+        rayPath.length + 1,
+        HOOKSHOT_FLIGHT_SPEED
+      );
       const motionEvents: ActionPresentationEvent[] = [
         createLinkReactionEvent(
           `${context.activeTool.instanceId}:hookshot-outbound`,
@@ -191,45 +193,36 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         );
         motionEvents.push(actorMotionEvent);
       }
-      motionEvents.push(
-        ...offsetPresentationEvents(
-          actorResolution.presentationEvents,
+
+      setDraftActionPresentation(
+        draft,
+        createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
+      );
+      appendDraftPresentationEvents(
+        draft,
+        offsetPresentationEvents(
+          [...triggerEvents, ...actorResolution.presentationEvents],
           (actorMotionEvent?.startMs ?? pullStartMs) + (actorMotionEvent?.durationMs ?? 0)
         )
       );
-
-      return buildAppliedResolution({
-        actor: {
-          ...context.actor,
-          position: actorResolution.actor.position,
-          tags: actorResolution.actor.tags,
-          turnFlags: actorResolution.actor.turnFlags
-        },
+      setDraftApplied(draft, createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label), {
         actorMovement: createResolvedPlayerMovement(
           context.actor.id,
           context.actor.position,
           actorResolution.path,
           actorMovement
         ),
-        nextToolDieSeed: actorResolution.nextToolDieSeed,
         path: actorResolution.path,
-        presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
         preview: createToolPreview(context, {
           actorPath: actorResolution.path,
-          actorTarget: actorResolution.actor.position,
-          affectedPlayers: actorResolution.affectedPlayers,
+          actorTarget: draft.actor.position,
+          affectedPlayers: draft.affectedPlayers,
           effectTiles: rayPath,
           selectionTiles,
           valid: true
-        }),
-        affectedPlayers: actorResolution.affectedPlayers,
-        summonMutations: actorResolution.summonMutations,
-        summary: createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label),
-        tileMutations: actorResolution.tileMutations,
-        tools: actorResolution.tools,
-        triggeredSummonEffects: actorResolution.triggeredSummonEffects,
-        triggeredTerrainEffects: actorResolution.triggeredTerrainEffects
+        })
       });
+      return;
     }
 
     rayPath.push(target);
@@ -239,15 +232,12 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       continue;
     }
 
-    let nextTools = consumeActiveTool(context);
-    let nextToolDieSeed = context.toolDieSeed;
-    const tileMutations: TileMutation[] = [];
-    const summonMutations: SummonMutation[] = [];
-    const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
-    const triggeredSummonEffects: TriggeredSummonEffect[] = [];
-    const affectedPlayers: AffectedPlayerMove[] = [];
+    setDraftToolInventory(draft, consumeActiveTool(context));
     const outboundTarget = rayPath[rayPath.length - 1] ?? target;
-    const outboundDurationMs = getProjectileTravelDurationMs(rayPath.length, HOOKSHOT_FLIGHT_SPEED);
+    const outboundDurationMs = getProjectileTravelDurationMs(
+      rayPath.length,
+      HOOKSHOT_FLIGHT_SPEED
+    );
     const motionEvents: ActionPresentationEvent[] = [
       createLinkReactionEvent(
         `${context.activeTool.instanceId}:hookshot-outbound`,
@@ -266,6 +256,8 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       )
     ];
     const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
+    const nestedEvents: ActionPresentationEvent[] = [];
+    let pullSucceeded = false;
 
     for (const [index, hitPlayer] of hitPlayers.entries()) {
       const pullDistance = Math.max(0, distance - 1);
@@ -274,32 +266,22 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         continue;
       }
 
-      const pullResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+      const presentationMark = markDraftPresentation(draft);
+      const pullResolution = resolveLinearDisplacement(draft, {
         direction: getOppositeDirection(direction),
         maxSteps: pullDistance,
         movePoints: pullDistance,
         movement: pulledMovement,
         player: toMovementSubject(hitPlayer),
-        priorSummonMutations: summonMutations,
-        priorTileMutations: tileMutations,
-        toolDieSeed: nextToolDieSeed,
-        tools: nextTools
+        trackAffectedPlayerReason: "hookshot"
       });
 
       if (!pullResolution.path.length) {
         continue;
       }
 
-      affectedPlayers.push(
-        toAffectedPlayerMove(hitPlayer.id, hitPlayer.position, pulledMovement, pullResolution, "hookshot")
-      );
-      nextTools = pullResolution.tools;
-      nextToolDieSeed = pullResolution.nextToolDieSeed;
-      tileMutations.push(...pullResolution.tileMutations);
-      summonMutations.push(...pullResolution.summonMutations);
-      triggeredTerrainEffects.push(...pullResolution.triggeredTerrainEffects);
-      triggeredSummonEffects.push(...pullResolution.triggeredSummonEffects);
-      affectedPlayers.push(...pullResolution.affectedPlayers);
+      pullSucceeded = true;
+      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
 
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:hooked-${index}`,
@@ -309,9 +291,9 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         pullStartMs
       );
 
-      motionEvents.push(
+      nestedEvents.push(
         ...offsetPresentationEvents(
-          pullResolution.presentationEvents,
+          [...triggerEvents, ...pullResolution.presentationEvents],
           (motionEvent?.startMs ?? pullStartMs) + (motionEvent?.durationMs ?? 0)
         )
       );
@@ -337,55 +319,45 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       }
     }
 
-    if (!affectedPlayers.length) {
-      return buildBlockedResolution({
-        actor: context.actor,
-        nextToolDieSeed: context.toolDieSeed,
+    if (!pullSucceeded) {
+      setDraftToolInventory(draft, context.tools);
+      setDraftBlocked(draft, "Target cannot be pulled", {
         path: rayPath,
         preview: createToolPreview(context, {
           actorPath: rayPath,
           effectTiles: rayPath,
           selectionTiles,
           valid: false
-        }),
-        reason: "Target cannot be pulled",
-        tools: context.tools
+        })
       });
+      return;
     }
 
-    return buildAppliedResolution({
-      actor: context.actor,
-      affectedPlayers,
-      nextToolDieSeed,
+    setDraftActionPresentation(
+      draft,
+      createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
+    );
+    appendDraftPresentationEvents(draft, nestedEvents);
+    setDraftApplied(draft, createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label), {
       path: rayPath,
-      presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
       preview: createToolPreview(context, {
-        affectedPlayers,
+        affectedPlayers: draft.affectedPlayers,
         effectTiles: rayPath,
         selectionTiles,
         valid: true
-      }),
-      summonMutations,
-      summary: createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label),
-      tileMutations,
-      tools: nextTools,
-      triggeredSummonEffects,
-      triggeredTerrainEffects
+      })
     });
+    return;
   }
 
-  return buildBlockedResolution({
-    actor: context.actor,
-    nextToolDieSeed: context.toolDieSeed,
+  setDraftBlocked(draft, "No hookshot target", {
     path: rayPath,
     preview: createToolPreview(context, {
       actorPath: rayPath,
       effectTiles: rayPath,
       selectionTiles,
       valid: false
-    }),
-    reason: "No hookshot target",
-    tools: context.tools
+    })
   });
 }
 

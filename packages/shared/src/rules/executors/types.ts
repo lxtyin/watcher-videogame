@@ -1,3 +1,4 @@
-import type { ActionResolution, ToolActionContext } from "../../types";
+import type { ToolActionContext } from "../../types";
+import type { ToolActionDraft } from "../actionDraft";
 
-export type ToolExecutor = (context: ToolActionContext) => ActionResolution;
+export type ToolExecutor = (draft: ToolActionDraft, context: ToolActionContext) => void;

@@ -1,7 +1,7 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
-import type { ActionResolution } from "../types";
-import { buildAppliedResolution, consumeActiveTool } from "../rules/actionResolution";
+import { setDraftApplied, setDraftToolInventory } from "../rules/actionDraft";
+import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
 import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
 
@@ -22,7 +22,10 @@ export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveDashTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveDashTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const dashBonus = getToolParamValue(context.activeTool, "dashBonus", 2);
   const nextTools = consumeActiveTool(context).map((tool) =>
     tool.toolId === "movement"
@@ -33,18 +36,15 @@ function resolveDashTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
             movePoints: (typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0) + dashBonus
           }
         }
-      : tool
+        : tool
   );
 
-  return buildAppliedResolution({
-    actor: context.actor,
-    nextToolDieSeed: context.toolDieSeed,
+  setDraftToolInventory(draft, nextTools);
+  setDraftApplied(draft, createUsedSummary(DASH_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, {
       valid: true
-    }),
-    summary: createUsedSummary(DASH_TOOL_DEFINITION.label),
-    tools: nextTools
+    })
   });
 }
 

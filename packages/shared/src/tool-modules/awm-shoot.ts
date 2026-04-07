@@ -3,15 +3,19 @@ import { attachModifier } from "../modifiers";
 import { setPlayerTagValue } from "../playerTags";
 import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../skills/bondage";
 import { createDragDirectionInteraction } from "../toolInteraction";
-import type { AffectedPlayerMove, ActionResolution } from "../types";
+import type { AffectedPlayerMove } from "../types";
 import {
   buildMotionPositions,
-  createPresentation,
   createProjectileEvent
 } from "../rules/actionPresentation";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftAffectedPlayerMove,
+  appendDraftPresentationEvents,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
@@ -46,22 +50,22 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
 
 const AWM_PROJECTILE_SPEED = 2.6;
 
-function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveAwmShootTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const direction = requireDirection(context);
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "AWM Shoot needs a direction", {
       preview: createToolPreview(context, {
         selectionTiles,
         valid: false
-      }),
-      reason: "AWM Shoot needs a direction",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
@@ -83,34 +87,33 @@ function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): Act
         )
       : [];
 
-  return buildAppliedResolution({
-    actor: context.actor,
-    affectedPlayers,
-    nextToolDieSeed: context.toolDieSeed,
+  for (const affectedPlayer of affectedPlayers) {
+    appendDraftAffectedPlayerMove(draft, affectedPlayer);
+  }
+
+  const projectileEvent = createProjectileEvent(
+    `${context.activeTool.instanceId}:awm-projectile`,
+    context.actor.id,
+    "awm_bullet",
+    buildMotionPositions(context.actor.position, trace.path),
+    0,
+    AWM_PROJECTILE_SPEED
+  );
+
+  if (projectileEvent) {
+    appendDraftPresentationEvents(draft, [projectileEvent]);
+  }
+
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  setDraftApplied(draft, createUsedSummary(AWM_SHOOT_TOOL_DEFINITION.label), {
     path: trace.path,
-    presentation: createPresentation(
-      context.actor.id,
-      context.activeTool.toolId,
-      [
-        createProjectileEvent(
-          `${context.activeTool.instanceId}:awm-projectile`,
-          context.actor.id,
-          "awm_bullet",
-          buildMotionPositions(context.actor.position, trace.path),
-          0,
-          AWM_PROJECTILE_SPEED
-        )
-      ].flatMap((event) => (event ? [event] : []))
-    ),
     preview: createToolPreview(context, {
       actorPath: trace.path,
-      affectedPlayers,
+      affectedPlayers: draft.affectedPlayers,
       effectTiles: trace.path,
       selectionTiles,
       valid: true
-    }),
-    summary: createUsedSummary(AWM_SHOOT_TOOL_DEFINITION.label),
-    tools: consumeActiveTool(context)
+    })
   });
 }
 

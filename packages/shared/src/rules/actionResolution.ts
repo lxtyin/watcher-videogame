@@ -7,16 +7,11 @@ import {
 import { consumeToolInstance } from "../tools";
 import type {
   ActionPresentation,
-  ActionPhaseEffect,
   ActionResolution,
   ActionPresentationEvent,
-  AffectedPlayerMove,
   BoardSummonState,
   Direction,
   GridPosition,
-  MovementActor,
-  PreviewDescriptor,
-  ResolvedPlayerMovement,
   SummonPresentationState,
   SummonStateTransition,
   SummonMutation,
@@ -24,8 +19,6 @@ import type {
   TileStateTransition,
   TileMutation,
   ToolActionContext,
-  TriggeredSummonEffect,
-  TriggeredTerrainEffect,
   TurnToolSnapshot
 } from "../types";
 import {
@@ -34,93 +27,6 @@ import {
   createStateTransitionEvent,
   getMotionArrivalStartMs
 } from "./actionPresentation";
-import { createEmptyPreview } from "./previewDescriptor";
-
-interface BlockedResolutionParams {
-  actor: MovementActor;
-  nextToolDieSeed: number;
-  path?: GridPosition[];
-  preview?: PreviewDescriptor;
-  reason: string;
-  tools: TurnToolSnapshot[];
-  triggeredTerrainEffects?: TriggeredTerrainEffect[];
-}
-
-interface AppliedResolutionParams {
-  actor: MovementActor;
-  actorMovement?: ResolvedPlayerMovement | null;
-  affectedPlayers?: AffectedPlayerMove[];
-  endsTurn?: boolean;
-  nextToolDieSeed: number;
-  path: GridPosition[];
-  phaseEffect?: ActionPhaseEffect | null;
-  presentation?: ActionPresentation | null;
-  preview?: PreviewDescriptor;
-  summonMutations?: SummonMutation[];
-  summary: string;
-  tileMutations?: TileMutation[];
-  tools: TurnToolSnapshot[];
-  triggeredSummonEffects?: TriggeredSummonEffect[];
-  triggeredTerrainEffects?: TriggeredTerrainEffect[];
-}
-
-// Blocked resolutions preserve tool inventory so previews can explain why an action failed.
-export function buildBlockedResolution(
-  params: BlockedResolutionParams
-): ActionResolution {
-  return {
-    kind: "blocked",
-    actorMovement: null,
-    reason: params.reason,
-    path: params.path ?? [],
-    preview: params.preview ?? createEmptyPreview(false),
-    actor: {
-      modifiers: params.actor.modifiers,
-      position: params.actor.position,
-      tags: params.actor.tags,
-      turnFlags: params.actor.turnFlags
-    },
-    tools: params.tools,
-    affectedPlayers: [],
-    tileMutations: [],
-    summonMutations: [],
-    triggeredTerrainEffects: params.triggeredTerrainEffects ?? [],
-    triggeredSummonEffects: [],
-    presentation: null,
-    endsTurn: false,
-    phaseEffect: null,
-    nextToolDieSeed: params.nextToolDieSeed
-  };
-}
-
-// Applied resolutions capture the fully resolved tool result after movement-trigger processing.
-export function buildAppliedResolution(
-  params: AppliedResolutionParams
-): ActionResolution {
-  return {
-    kind: "applied",
-    actorMovement: params.actorMovement ?? null,
-    summary: params.summary,
-    path: params.path,
-    preview: params.preview ?? createEmptyPreview(true),
-    actor: {
-      modifiers: params.actor.modifiers,
-      position: params.actor.position,
-      tags: params.actor.tags,
-      turnFlags: params.actor.turnFlags
-    },
-    tools: params.tools,
-    affectedPlayers: params.affectedPlayers ?? [],
-    tileMutations: params.tileMutations ?? [],
-    summonMutations: params.summonMutations ?? [],
-    triggeredTerrainEffects: params.triggeredTerrainEffects ?? [],
-    triggeredSummonEffects: params.triggeredSummonEffects ?? [],
-    presentation: params.presentation ?? null,
-    endsTurn: params.endsTurn ?? false,
-    phaseEffect: params.phaseEffect ?? null,
-    nextToolDieSeed: params.nextToolDieSeed
-  };
-}
 
 // Presentation snapshots normalize tiles so delayed transitions can compare before and after states.
 function toTilePresentationState(tile: {

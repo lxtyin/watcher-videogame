@@ -1,93 +1,49 @@
-﻿import { toTileKey } from "./board";
+import { toTileKey } from "./board";
 import { rollToolDie } from "./dice";
-import { cloneModifierIds } from "./modifiers";
-import { isMovementType } from "./rules/displacement";
-import { createRocketResolutionDraft, resolveRocketIntoDraft } from "./rules/rocketResolution";
-import { createRolledToolInstance } from "./tools";
 import type {
-  ActionPresentationEvent,
-  AffectedPlayerMove,
-  BoardDefinition,
-  BoardPlayerState,
-  BoardSummonState,
   Direction,
   GridPosition,
-  ModifierId,
   MovementActor,
   MovementDescriptor,
-  PlayerTagMap,
   PlayerTurnFlag,
-  SummonMutation,
   TileDefinition,
-  TileMutation,
-  TriggeredSummonEffect,
-  TriggeredTerrainEffect,
-  ToolId,
   TurnToolSnapshot
 } from "./types";
+import type { ResolutionDraft } from "./rules/actionDraft";
+import {
+  appendDraftTriggeredTerrainEffects,
+  applyResolvedPlayerStateToDraft,
+  setDraftToolDieSeed,
+  setDraftToolInventory
+} from "./rules/actionDraft";
+import { isMovementType } from "./rules/displacement";
+import { resolveRocketCore } from "./tool-modules/rocket";
+import { createRolledToolInstance } from "./tools";
+
+interface PassThroughTerrainState {
+  direction: Direction | null;
+  player: MovementActor;
+  remainingMovePoints: number | null;
+}
 
 interface TerrainPassThroughContext {
-  direction?: Direction;
+  draft: ResolutionDraft;
   movement: MovementDescriptor;
-  playerId: string;
-  position: GridPosition;
-  remainingMovePoints?: number;
+  state: PassThroughTerrainState;
   tile: TileDefinition;
-}
-
-interface TerrainPassThroughResult {
-  nextDirection?: Direction;
-  nextModifiers?: ModifierId[];
-  nextRemainingMovePoints?: number;
-  nextTags?: PlayerTagMap;
-  nextToolDieSeed?: number;
-  nextTools?: TurnToolSnapshot[];
-  nextTurnFlags?: PlayerTurnFlag[];
-  triggeredTerrainEffects: TriggeredTerrainEffect[];
-}
-
-interface StopResolutionTarget {
-  characterId: MovementActor["characterId"];
-  id: string;
-  isActor: boolean;
-  modifiers: ModifierId[];
-  position: GridPosition;
-  spawnPosition: GridPosition;
-  tags: PlayerTagMap;
-  turnFlags: PlayerTurnFlag[];
 }
 
 interface TerrainStopContext {
-  board: BoardDefinition;
+  draft: ResolutionDraft;
   movement: MovementDescriptor | null;
-  players: BoardPlayerState[];
-  player: StopResolutionTarget;
-  sourceId: string;
-  summons: BoardSummonState[];
+  player: MovementActor;
+  position: GridPosition;
   tile: TileDefinition;
-  toolDieSeed: number;
-  tools: TurnToolSnapshot[];
-}
-
-interface TerrainStopResult {
-  affectedPlayers?: AffectedPlayerMove[];
-  nextModifiers?: ModifierId[];
-  nextPosition?: GridPosition;
-  nextTags?: PlayerTagMap;
-  nextToolDieSeed?: number;
-  nextTools?: TurnToolSnapshot[];
-  nextTurnFlags?: PlayerTurnFlag[];
-  presentationEvents?: ActionPresentationEvent[];
-  presentationToolId?: ToolId;
-  summonMutations?: SummonMutation[];
-  tileMutations?: TileMutation[];
-  triggeredSummonEffects?: TriggeredSummonEffect[];
-  triggeredTerrainEffects: TriggeredTerrainEffect[];
 }
 
 interface TerrainDefinition {
-  onPassThrough?: (context: TerrainPassThroughContext) => TerrainPassThroughResult;
-  onStop?: (context: TerrainStopContext) => TerrainStopResult | null;
+  onPassThrough?: (context: TerrainPassThroughContext) => void;
+  onStop?: (context: TerrainStopContext) => void;
 }
 
 const LUCKY_TURN_FLAG: PlayerTurnFlag = "lucky_tile_claimed";
@@ -110,191 +66,186 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
     onPassThrough: (context) => {
       if (
         !context.tile.direction ||
-        !context.direction ||
-        typeof context.remainingMovePoints !== "number" ||
+        !context.state.direction ||
+        typeof context.state.remainingMovePoints !== "number" ||
         !isMovementType(context.movement, "translate")
       ) {
-        return {
-          triggeredTerrainEffects: []
-        };
+        return;
       }
 
-      if (context.direction === context.tile.direction) {
-        return {
-          nextRemainingMovePoints: context.remainingMovePoints + 2,
-          triggeredTerrainEffects: [
-            {
-              kind: "conveyor_boost",
-              movement: context.movement,
-              playerId: context.playerId,
-              tileKey: context.tile.key,
-              position: context.position,
-              direction: context.direction,
-              bonusMovePoints: 2
-            }
-          ]
-        };
-      }
-
-      return {
-        nextDirection: context.tile.direction,
-        triggeredTerrainEffects: [
+      if (context.state.direction === context.tile.direction) {
+        context.state.remainingMovePoints += 2;
+        appendDraftTriggeredTerrainEffects(context.draft, [
           {
-            kind: "conveyor_turn",
+            kind: "conveyor_boost",
             movement: context.movement,
-            playerId: context.playerId,
+            playerId: context.state.player.id,
             tileKey: context.tile.key,
-            position: context.position,
-            fromDirection: context.direction,
-            toDirection: context.tile.direction
+            position: context.state.player.position,
+            direction: context.state.direction,
+            bonusMovePoints: 2
           }
-        ]
-      };
+        ]);
+        return;
+      }
+
+      appendDraftTriggeredTerrainEffects(context.draft, [
+        {
+          kind: "conveyor_turn",
+          movement: context.movement,
+          playerId: context.state.player.id,
+          tileKey: context.tile.key,
+          position: context.state.player.position,
+          fromDirection: context.state.direction,
+          toDirection: context.tile.direction
+        }
+      ]);
+      context.state.direction = context.tile.direction;
     }
   },
   pit: {
-    onStop: (context) => ({
-      nextPosition: context.player.spawnPosition,
-      triggeredTerrainEffects: [
+    onStop: (context) => {
+      context.player.position = {
+        x: context.player.spawnPosition.x,
+        y: context.player.spawnPosition.y
+      };
+      applyResolvedPlayerStateToDraft(context.draft, context.player);
+      appendDraftTriggeredTerrainEffects(context.draft, [
         {
           kind: "pit",
           movement: context.movement,
           playerId: context.player.id,
           tileKey: context.tile.key,
-          position: context.player.position,
+          position: context.position,
           respawnPosition: context.player.spawnPosition
         }
-      ]
-    })
+      ]);
+    }
   },
   cannon: {
     onStop: (context) => {
       if (!context.tile.direction) {
-        return null;
+        return;
       }
 
-      const rocketDraft = createRocketResolutionDraft(context.tools, context.toolDieSeed);
-
-      resolveRocketIntoDraft(
+      appendDraftTriggeredTerrainEffects(context.draft, [
         {
-          actorId: context.player.id,
-          board: context.board,
-          players: context.players,
-          sourceId: `${context.sourceId}:cannon:${context.tile.key}`,
-          summons: context.summons
-        },
-        {
-          blastLeapDistance: CANNON_BLAST_LEAP_DISTANCE,
           direction: context.tile.direction,
-          eventIdPrefix: `${context.sourceId}:cannon:${context.tile.key}`,
-          originPosition: context.player.position,
-          projectileOwnerId: null,
-          projectileRange: CANNON_PROJECTILE_RANGE,
-          splashPushDistance: CANNON_SPLASH_PUSH_DISTANCE,
-          tagBase: `terrain:${context.tile.type}`
-        },
-        rocketDraft
-      );
-
-      return {
-        affectedPlayers: rocketDraft.affectedPlayers,
-        nextToolDieSeed: rocketDraft.nextToolDieSeed,
-        nextTools: rocketDraft.tools,
-        presentationEvents: rocketDraft.presentationEvents,
-        presentationToolId: "rocket",
-        summonMutations: rocketDraft.summonMutations,
-        tileMutations: rocketDraft.tileMutations,
-        triggeredSummonEffects: rocketDraft.triggeredSummonEffects,
-        triggeredTerrainEffects: [
-          {
-            direction: context.tile.direction,
-            kind: "cannon",
-            movement: context.movement,
-            playerId: context.player.id,
-            position: context.player.position,
-            tileKey: context.tile.key
-          },
-          ...rocketDraft.triggeredTerrainEffects
-        ]
-      };
+          kind: "cannon",
+          movement: context.movement,
+          playerId: context.player.id,
+          position: context.player.position,
+          tileKey: context.tile.key
+        }
+      ]);
+      resolveRocketCore(context.draft, {
+        blastLeapDistance: CANNON_BLAST_LEAP_DISTANCE,
+        direction: context.tile.direction,
+        eventIdPrefix: `${context.draft.sourceId}:cannon:${context.tile.key}`,
+        originPosition: context.player.position,
+        projectileOwnerId: null,
+        projectileRange: CANNON_PROJECTILE_RANGE,
+        splashPushDistance: CANNON_SPLASH_PUSH_DISTANCE,
+        tagBase: `terrain:${context.tile.type}`
+      });
     }
   },
   lucky: {
     onStop: (context) => {
-      if (!context.player.isActor || context.player.turnFlags.includes(LUCKY_TURN_FLAG)) {
-        return null;
+      if (
+        context.player.id !== context.draft.actorId ||
+        context.player.turnFlags.includes(LUCKY_TURN_FLAG)
+      ) {
+        return;
       }
 
-      const toolRoll = rollToolDie(context.toolDieSeed);
+      const toolRoll = rollToolDie(context.draft.nextToolDieSeed);
       const rewardedTool = createRolledToolInstance(
-        buildLuckyToolInstanceId(context.sourceId, context.tile.key, toolRoll.value.toolId),
+        buildLuckyToolInstanceId(context.draft.sourceId, context.tile.key, toolRoll.value.toolId),
         toolRoll.value
       );
 
-      return {
-        nextToolDieSeed: toolRoll.nextSeed,
-        nextTools: [...context.tools, rewardedTool],
-        nextTurnFlags: [...context.player.turnFlags, LUCKY_TURN_FLAG],
-        triggeredTerrainEffects: [
-          {
-            kind: "lucky",
-            movement: context.movement,
-            playerId: context.player.id,
-            tileKey: context.tile.key,
-            position: context.player.position,
-            grantedTool: rewardedTool
-          }
-        ]
-      };
+      context.player.turnFlags = [...context.player.turnFlags, LUCKY_TURN_FLAG];
+      applyResolvedPlayerStateToDraft(context.draft, context.player);
+      setDraftToolDieSeed(context.draft, toolRoll.nextSeed);
+      setDraftToolInventory(context.draft, [...context.draft.tools, rewardedTool]);
+      appendDraftTriggeredTerrainEffects(context.draft, [
+        {
+          kind: "lucky",
+          movement: context.movement,
+          playerId: context.player.id,
+          tileKey: context.tile.key,
+          position: context.player.position,
+          grantedTool: rewardedTool
+        }
+      ]);
     }
   },
   goal: {
     onStop: (context) => {
-      if (!context.player.isActor) {
-        return null;
+      if (context.player.id !== context.draft.actorId) {
+        return;
       }
 
-      return {
-        triggeredTerrainEffects: [
-          {
-            kind: "goal",
-            movement: context.movement,
-            playerId: context.player.id,
-            tileKey: context.tile.key,
-            position: context.player.position
-          }
-        ]
-      };
+      appendDraftTriggeredTerrainEffects(context.draft, [
+        {
+          kind: "goal",
+          movement: context.movement,
+          playerId: context.player.id,
+          tileKey: context.tile.key,
+          position: context.player.position
+        }
+      ]);
     }
   }
 };
 
 // Pass-through terrain runs during displacement, so remaining move points and direction can change immediately.
 export function resolvePassThroughTerrainEffect(
-  context: TerrainPassThroughContext
-): TerrainPassThroughResult {
+  draft: ResolutionDraft,
+  context: {
+    movement: MovementDescriptor;
+    state: PassThroughTerrainState;
+    tile: TileDefinition;
+  }
+): void {
   const terrainDefinition = TERRAIN_DEFINITIONS[context.tile.type];
 
   if (!terrainDefinition?.onPassThrough) {
-    return {
-      triggeredTerrainEffects: []
-    };
+    return;
   }
 
-  return terrainDefinition.onPassThrough(context);
+  terrainDefinition.onPassThrough({
+    draft,
+    movement: context.movement,
+    state: context.state,
+    tile: context.tile
+  });
 }
 
 // Stop terrain resolves when a displacement ends or when a new turn starts on a tile.
 export function resolveStopTerrainEffect(
-  context: TerrainStopContext
-): TerrainStopResult | null {
+  draft: ResolutionDraft,
+  context: {
+    movement: MovementDescriptor | null;
+    player: MovementActor;
+    position: GridPosition;
+    tile: TileDefinition;
+  }
+): void {
   const terrainDefinition = TERRAIN_DEFINITIONS[context.tile.type];
 
   if (!terrainDefinition?.onStop) {
-    return null;
+    return;
   }
 
-  return terrainDefinition.onStop(context);
+  terrainDefinition.onStop({
+    draft,
+    movement: context.movement,
+    player: context.player,
+    position: context.position,
+    tile: context.tile
+  });
 }
 
 // The lucky flag marks that the current player already claimed this turn's reward tile.
@@ -306,22 +257,3 @@ export function isLuckyTurnFlag(flag: PlayerTurnFlag): boolean {
 export function getTerrainTileKey(position: GridPosition): string {
   return toTileKey(position);
 }
-
-export function createTerrainStopTarget(
-  actor: MovementActor,
-  position: GridPosition,
-  isActor: boolean
-): StopResolutionTarget {
-  return {
-    characterId: actor.characterId,
-    id: actor.id,
-    isActor,
-    modifiers: cloneModifierIds(actor.modifiers),
-    position,
-    spawnPosition: actor.spawnPosition,
-    tags: actor.tags,
-    turnFlags: [...actor.turnFlags]
-  };
-}
-
-export type { TerrainPassThroughResult, TerrainStopResult, StopResolutionTarget, TerrainStopContext };

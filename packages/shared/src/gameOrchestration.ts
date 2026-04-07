@@ -17,6 +17,7 @@ import {
   createPlayerMotionEvent,
   createStateTransitionEvent
 } from "./rules/actionPresentation";
+import { createTurnStartResolutionDraft } from "./rules/actionDraft";
 import { resolveToolAction } from "./actions";
 import {
   applyDiceRollModifiers,
@@ -27,7 +28,7 @@ import {
   applyTurnStartModifiers
 } from "./skills";
 import { resolveStopSummonEffects } from "./summons";
-import { createTerrainStopTarget, resolveStopTerrainEffect } from "./terrain";
+import { resolveStopTerrainEffect } from "./terrain";
 import {
   cloneToolSelectionRecord,
   getDirectionSelection
@@ -658,145 +659,59 @@ function applyTurnStartStop(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot
 ): TriggeredTerrainEffect[] {
-  const board = buildBoardDefinition(state.snapshot);
-  const boardPlayers = buildBoardPlayers(state.snapshot);
-  const boardSummons = buildBoardSummons(state.snapshot);
-  let nextPosition = clonePosition(player.position);
-  let nextTags = clonePlayerTags(player.tags);
-  let nextTools = [...player.tools];
-  let nextTurnFlags = [...player.turnFlags];
-  let nextToolDieSeed = state.runtime.toolDieSeed;
-  const summonMutations: SummonMutation[] = [];
-  const tileMutations: TileMutation[] = [];
-  const affectedPlayers: import("./types").AffectedPlayerMove[] = [];
-  const presentationEvents: ActionPresentation["events"] = [];
-  let presentationToolId: ActionPresentation["toolId"] | null = null;
-  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
-
-  const summonResolution = resolveStopSummonEffects({
-    movement: null,
-    player: {
+  const draft = createTurnStartResolutionDraft(
+    state.snapshot,
+    {
       characterId: player.characterId,
       id: player.id,
       modifiers: cloneModifierIds(player.modifiers),
-      position: nextPosition,
+      position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
-      tags: nextTags,
-      turnFlags: nextTurnFlags
+      tags: clonePlayerTags(player.tags),
+      turnFlags: [...player.turnFlags]
     },
-    position: nextPosition,
-    sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
-    summons: boardSummons,
-    toolDieSeed: nextToolDieSeed,
-    tools: nextTools
+    `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+    state.runtime.toolDieSeed,
+    [...player.tools]
+  );
+
+  resolveStopSummonEffects(draft, {
+    movement: null,
+    player: draft.actor,
+    position: draft.actor.position
   });
 
-  if (summonResolution.nextTags) {
-    nextTags = clonePlayerTags(summonResolution.nextTags);
+  const tile = getTile(draft.board, draft.actor.position);
+
+  if (tile) {
+    resolveStopTerrainEffect(draft, {
+      movement: null,
+      player: draft.actor,
+      position: draft.actor.position,
+      tile
+    });
   }
 
-  if (summonResolution.nextTools) {
-    nextTools = summonResolution.nextTools;
-  }
-
-  if (summonResolution.nextTurnFlags) {
-    nextTurnFlags = [...summonResolution.nextTurnFlags];
-  }
-
-  if (summonResolution.nextToolDieSeed !== undefined) {
-    nextToolDieSeed = summonResolution.nextToolDieSeed;
-  }
-
-  summonMutations.push(...summonResolution.summonMutations);
-  triggeredSummonEffects.push(...summonResolution.triggeredSummonEffects);
-
-  const tile = getTile(board, nextPosition);
-  const terrainResolution = tile
-    ? resolveStopTerrainEffect({
-        board,
-        movement: null,
-        players: boardPlayers,
-        player: createTerrainStopTarget(
-          {
-            characterId: player.characterId,
-            id: player.id,
-            modifiers: cloneModifierIds(player.modifiers),
-            position: nextPosition,
-            spawnPosition: clonePosition(player.spawnPosition),
-            tags: nextTags,
-            turnFlags: nextTurnFlags
-          },
-          nextPosition,
-          true
-        ),
-        sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
-        summons: boardSummons,
-        tile,
-        toolDieSeed: nextToolDieSeed,
-        tools: nextTools
-      })
-    : null;
-
-  if (terrainResolution?.nextPosition) {
-    nextPosition = clonePosition(terrainResolution.nextPosition);
-  }
-
-  if (terrainResolution?.nextTags) {
-    nextTags = clonePlayerTags(terrainResolution.nextTags);
-  }
-
-  if (terrainResolution?.nextTools) {
-    nextTools = terrainResolution.nextTools;
-  }
-
-  if (terrainResolution?.nextTurnFlags) {
-    nextTurnFlags = [...terrainResolution.nextTurnFlags];
-  }
-
-  if (terrainResolution?.nextToolDieSeed !== undefined) {
-    nextToolDieSeed = terrainResolution.nextToolDieSeed;
-  }
-
-  if (terrainResolution?.tileMutations?.length) {
-    tileMutations.push(...terrainResolution.tileMutations);
-  }
-
-  if (terrainResolution?.summonMutations?.length) {
-    summonMutations.push(...terrainResolution.summonMutations);
-  }
-
-  if (terrainResolution?.affectedPlayers?.length) {
-    affectedPlayers.push(...terrainResolution.affectedPlayers);
-  }
-
-  if (terrainResolution?.presentationEvents?.length) {
-    presentationEvents.push(...terrainResolution.presentationEvents);
-    presentationToolId = terrainResolution.presentationToolId ?? presentationToolId;
-  }
-
-  if (terrainResolution?.triggeredSummonEffects?.length) {
-    triggeredSummonEffects.push(...terrainResolution.triggeredSummonEffects);
-  }
-
-  player.position = clonePosition(nextPosition);
-  applyPlayerTags(player, nextTags);
-  applyPlayerTurnFlags(player, nextTurnFlags);
-  applyToolInventory(player, nextTools, "turn-start");
-  applyTileMutations(state.snapshot, tileMutations);
-  applySummonMutations(state.snapshot, summonMutations);
-  applyAffectedPlayerMoves(state.snapshot, affectedPlayers);
-  applyMovementResolvedEffects(state.snapshot, "turn-start", null, affectedPlayers);
-  state.runtime.toolDieSeed = nextToolDieSeed;
+  player.position = clonePosition(draft.actor.position);
+  applyPlayerModifiers(player, draft.actor.modifiers);
+  applyPlayerTags(player, draft.actor.tags);
+  applyPlayerTurnFlags(player, draft.actor.turnFlags);
+  applyToolInventory(player, draft.tools, "turn-start");
+  applyTileMutations(state.snapshot, draft.tileMutations);
+  applySummonMutations(state.snapshot, draft.summonMutations);
+  applyAffectedPlayerMoves(state.snapshot, draft.affectedPlayers);
+  applyMovementResolvedEffects(state.snapshot, "turn-start", null, draft.affectedPlayers);
+  state.runtime.toolDieSeed = draft.nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
-  if (presentationEvents.length) {
+  if (draft.presentationEvents.length) {
     publishActionPresentation(
       state,
-      createPresentation(player.id, presentationToolId ?? "rocket", presentationEvents)
+      createPresentation(player.id, draft.presentationToolId, draft.presentationEvents)
     );
   }
-  pushTerrainEvents(state, player.id, terrainResolution?.triggeredTerrainEffects ?? []);
-  pushSummonEvents(state, triggeredSummonEffects);
-  return terrainResolution?.triggeredTerrainEffects ?? [];
+  pushTerrainEvents(state, player.id, draft.triggeredTerrainEffects);
+  pushSummonEvents(state, draft.triggeredSummonEffects);
+  return draft.triggeredTerrainEffects;
 }
 
 function enterActionPhaseWithRoll(

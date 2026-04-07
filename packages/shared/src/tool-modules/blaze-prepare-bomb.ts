@@ -2,8 +2,12 @@ import type { ToolContentDefinition } from "../content/schema";
 import { setPlayerTagValue } from "../playerTags";
 import { BLAZE_BOMB_PREPARED_TAG } from "../skills";
 import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
-import type { ActionResolution } from "../types";
-import { buildAppliedResolution, consumeActiveTool } from "../rules/actionResolution";
+import {
+  setDraftActorTags,
+  setDraftApplied,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
 import { createToolPreview, createUsedSummary } from "./helpers";
 
@@ -23,20 +27,21 @@ export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBlazePrepareBombTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      tags: setPlayerTagValue(context.actor.tags, BLAZE_BOMB_PREPARED_TAG, true)
-    },
-    nextToolDieSeed: context.toolDieSeed,
+function resolveBlazePrepareBombTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
+  setDraftActorTags(
+    draft,
+    setPlayerTagValue(context.actor.tags, BLAZE_BOMB_PREPARED_TAG, true)
+  );
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  setDraftApplied(draft, createUsedSummary(BLAZE_PREPARE_BOMB_TOOL_DEFINITION.label), {
     path: [],
     phaseEffect: {
       finishTurn: true
     },
-    preview: createToolPreview(context, { valid: true }),
-    summary: createUsedSummary(BLAZE_PREPARE_BOMB_TOOL_DEFINITION.label),
-    tools: consumeActiveTool(context)
+    preview: createToolPreview(context, { valid: true })
   });
 }
 

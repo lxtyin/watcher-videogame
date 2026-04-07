@@ -1,9 +1,15 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragAxisTileInteraction } from "../toolInteraction";
-import type { ActionResolution } from "../types";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireTileSelection
 } from "../rules/actionResolution";
@@ -14,8 +20,6 @@ import { collectAxisSelectionTiles } from "../rules/previewDescriptor";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  appendToolPresentationEvents,
-  buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
   createToolPreview,
@@ -49,76 +53,66 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveBrakeTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const maxRange = getToolParamValue(context.activeTool, "brakeRange", 3);
   const targetPosition = requireTileSelection(context);
   const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
   const movement = createToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");
-  const nextTools = consumeActiveTool(context);
-  // const selectionTiles = collectAxisSelectionTiles(context.board, context.actor.position);
 
   if (!axisTarget) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Brake needs a target tile", {
       preview: createToolPreview(context, {
-        // selectionTiles,
         valid: false
-      }),
-      reason: "Brake needs a target tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   if (maxRange < 1) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "No brake range left", {
       preview: createToolPreview(context, {
         valid: false
-      }),
-      reason: "No brake range left",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  const presentationMark = markDraftPresentation(draft);
   const resolution =
     movement.type === "leap"
-      ? resolveLeapDisplacement(buildMovementSystemContext(context), {
+      ? resolveLeapDisplacement(draft, {
           direction: axisTarget.direction,
           maxDistance: requestedDistance,
           movement,
-          player: toMovementSubject(context.actor),
-          toolDieSeed: context.toolDieSeed,
-          tools: nextTools
+          player: toMovementSubject(context.actor)
         })
-      : resolveLinearDisplacement(buildMovementSystemContext(context), {
+      : resolveLinearDisplacement(draft, {
           direction: axisTarget.direction,
           maxSteps: requestedDistance,
           movePoints: requestedDistance,
           movement,
-          player: toMovementSubject(context.actor),
-          toolDieSeed: context.toolDieSeed,
-          tools: nextTools
+          player: toMovementSubject(context.actor)
         });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftToolInventory(draft, context.tools);
+    setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,
       preview: createToolPreview(context, {
         actorPath: resolution.path,
         effectTiles: resolution.path,
-        // selectionTiles,
         valid: false
-      }),
-      reason: resolution.stopReason,
-      tools: context.tools
+      })
     });
+    return;
   }
 
+  const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
   const actorPresentation = createActorMotionPresentation(
     context,
     "actor-brake",
@@ -126,41 +120,29 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
     movement.type === "leap" ? "arc" : "ground"
   );
 
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      position: resolution.actor.position,
-      tags: resolution.actor.tags,
-      turnFlags: resolution.actor.turnFlags
-    },
+  setDraftActionPresentation(draft, actorPresentation);
+  appendDraftPresentationEvents(
+    draft,
+    offsetPresentationEvents(
+      [...triggerEvents, ...resolution.presentationEvents],
+      actorPresentation?.durationMs ?? 0
+    )
+  );
+  setDraftApplied(draft, createUsedSummary(BRAKE_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(
       context.actor.id,
       context.actor.position,
       resolution.path,
       movement
     ),
-    affectedPlayers: resolution.affectedPlayers,
-    nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: appendToolPresentationEvents(
-      context,
-      actorPresentation,
-      offsetPresentationEvents(resolution.presentationEvents, actorPresentation?.durationMs ?? 0)
-    ),
     preview: createToolPreview(context, {
       actorPath: resolution.path,
-      actorTarget: resolution.actor.position,
-      affectedPlayers: resolution.affectedPlayers,
+      actorTarget: draft.actor.position,
+      affectedPlayers: draft.affectedPlayers,
       effectTiles: resolution.path,
-      // selectionTiles,
       valid: true
-    }),
-    summonMutations: resolution.summonMutations,
-    summary: createUsedSummary(BRAKE_TOOL_DEFINITION.label),
-    tileMutations: resolution.tileMutations,
-    tools: resolution.tools,
-    triggeredSummonEffects: resolution.triggeredSummonEffects,
-    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+    })
   });
 }
 

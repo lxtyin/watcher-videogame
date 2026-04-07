@@ -1,44 +1,37 @@
-import type {
-  AffectedPlayerMove,
-  ActionPresentationEvent,
-  ActionResolution,
-  SummonMutation,
-  TileMutation,
-  TriggeredSummonEffect,
-  TriggeredTerrainEffect
-} from "../types";
+import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   buildMotionPositions,
   createPlayerMotionEvent,
-  offsetPresentationEvents,
   createPresentation,
-  createProjectileEvent
+  createProjectileEvent,
+  offsetPresentationEvents
 } from "../rules/actionPresentation";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
-  consumeActiveTool,
-  requireDirection
-} from "../rules/actionResolution";
+  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
-import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  buildMovementSystemContext,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
-  toAffectedPlayerMove,
   toMovementSubject
 } from "./helpers";
 
 export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "篮球",
-  description: "朝一个方向投出篮球，命中的玩家会被击退。",
+  description: "向所选方向投出篮球，命中的玩家会被击退。",
   disabledHint: "当前不能使用篮球。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -55,7 +48,10 @@ export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveBasketballTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const direction = requireDirection(context);
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const bounceCount = getToolParamValue(context.activeTool, "projectileBounceCount", 1);
@@ -64,16 +60,12 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
     timing: "out_of_turn"
   });
-  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
-      preview: createToolPreview(context, { valid: false }),
-      reason: "Basketball needs a direction",
-      tools: context.tools
+    setDraftBlocked(draft, "Basketball needs a direction", {
+      preview: createToolPreview(context, { valid: false })
     });
+    return;
   }
 
   const trace = traceProjectile(context, direction, projectileRange, bounceCount);
@@ -85,42 +77,27 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
   );
   const impactStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
   const motionEvents: ActionPresentationEvent[] = projectileEvent ? [projectileEvent] : [];
-  const affectedPlayers: AffectedPlayerMove[] = [];
-  const tileMutations: TileMutation[] = [];
-  const summonMutations: SummonMutation[] = [];
-  const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
-  const triggeredSummonEffects: TriggeredSummonEffect[] = [];
-  let nextTools = consumeActiveTool(context);
-  let nextToolDieSeed = context.toolDieSeed;
+  const nestedEvents: ActionPresentationEvent[] = [];
+
+  setDraftToolInventory(draft, consumeActiveTool(context));
 
   if (trace.collision.kind === "player") {
     for (const [index, hitPlayer] of trace.collision.players.entries()) {
-      const pushResolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+      const presentationMark = markDraftPresentation(draft);
+      const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         maxSteps: pushDistance,
         movePoints: pushDistance,
         movement: pushedMovement,
         player: toMovementSubject(hitPlayer),
-        priorSummonMutations: summonMutations,
-        priorTileMutations: tileMutations,
-        toolDieSeed: nextToolDieSeed,
-        tools: nextTools
+        trackAffectedPlayerReason: "basketball"
       });
 
       if (!pushResolution.path.length) {
         continue;
       }
 
-      affectedPlayers.push(
-        toAffectedPlayerMove(hitPlayer.id, hitPlayer.position, pushedMovement, pushResolution, "basketball")
-      );
-      nextTools = pushResolution.tools;
-      nextToolDieSeed = pushResolution.nextToolDieSeed;
-      tileMutations.push(...pushResolution.tileMutations);
-      summonMutations.push(...pushResolution.summonMutations);
-      triggeredTerrainEffects.push(...pushResolution.triggeredTerrainEffects);
-      triggeredSummonEffects.push(...pushResolution.triggeredSummonEffects);
-
+      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:basketball-hit-${index}`,
         hitPlayer.id,
@@ -129,10 +106,9 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
         impactStartMs
       );
 
-      affectedPlayers.push(...pushResolution.affectedPlayers);
-      motionEvents.push(
+      nestedEvents.push(
         ...offsetPresentationEvents(
-          pushResolution.presentationEvents,
+          [...triggerEvents, ...pushResolution.presentationEvents],
           (motionEvent?.startMs ?? impactStartMs) + (motionEvent?.durationMs ?? 0)
         )
       );
@@ -143,25 +119,18 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
     }
   }
 
-  return buildAppliedResolution({
-    actor: context.actor,
-    affectedPlayers,
-    nextToolDieSeed,
+  setDraftActionPresentation(
+    draft,
+    createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
+  );
+  appendDraftPresentationEvents(draft, nestedEvents);
+  setDraftApplied(draft, createUsedSummary(BASKETBALL_TOOL_DEFINITION.label), {
     path: trace.path,
-    presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
     preview: createToolPreview(context, {
-      // actorPath: trace.path,
-      affectedPlayers,
+      affectedPlayers: draft.affectedPlayers,
       effectTiles: trace.path,
-      // selectionTiles,
       valid: true
-    }),
-    summonMutations,
-    summary: createUsedSummary(BASKETBALL_TOOL_DEFINITION.label),
-    tileMutations,
-    tools: nextTools,
-    triggeredSummonEffects,
-    triggeredTerrainEffects
+    })
   });
 }
 

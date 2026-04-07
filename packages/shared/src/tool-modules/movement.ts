@@ -1,9 +1,15 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
-import type { ActionResolution } from "../types";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
@@ -13,8 +19,6 @@ import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectDirectionSelectionTiles, createPreviewDescriptor } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  appendToolPresentationEvents,
-  buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
   createToolPreview,
@@ -48,53 +52,48 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveMovementTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveMovementTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const direction = requireDirection(context);
   const movePoints = getToolParamValue(context.activeTool, "movePoints", 4);
   const movement = createToolMovementDescriptor(context, MOVEMENT_TOOL_DEFINITION, "translate");
-  const nextTools = consumeActiveTool(context);
-  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
   
   if (!direction) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Movement needs a direction", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "Movement needs a direction",
-      tools: context.tools
     });
+    return;
   }
 
   if (movePoints < 1) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "No move points left", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "No move points left",
-      tools: context.tools
     });
+    return;
   }
 
-  const resolution = resolveLinearDisplacement(buildMovementSystemContext(context), {
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  const presentationMark = markDraftPresentation(draft);
+
+  const resolution = resolveLinearDisplacement(draft, {
     direction,
     movePoints,
     movement,
-    player: toMovementSubject(context.actor),
-    toolDieSeed: context.toolDieSeed,
-    tools: nextTools
+    player: toMovementSubject(context.actor)
   });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftToolInventory(draft, context.tools);
+    setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,
       preview: createToolPreview(context, { valid: false }),
-      reason: resolution.stopReason,
-      tools: context.tools
     });
+    return;
   }
 
+  const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
   const actorPresentation = createActorMotionPresentation(
     context,
     "actor-move",
@@ -102,43 +101,29 @@ function resolveMovementTool(context: Parameters<ToolModule["execute"]>[0]): Act
     movement.type === "leap" ? "arc" : "ground"
   );
 
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      position: resolution.actor.position,
-      tags: resolution.actor.tags,
-      turnFlags: resolution.actor.turnFlags
-    },
+  setDraftActionPresentation(draft, actorPresentation);
+  appendDraftPresentationEvents(
+    draft,
+    offsetPresentationEvents(
+      [...triggerEvents, ...resolution.presentationEvents],
+      actorPresentation?.durationMs ?? 0
+    )
+  );
+  setDraftApplied(draft, createUsedSummary(MOVEMENT_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(
       context.actor.id,
       context.actor.position,
       resolution.path,
       movement
     ),
-    affectedPlayers: resolution.affectedPlayers,
-    nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: appendToolPresentationEvents(
-      context,
-      actorPresentation,
-      offsetPresentationEvents(
-        resolution.presentationEvents,
-        actorPresentation?.durationMs ?? 0
-      )
-    ),
     preview: createToolPreview(context, {
       actorPath: resolution.path,
-      actorTarget: resolution.actor.position,
-      affectedPlayers: resolution.affectedPlayers,
+      actorTarget: draft.actor.position,
+      affectedPlayers: draft.affectedPlayers,
       effectTiles: resolution.path,
       valid: true
-    }),
-    summonMutations: resolution.summonMutations,
-    summary: createUsedSummary(MOVEMENT_TOOL_DEFINITION.label),
-    tileMutations: resolution.tileMutations,
-    tools: resolution.tools,
-    triggeredSummonEffects: resolution.triggeredSummonEffects,
-    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+    })
   });
 }
 

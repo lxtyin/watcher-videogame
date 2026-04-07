@@ -1,7 +1,5 @@
 import { SUMMON_REGISTRY } from "./content/summons";
 import { rollToolDie } from "./dice";
-import { cloneModifierIds } from "./modifiers";
-import { isMovementDisposition, isMovementType } from "./rules/displacement";
 import type {
   BoardSummonState,
   CharacterId,
@@ -14,10 +12,18 @@ import type {
   PlayerTurnFlag,
   SummonId,
   SummonMutation,
-  TriggeredSummonEffect,
   TurnToolSnapshot
 } from "./types";
 import { createRolledToolInstance } from "./tools";
+import type { ResolutionDraft } from "./rules/actionDraft";
+import {
+  appendDraftSummonMutations,
+  appendDraftTriggeredSummonEffects,
+  getDraftSummons,
+  setDraftToolDieSeed,
+  setDraftToolInventory
+} from "./rules/actionDraft";
+import { isMovementDisposition, isMovementType } from "./rules/displacement";
 
 interface SummonTriggerTarget {
   characterId: CharacterId;
@@ -31,26 +37,12 @@ interface SummonTriggerTarget {
 
 interface SummonTriggerContext {
   direction?: Direction;
+  draft: ResolutionDraft;
   movement: MovementDescriptor | null;
   player: SummonTriggerTarget;
   position: GridPosition;
   remainingMovePoints?: number;
-  sourceId: string;
   summon: BoardSummonState;
-  toolDieSeed: number;
-  tools: TurnToolSnapshot[];
-}
-
-interface SummonTriggerResult {
-  consumeSummon?: boolean;
-  nextDirection?: Direction;
-  nextModifiers?: ModifierId[];
-  nextRemainingMovePoints?: number;
-  nextTags?: PlayerTagMap;
-  nextToolDieSeed?: number;
-  nextTools?: TurnToolSnapshot[];
-  nextTurnFlags?: PlayerTurnFlag[];
-  triggeredSummonEffects: TriggeredSummonEffect[];
 }
 
 interface SummonPhaseContext {
@@ -59,30 +51,14 @@ interface SummonPhaseContext {
   player: MovementActor;
   position: GridPosition;
   remainingMovePoints?: number;
-  sourceId: string;
-  summons: BoardSummonState[];
-  toolDieSeed: number;
-  tools: TurnToolSnapshot[];
-}
-
-export interface SummonPhaseResolution {
-  nextDirection?: Direction;
-  nextModifiers?: ModifierId[];
-  nextRemainingMovePoints?: number;
-  nextTags?: PlayerTagMap;
-  nextToolDieSeed?: number;
-  nextTools?: TurnToolSnapshot[];
-  nextTurnFlags?: PlayerTurnFlag[];
-  summonMutations: SummonMutation[];
-  triggeredSummonEffects: TriggeredSummonEffect[];
 }
 
 export interface SummonDefinition {
   description: string;
   id: SummonId;
   label: string;
-  onPassThrough?: (context: SummonTriggerContext) => SummonTriggerResult | null;
-  onStop?: (context: SummonTriggerContext) => SummonTriggerResult | null;
+  onPassThrough?: (context: SummonTriggerContext) => void;
+  onStop?: (context: SummonTriggerContext) => void;
   triggerMode: "movement_trigger";
 }
 
@@ -111,34 +87,45 @@ function canWalletTrigger(
   );
 }
 
-function grantWalletReward(context: SummonTriggerContext): SummonTriggerResult {
-  const toolRoll = rollToolDie(context.toolDieSeed);
+function removeSummonFromDraft(draft: ResolutionDraft, summon: BoardSummonState): void {
+  if (!draft.summonsById.has(summon.instanceId)) {
+    return;
+  }
+
+  appendDraftSummonMutations(draft, [
+    {
+      instanceId: summon.instanceId,
+      kind: "remove"
+    }
+  ]);
+}
+
+function grantWalletReward(context: SummonTriggerContext): void {
+  const toolRoll = rollToolDie(context.draft.nextToolDieSeed);
   const grantedTool = createRolledToolInstance(
     buildWalletRewardToolInstanceId(
       context.summon.instanceId,
-      context.sourceId,
+      context.draft.sourceId,
       toolRoll.value.toolId
     ),
     toolRoll.value
   );
 
-  return {
-    consumeSummon: true,
-    nextToolDieSeed: toolRoll.nextSeed,
-    nextTools: [...context.tools, grantedTool],
-    triggeredSummonEffects: [
-      {
-        kind: "wallet_pickup",
-        movement: context.movement!,
-        ownerId: context.summon.ownerId,
-        playerId: context.player.id,
-        position: context.summon.position,
-        summonId: context.summon.summonId,
-        summonInstanceId: context.summon.instanceId,
-        grantedTool
-      }
-    ]
-  };
+  removeSummonFromDraft(context.draft, context.summon);
+  setDraftToolDieSeed(context.draft, toolRoll.nextSeed);
+  setDraftToolInventory(context.draft, [...context.draft.tools, grantedTool]);
+  appendDraftTriggeredSummonEffects(context.draft, [
+    {
+      kind: "wallet_pickup",
+      movement: context.movement!,
+      ownerId: context.summon.ownerId,
+      playerId: context.player.id,
+      position: context.summon.position,
+      summonId: context.summon.summonId,
+      summonInstanceId: context.summon.instanceId,
+      grantedTool
+    }
+  ]);
 }
 
 export const SUMMON_DEFINITIONS: Record<SummonId, SummonDefinition> = {
@@ -147,17 +134,17 @@ export const SUMMON_DEFINITIONS: Record<SummonId, SummonDefinition> = {
     ...SUMMON_REGISTRY.wallet,
     onPassThrough: (context) => {
       if (!canWalletTrigger(context, ["translate", "drag"])) {
-        return null;
+        return;
       }
 
-      return grantWalletReward(context);
+      grantWalletReward(context);
     },
     onStop: (context) => {
       if (!canWalletTrigger(context, ["leap"])) {
-        return null;
+        return;
       }
 
-      return grantWalletReward(context);
+      grantWalletReward(context);
     }
   }
 };
@@ -168,77 +155,17 @@ export function getSummonDefinition(summonId: SummonId): SummonDefinition {
 
 function collectSummonsAtPosition(
   summons: BoardSummonState[],
-  position: GridPosition,
-  remainingSummonIds: Set<string>
+  position: GridPosition
 ): BoardSummonState[] {
-  return summons.filter(
-    (summon) =>
-      remainingSummonIds.has(summon.instanceId) &&
-      positionsEqual(summon.position, position)
-  );
-}
-
-function applySummonTriggerResult(
-  result: SummonTriggerResult,
-  summon: BoardSummonState,
-  remainingSummonIds: Set<string>,
-  resolution: SummonPhaseResolution
-): void {
-  if (result.nextTags) {
-    resolution.nextTags = {
-      ...result.nextTags
-    };
-  }
-
-  if (result.nextModifiers) {
-    resolution.nextModifiers = cloneModifierIds(result.nextModifiers);
-  }
-
-  if (result.nextDirection) {
-    resolution.nextDirection = result.nextDirection;
-  }
-
-  if (typeof result.nextRemainingMovePoints === "number") {
-    resolution.nextRemainingMovePoints = result.nextRemainingMovePoints;
-  }
-
-  if (typeof result.nextToolDieSeed === "number") {
-    resolution.nextToolDieSeed = result.nextToolDieSeed;
-  }
-
-  if (result.nextTools) {
-    resolution.nextTools = result.nextTools;
-  }
-
-  if (result.nextTurnFlags) {
-    resolution.nextTurnFlags = [...result.nextTurnFlags];
-  }
-
-  if (result.consumeSummon && remainingSummonIds.has(summon.instanceId)) {
-    remainingSummonIds.delete(summon.instanceId);
-    resolution.summonMutations.push({
-      instanceId: summon.instanceId,
-      kind: "remove"
-    });
-  }
-
-  resolution.triggeredSummonEffects.push(...result.triggeredSummonEffects);
+  return summons.filter((summon) => positionsEqual(summon.position, position));
 }
 
 function runSummonPhase(
   phase: "onPassThrough" | "onStop",
+  draft: ResolutionDraft,
   context: SummonPhaseContext
-): SummonPhaseResolution {
-  const resolution: SummonPhaseResolution = {
-    summonMutations: [],
-    triggeredSummonEffects: []
-  };
-  const remainingSummonIds = new Set(context.summons.map((summon) => summon.instanceId));
-  const summonsAtPosition = collectSummonsAtPosition(
-    context.summons,
-    context.position,
-    remainingSummonIds
-  );
+): void {
+  const summonsAtPosition = collectSummonsAtPosition(getDraftSummons(draft), context.position);
 
   for (const summon of summonsAtPosition) {
     const summonDefinition = getSummonDefinition(summon.summonId);
@@ -248,13 +175,14 @@ function runSummonPhase(
       continue;
     }
 
-    const result = trigger({
+    trigger({
       ...(context.direction ? { direction: context.direction } : {}),
+      draft,
       movement: context.movement,
       player: {
         characterId: context.player.characterId,
         id: context.player.id,
-        modifiers: cloneModifierIds(context.player.modifiers),
+        modifiers: [...context.player.modifiers],
         position: context.position,
         spawnPosition: context.player.spawnPosition,
         tags: context.player.tags,
@@ -264,20 +192,9 @@ function runSummonPhase(
       ...(typeof context.remainingMovePoints === "number"
         ? { remainingMovePoints: context.remainingMovePoints }
         : {}),
-      sourceId: context.sourceId,
-      summon,
-      toolDieSeed: resolution.nextToolDieSeed ?? context.toolDieSeed,
-      tools: resolution.nextTools ?? context.tools
+      summon
     });
-
-    if (!result) {
-      continue;
-    }
-
-    applySummonTriggerResult(result, summon, remainingSummonIds, resolution);
   }
-
-  return resolution;
 }
 
 // Summon occupancy checks keep deployment validation shared between preview and authority.
@@ -302,14 +219,16 @@ export function createSummonUpsertMutation(
 
 // Summon pass-through now fires immediately during displacement instead of replaying the full path later.
 export function resolvePassThroughSummonEffects(
+  draft: ResolutionDraft,
   context: SummonPhaseContext
-): SummonPhaseResolution {
-  return runSummonPhase("onPassThrough", context);
+): void {
+  runSummonPhase("onPassThrough", draft, context);
 }
 
 // Stop summons reuse the same live summon set and only fire when the displacement actually ends on a tile.
 export function resolveStopSummonEffects(
+  draft: ResolutionDraft,
   context: SummonPhaseContext
-): SummonPhaseResolution {
-  return runSummonPhase("onStop", context);
+): void {
+  runSummonPhase("onStop", draft, context);
 }

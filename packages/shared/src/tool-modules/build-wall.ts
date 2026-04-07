@@ -2,11 +2,14 @@ import type { ToolContentDefinition } from "../content/schema";
 import { getTile } from "../board";
 import { createDragTileInteraction } from "../toolInteraction";
 import { createTileMutation } from "../rules/spatial";
-import type { ActionResolution } from "../types";
 import { hasSummonAtPosition } from "../summons";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftTileMutations,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory,
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireTileSelection
 } from "../rules/actionResolution";
@@ -33,7 +36,7 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
 };
 
 function canBuildWallAtPosition(
-  context: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1],
   targetPosition: { x: number; y: number }
 ): boolean {
   const tile = getTile(context.board, targetPosition);
@@ -49,7 +52,10 @@ function canBuildWallAtPosition(
   return !hasSummonAtPosition(context.summons, targetPosition);
 }
 
-function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveBuildWallTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const targetPosition = requireTileSelection(context);
   const wallDurability = getToolParamValue(context.activeTool, "wallDurability", 2);
   const selectionTiles = collectAdjacentSelectionTiles(context.board, context.actor.position).filter((position) =>
@@ -57,61 +63,47 @@ function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): Ac
   );
 
   if (!targetPosition) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Build Wall needs a target tile", {
       preview: createToolPreview(context, {
         selectionTiles,
         valid: false
-      }),
-      reason: "Build Wall needs a target tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   const deltaX = Math.abs(targetPosition.x - context.actor.position.x);
   const deltaY = Math.abs(targetPosition.y - context.actor.position.y);
 
   if ((deltaX === 0 && deltaY === 0) || deltaX > 1 || deltaY > 1) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Build Wall must target one of the surrounding tiles", {
       preview: createToolPreview(context, {
-        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
-      }),
-      reason: "Build Wall must target one of the surrounding tiles",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   if (!canBuildWallAtPosition(context, targetPosition)) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Build Wall needs an empty floor tile", {
       preview: createToolPreview(context, {
-        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
-      }),
-      reason: "Build Wall needs an empty floor tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
-  return buildAppliedResolution({
-    actor: context.actor,
-    nextToolDieSeed: context.toolDieSeed,
+  appendDraftTileMutations(draft, [createTileMutation(targetPosition, "earthWall", wallDurability)]);
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  setDraftApplied(draft, createUsedSummary(BUILD_WALL_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, {
       effectTiles: [targetPosition],
       selectionTiles,
       valid: true
-    }),
-    summary: createUsedSummary(BUILD_WALL_TOOL_DEFINITION.label),
-    tileMutations: [createTileMutation(targetPosition, "earthWall", wallDurability)],
-    tools: consumeActiveTool(context)
+    })
   });
 }
 

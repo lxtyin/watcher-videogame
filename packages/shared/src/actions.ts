@@ -1,9 +1,11 @@
 import { getToolAvailability, getToolDefinition } from "./tools";
 import type { ActionResolution, ToolActionContext } from "./types";
+import { attachStateTransitionPresentation } from "./rules/actionResolution";
 import {
-  attachStateTransitionPresentation,
-  buildBlockedResolution
-} from "./rules/actionResolution";
+  createToolActionDraft,
+  finalizeToolActionDraft,
+  setDraftBlocked
+} from "./rules/actionDraft";
 import { TOOL_EXECUTORS } from "./rules/toolExecutors";
 
 export {
@@ -18,16 +20,15 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
   const availability = getToolAvailability(context.activeTool, context.tools);
 
   if (!availability.usable) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
-      reason: availability.reason ?? "Tool cannot be used right now",
-      tools: context.tools
-    });
+    const blockedDraft = createToolActionDraft(context);
+    setDraftBlocked(blockedDraft, availability.reason ?? "Tool cannot be used right now");
+    return finalizeToolActionDraft(blockedDraft);
   }
 
   const toolDefinition = getToolDefinition(context.activeTool.toolId);
-  const executedResolution = TOOL_EXECUTORS[context.activeTool.toolId](context);
+  const draft = createToolActionDraft(context);
+  TOOL_EXECUTORS[context.activeTool.toolId](draft, context);
+  const executedResolution = finalizeToolActionDraft(draft);
   const definitionAdjustedResolution =
     executedResolution.kind === "applied" && toolDefinition.endsTurnOnUse
       ? {

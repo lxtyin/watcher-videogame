@@ -3,13 +3,16 @@ import { createSummonUpsertMutation, hasSummonAtPosition } from "../summons";
 import { createDragTileInteraction } from "../toolInteraction";
 import {
   buildSummonInstanceId,
-  buildAppliedResolution,
-  buildBlockedResolution,
   consumeActiveTool,
   requireTileSelection
 } from "../rules/actionResolution";
+import {
+  appendDraftSummonMutations,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
 import { isLandablePosition } from "../rules/spatial";
-import type { ActionResolution } from "../types";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
@@ -31,89 +34,76 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: true
 };
 
-function resolveDeployWalletTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveDeployWalletTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const targetPosition = requireTileSelection(context);
   const targetRange = getToolParamValue(context.activeTool, "targetRange", 2);
   const selectionTiles = collectAdjacentSelectionTiles(context.board, context.actor.position, targetRange);
 
   if (!targetPosition) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Deploy Wallet needs a target tile", {
       preview: createToolPreview(context, {
         selectionTiles,
         valid: false
-      }),
-      reason: "Deploy Wallet needs a target tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   if (
     Math.abs(targetPosition.x - context.actor.position.x) > targetRange ||
     Math.abs(targetPosition.y - context.actor.position.y) > targetRange
   ) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Target tile is outside the deployment range", {
       preview: createToolPreview(context, {
-        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
-      }),
-      reason: "Target tile is outside the deployment range",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   if (!isLandablePosition(context.board, targetPosition)) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Deploy Wallet needs a landable tile", {
       preview: createToolPreview(context, {
         effectTiles: [targetPosition],
         selectionTiles,
         valid: false
-      }),
-      reason: "Deploy Wallet needs a landable tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
   if (hasSummonAtPosition(context.summons, targetPosition)) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Target tile already contains a summon", {
       preview: createToolPreview(context, {
         effectTiles: [targetPosition],
         selectionTiles,
         valid: false
-      }),
-      reason: "Target tile already contains a summon",
-      tools: context.tools
+      })
     });
+    return;
   }
 
-  return buildAppliedResolution({
-    actor: context.actor,
-    endsTurn: true,
-    nextToolDieSeed: context.toolDieSeed,
-    path: [],
-    preview: createToolPreview(context, {
-      effectTiles: [targetPosition],
-      selectionTiles,
-      valid: true
-    }),
-    summary: createUsedSummary(DEPLOY_WALLET_TOOL_DEFINITION.label),
-    summonMutations: [
+  appendDraftSummonMutations(draft, [
       createSummonUpsertMutation(
         buildSummonInstanceId(context.activeTool, "wallet"),
         "wallet",
         context.actor.id,
         targetPosition
       )
-    ],
-    tools: consumeActiveTool(context)
+    ]);
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  setDraftApplied(draft, createUsedSummary(DEPLOY_WALLET_TOOL_DEFINITION.label), {
+    endsTurn: true,
+    path: [],
+    preview: createToolPreview(context, {
+      effectTiles: [targetPosition],
+      selectionTiles,
+      valid: true
+    })
   });
 }
 

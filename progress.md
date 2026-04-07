@@ -72,6 +72,32 @@
 
 ## 2026-04-07
 
+- 将 shared 主链重构为自顶向下的 draft 传递模型：
+  - 新增 `packages/shared/src/rules/actionDraft.ts`
+  - `resolveToolAction()` 改为先创建 `ToolActionDraft`，由 tool executor 直接修改 draft，最后统一 finalize 成 `ActionResolution`
+  - 删除 shared 主链里旧的 `buildAppliedResolution / buildBlockedResolution` patch-builder 依赖
+- 重写 shared 底层执行链：
+  - `packages/shared/src/rules/movementSystem.ts` 改为输入 draft 并直接修改 draft
+  - `packages/shared/src/terrain.ts` 与 `packages/shared/src/summons.ts` 改为 mutator 触发器，不再返回 patch
+  - turn-start stop 也改为复用同一条 draft 触发链
+- 收回火箭核心实现：
+  - 删除过渡层 `packages/shared/src/rules/rocketResolution.ts`
+  - 在 `packages/shared/src/tool-modules/rocket.ts` 内部定义 `resolveRocketCore(draft, spec)`
+  - `cannon` 地形直接复用 `resolveRocketCore()`，不再维护独立火箭结算
+- 迁移所有 shared tool executor 到 draft 模式：
+  - `movement / jump / brake / teleport / rocket / hookshot / basketball / bombThrow`
+  - `buildWall / deployWallet / dash / balance / awmShoot / blazePrepareBomb / volatySkipToolDie`
+- 处理 presentation 时序的新边界：
+  - 增加 draft presentation mark/delta 提取
+  - 工具在组装自身 motion/reaction 时，会把触发器在 draft 中产生的表现事件按工具时序重新拼回去
+  - 修复了 `movement -> cannon` 这类链式触发时 latestPresentation 被覆盖的问题
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`
+  - 结果：`25/25` golden cases passed
+
 - 重组 client 工具资源目录，按 `packages/client/src/game/assets/tools/<tool-id>/` 聚合方向箭头、投射物、爆炸与预览素材，并补一个 `shared/` 放通用 preview asset。
 - 将 `BoardScene` 的工具预览收敛成两层：
   - `selectionTiles -> BoardTileVisual` 的统一可选范围高亮

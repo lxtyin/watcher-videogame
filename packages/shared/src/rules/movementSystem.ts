@@ -1,26 +1,23 @@
 import type {
   ActionPresentationEvent,
   AffectedPlayerMove,
-  BoardDefinition,
-  BoardPlayerState,
-  BoardSummonState,
   Direction,
   GridPosition,
   ModifierId,
   MovementActor,
   MovementDescriptor,
   PlayerTagMap,
-  ResolvedActorState,
-  SummonMutation,
-  TileMutation,
-  TriggeredSummonEffect,
-  TriggeredTerrainEffect,
-  TurnToolSnapshot
+  ResolvedActorState
 } from "../types";
 import { isWithinBoard } from "../board";
 import { clonePlayerTags } from "../playerTags";
 import { resolvePassThroughSummonEffects, resolveStopSummonEffects } from "../summons";
 import { resolvePassThroughTerrainEffect, resolveStopTerrainEffect } from "../terrain";
+import type { ResolutionDraft } from "./actionDraft";
+import {
+  appendDraftAffectedPlayerMove,
+  applyResolvedPlayerStateToDraft
+} from "./actionDraft";
 import {
   createTileMutation,
   getTileAfterMutations,
@@ -28,15 +25,6 @@ import {
   resolveLeapLanding,
   stepPosition
 } from "./spatial";
-
-interface MovementSystemContext {
-  activeTool: TurnToolSnapshot | null;
-  actorId: string;
-  board: BoardDefinition;
-  players: BoardPlayerState[];
-  sourceId: string;
-  summons: BoardSummonState[];
-}
 
 interface MovementSubject {
   characterId: MovementActor["characterId"];
@@ -51,10 +39,7 @@ interface MovementSubject {
 interface MovementRuntimeOptions {
   movement: MovementDescriptor;
   player: MovementSubject;
-  priorSummonMutations?: SummonMutation[];
-  priorTileMutations?: TileMutation[];
-  toolDieSeed: number;
-  tools: TurnToolSnapshot[];
+  trackAffectedPlayerReason?: string;
 }
 
 interface LinearMovementOptions extends MovementRuntimeOptions {
@@ -73,31 +58,17 @@ interface TeleportMovementOptions extends MovementRuntimeOptions {
 }
 
 export interface MovementSystemResolution {
-  affectedPlayers: AffectedPlayerMove[];
   actor: ResolvedActorState;
-  nextToolDieSeed: number;
   path: GridPosition[];
   presentationEvents: ActionPresentationEvent[];
   stopReason: string;
-  summonMutations: SummonMutation[];
-  tileMutations: TileMutation[];
-  tools: TurnToolSnapshot[];
-  triggeredSummonEffects: TriggeredSummonEffect[];
-  triggeredTerrainEffects: TriggeredTerrainEffect[];
 }
 
 interface MutableMovementState {
-  affectedPlayers: AffectedPlayerMove[];
   direction: Direction | null;
-  nextToolDieSeed: number;
   player: MovementSubject;
   presentationEvents: ActionPresentationEvent[];
   remainingMovePoints: number | null;
-  summonMutations: SummonMutation[];
-  tileMutations: TileMutation[];
-  tools: TurnToolSnapshot[];
-  triggeredSummonEffects: TriggeredSummonEffect[];
-  triggeredTerrainEffects: TriggeredTerrainEffect[];
 }
 
 function clonePosition(position: GridPosition): GridPosition {
@@ -121,226 +92,46 @@ function cloneSubject(player: MovementSubject): MovementSubject {
 
 function buildState(
   player: MovementSubject,
-  tools: TurnToolSnapshot[],
-  toolDieSeed: number,
   direction: Direction | null,
   remainingMovePoints: number | null
 ): MutableMovementState {
   return {
-    affectedPlayers: [],
     direction,
-    nextToolDieSeed: toolDieSeed,
     player: cloneSubject(player),
     presentationEvents: [],
-    remainingMovePoints,
-    summonMutations: [],
-    tileMutations: [],
-    tools,
-    triggeredSummonEffects: [],
-    triggeredTerrainEffects: []
+    remainingMovePoints
   };
 }
 
-function applyToolStatePatch(
-  state: MutableMovementState,
-  patch: {
-    nextDirection?: Direction;
-    nextModifiers?: ModifierId[];
-    nextRemainingMovePoints?: number;
-    nextTags?: PlayerTagMap;
-    nextToolDieSeed?: number;
-    nextTools?: TurnToolSnapshot[];
-    nextTurnFlags?: MovementActor["turnFlags"];
-  }
+function syncMovementStatePlayerFromDraft(
+  draft: ResolutionDraft,
+  player: MovementSubject
 ): void {
-  if (patch.nextTags) {
-    state.player.tags = clonePlayerTags(patch.nextTags);
+  const livePlayer =
+    player.id === draft.actorId
+      ? draft.actor
+      : draft.playersById.get(player.id);
+
+  if (!livePlayer) {
+    return;
   }
 
-  if (patch.nextModifiers) {
-    state.player.modifiers = [...patch.nextModifiers];
-  }
-
-  if (patch.nextDirection) {
-    state.direction = patch.nextDirection;
-  }
-
-  if (typeof patch.nextRemainingMovePoints === "number") {
-    state.remainingMovePoints = patch.nextRemainingMovePoints;
-  }
-
-  if (typeof patch.nextToolDieSeed === "number") {
-    state.nextToolDieSeed = patch.nextToolDieSeed;
-  }
-
-  if (patch.nextTools) {
-    state.tools = patch.nextTools;
-  }
-
-  if (patch.nextTurnFlags) {
-    state.player.turnFlags = [...patch.nextTurnFlags];
-  }
-}
-
-function appendEffectArrays(
-  state: MutableMovementState,
-  patch: {
-    affectedPlayers?: AffectedPlayerMove[];
-    presentationEvents?: ActionPresentationEvent[];
-    summonMutations?: SummonMutation[];
-    tileMutations?: TileMutation[];
-    triggeredSummonEffects?: TriggeredSummonEffect[];
-    triggeredTerrainEffects?: TriggeredTerrainEffect[];
-  }
-): void {
-  if (patch.affectedPlayers?.length) {
-    state.affectedPlayers.push(...patch.affectedPlayers);
-  }
-
-  if (patch.presentationEvents?.length) {
-    state.presentationEvents.push(...patch.presentationEvents);
-  }
-
-  if (patch.tileMutations?.length) {
-    state.tileMutations.push(...patch.tileMutations);
-  }
-
-  if (patch.summonMutations?.length) {
-    state.summonMutations.push(...patch.summonMutations);
-  }
-
-  if (patch.triggeredSummonEffects?.length) {
-    state.triggeredSummonEffects.push(...patch.triggeredSummonEffects);
-  }
-
-  if (patch.triggeredTerrainEffects?.length) {
-    state.triggeredTerrainEffects.push(...patch.triggeredTerrainEffects);
-  }
-}
-
-function applyStopPatch(
-  state: MutableMovementState,
-  patch: {
-    nextModifiers?: ModifierId[];
-    nextPosition?: GridPosition;
-    nextTags?: PlayerTagMap;
-    nextToolDieSeed?: number;
-    nextTools?: TurnToolSnapshot[];
-    nextTurnFlags?: MovementActor["turnFlags"];
-  }
-): void {
-  applyToolStatePatch(state, patch);
-
-  if (patch.nextPosition) {
-    state.player.position = clonePosition(patch.nextPosition);
-  }
-}
-
-function applySummonMutationsToMap(
-  summonsById: Map<string, BoardSummonState>,
-  summonMutations: SummonMutation[]
-): void {
-  for (const mutation of summonMutations) {
-    if (mutation.kind === "remove") {
-      summonsById.delete(mutation.instanceId);
-      continue;
-    }
-
-    summonsById.set(mutation.instanceId, {
-      instanceId: mutation.instanceId,
-      ownerId: mutation.ownerId,
-      position: clonePosition(mutation.position),
-      summonId: mutation.summonId
-    });
-  }
-}
-
-function buildLiveSummons(
-  context: MovementSystemContext,
-  priorSummonMutations: SummonMutation[],
-  localSummonMutations: SummonMutation[]
-): BoardSummonState[] {
-  const summonsById = new Map(
-    context.summons.map((summon) => [summon.instanceId, summon] as const)
-  );
-
-  applySummonMutationsToMap(summonsById, priorSummonMutations);
-  applySummonMutationsToMap(summonsById, localSummonMutations);
-  return [...summonsById.values()];
-}
-
-function buildLivePlayers(
-  context: MovementSystemContext,
-  state: MutableMovementState
-): BoardPlayerState[] {
-  const playersById = new Map(
-    context.players.map((player) => [
-      player.id,
-      {
-        boardVisible: player.boardVisible,
-        characterId: player.characterId,
-        id: player.id,
-        modifiers: [...player.modifiers],
-        position: clonePosition(player.position),
-        spawnPosition: clonePosition(player.spawnPosition),
-        tags: clonePlayerTags(player.tags),
-        turnFlags: [...player.turnFlags]
-      } satisfies BoardPlayerState
-    ] as const)
-  );
-
-  const actorEntry = playersById.get(state.player.id);
-
-  if (actorEntry) {
-    actorEntry.modifiers = [...state.player.modifiers];
-    actorEntry.position = clonePosition(state.player.position);
-    actorEntry.spawnPosition = clonePosition(state.player.spawnPosition);
-    actorEntry.tags = clonePlayerTags(state.player.tags);
-    actorEntry.turnFlags = [...state.player.turnFlags];
-  }
-
-  for (const affectedPlayer of state.affectedPlayers) {
-    const playerEntry = playersById.get(affectedPlayer.playerId);
-
-    if (!playerEntry) {
-      continue;
-    }
-
-    playerEntry.position = clonePosition(affectedPlayer.target);
-
-    if (affectedPlayer.modifiers) {
-      playerEntry.modifiers = [...affectedPlayer.modifiers];
-    }
-
-    if (affectedPlayer.tags) {
-      playerEntry.tags = clonePlayerTags(affectedPlayer.tags);
-    }
-
-    if (affectedPlayer.turnFlags) {
-      playerEntry.turnFlags = [...affectedPlayer.turnFlags];
-    }
-  }
-
-  return [...playersById.values()];
-}
-
-function buildTileMutationSet(
-  priorTileMutations: TileMutation[],
-  localTileMutations: TileMutation[]
-): TileMutation[] {
-  return [...priorTileMutations, ...localTileMutations];
+  player.characterId = livePlayer.characterId;
+  player.modifiers = [...livePlayer.modifiers];
+  player.position = clonePosition(livePlayer.position);
+  player.spawnPosition = clonePosition(livePlayer.spawnPosition);
+  player.tags = clonePlayerTags(livePlayer.tags);
+  player.turnFlags = [...livePlayer.turnFlags];
 }
 
 function runPassThroughTriggers(
-  context: MovementSystemContext,
+  draft: ResolutionDraft,
   state: MutableMovementState,
-  movement: MovementDescriptor,
-  priorTileMutations: TileMutation[],
-  priorSummonMutations: SummonMutation[]
+  movement: MovementDescriptor
 ): void {
   const tile = getTileAfterMutations(
-    context.board,
-    buildTileMutationSet(priorTileMutations, state.tileMutations),
+    draft.board,
+    draft.tileMutations,
     state.player.position
   );
 
@@ -348,137 +139,101 @@ function runPassThroughTriggers(
     return;
   }
 
-  const terrainResolution = resolvePassThroughTerrainEffect({
-    ...(state.direction ? { direction: state.direction } : {}),
+  applyResolvedPlayerStateToDraft(draft, state.player);
+
+  resolvePassThroughTerrainEffect(draft, {
     movement,
-    playerId: state.player.id,
-    position: state.player.position,
-    ...(typeof state.remainingMovePoints === "number"
-      ? { remainingMovePoints: state.remainingMovePoints }
-      : {}),
+    state,
     tile
   });
 
-  applyToolStatePatch(state, terrainResolution);
-  appendEffectArrays(state, terrainResolution);
-
-  const summonResolution = resolvePassThroughSummonEffects({
+  resolvePassThroughSummonEffects(draft, {
+    ...(state.direction ? { direction: state.direction } : {}),
     movement,
     player: state.player,
     position: state.player.position,
-    sourceId: context.sourceId,
-    summons: buildLiveSummons(context, priorSummonMutations, state.summonMutations),
-    toolDieSeed: state.nextToolDieSeed,
-    tools: state.tools,
-    ...(state.direction ? { direction: state.direction } : {}),
     ...(typeof state.remainingMovePoints === "number"
       ? { remainingMovePoints: state.remainingMovePoints }
       : {})
   });
 
-  applyToolStatePatch(state, summonResolution);
-  appendEffectArrays(state, summonResolution);
+  syncMovementStatePlayerFromDraft(draft, state.player);
 }
 
 function runStopTriggers(
-  context: MovementSystemContext,
+  draft: ResolutionDraft,
   state: MutableMovementState,
-  movement: MovementDescriptor | null,
-  priorTileMutations: TileMutation[],
-  priorSummonMutations: SummonMutation[]
+  movement: MovementDescriptor | null
 ): void {
-  const liveSummons = buildLiveSummons(context, priorSummonMutations, state.summonMutations);
-  const summonResolution = resolveStopSummonEffects({
+  applyResolvedPlayerStateToDraft(draft, state.player);
+
+  resolveStopSummonEffects(draft, {
     movement,
     player: state.player,
-    position: state.player.position,
-    sourceId: context.sourceId,
-    summons: liveSummons,
-    toolDieSeed: state.nextToolDieSeed,
-    tools: state.tools
+    position: state.player.position
   });
 
-  applyStopPatch(state, summonResolution);
-  appendEffectArrays(state, summonResolution);
+  const tile = getTileAfterMutations(draft.board, draft.tileMutations, state.player.position);
 
-  const tile = getTileAfterMutations(
-    context.board,
-    buildTileMutationSet(priorTileMutations, state.tileMutations),
-    state.player.position
-  );
-
-  if (!tile) {
-    return;
-  }
-
-  const terrainResolution = resolveStopTerrainEffect({
-    board: context.board,
-    movement,
-    players: buildLivePlayers(context, state),
-    player: {
-      characterId: state.player.characterId,
-      id: state.player.id,
-      isActor: state.player.id === context.actorId,
-      modifiers: [...state.player.modifiers],
+  if (tile) {
+    resolveStopTerrainEffect(draft, {
+      movement,
+      player: state.player,
       position: state.player.position,
-      spawnPosition: state.player.spawnPosition,
-      tags: state.player.tags,
-      turnFlags: [...state.player.turnFlags]
-    },
-    sourceId: context.sourceId,
-    summons: liveSummons,
-    tile,
-    toolDieSeed: state.nextToolDieSeed,
-    tools: state.tools
-  });
-
-  if (!terrainResolution) {
-    return;
+      tile
+    });
   }
 
-  applyStopPatch(state, terrainResolution);
-  appendEffectArrays(state, terrainResolution);
+  syncMovementStatePlayerFromDraft(draft, state.player);
 }
 
 function buildResolution(
+  draft: ResolutionDraft,
   state: MutableMovementState,
+  movement: MovementDescriptor,
   path: GridPosition[],
-  stopReason: string
+  stopReason: string,
+  trackAffectedPlayerReason: string | undefined,
+  startPosition: GridPosition
 ): MovementSystemResolution {
+  if (path.length) {
+    applyResolvedPlayerStateToDraft(draft, state.player);
+
+    if (trackAffectedPlayerReason) {
+      appendDraftAffectedPlayerMove(draft, {
+        movement,
+        modifiers: [...state.player.modifiers],
+        path: path.map(clonePosition),
+        playerId: state.player.id,
+        reason: trackAffectedPlayerReason,
+        startPosition: clonePosition(startPosition),
+        target: clonePosition(state.player.position),
+        tags: clonePlayerTags(state.player.tags),
+        turnFlags: [...state.player.turnFlags]
+      });
+    }
+  }
+
   return {
-    affectedPlayers: state.affectedPlayers,
     actor: {
       modifiers: [...state.player.modifiers],
       position: clonePosition(state.player.position),
       tags: clonePlayerTags(state.player.tags),
       turnFlags: [...state.player.turnFlags]
     },
-    nextToolDieSeed: state.nextToolDieSeed,
-    path,
+    path: path.map(clonePosition),
     presentationEvents: state.presentationEvents,
-    stopReason,
-    summonMutations: state.summonMutations,
-    tileMutations: state.tileMutations,
-    tools: state.tools,
-    triggeredSummonEffects: state.triggeredSummonEffects,
-    triggeredTerrainEffects: state.triggeredTerrainEffects
+    stopReason
   };
 }
 
 // Grounded displacement powers translate and drag style movement with immediate board triggers.
 export function resolveLinearDisplacement(
-  context: MovementSystemContext,
+  draft: ResolutionDraft,
   options: LinearMovementOptions
 ): MovementSystemResolution {
-  const state = buildState(
-    options.player,
-    options.tools,
-    options.toolDieSeed,
-    options.direction,
-    options.movePoints
-  );
-  const priorTileMutations = options.priorTileMutations ?? [];
-  const priorSummonMutations = options.priorSummonMutations ?? [];
+  const state = buildState(options.player, options.direction, options.movePoints);
+  const startPosition = clonePosition(options.player.position);
   const path: GridPosition[] = [];
   const maxSteps = options.maxSteps ?? Number.POSITIVE_INFINITY;
   let stepsTaken = 0;
@@ -494,16 +249,12 @@ export function resolveLinearDisplacement(
 
     const target = stepPosition(state.player.position, direction);
 
-    if (!isWithinBoard(context.board, target)) {
+    if (!isWithinBoard(draft.board, target)) {
       stopReason = "Board edge";
       break;
     }
 
-    const tile = getTileAfterMutations(
-      context.board,
-      buildTileMutationSet(priorTileMutations, state.tileMutations),
-      target
-    );
+    const tile = getTileAfterMutations(draft.board, draft.tileMutations, target);
 
     if (!tile) {
       stopReason = "Missing tile";
@@ -528,72 +279,105 @@ export function resolveLinearDisplacement(
     stepsTaken += 1;
 
     if (tile.type === "earthWall") {
-      state.tileMutations.push(createTileMutation(target, "floor", 0));
+      draft.tileMutations.push(createTileMutation(target, "floor", 0));
     }
 
-    runPassThroughTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
+    runPassThroughTriggers(draft, state, options.movement);
   }
 
   if (path.length) {
-    runStopTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
+    runStopTriggers(draft, state, options.movement);
   }
 
-  return buildResolution(state, path, stopReason);
+  return buildResolution(
+    draft,
+    state,
+    options.movement,
+    path,
+    stopReason,
+    options.trackAffectedPlayerReason,
+    startPosition
+  );
 }
 
 // Leap displacement resolves a landing path, then fires pass-through and stop triggers with leap metadata.
 export function resolveLeapDisplacement(
-  context: MovementSystemContext,
+  draft: ResolutionDraft,
   options: LeapMovementOptions
 ): MovementSystemResolution {
-  const state = buildState(
-    options.player,
-    options.tools,
-    options.toolDieSeed,
-    options.direction,
-    null
-  );
-  const priorTileMutations = options.priorTileMutations ?? [];
-  const priorSummonMutations = options.priorSummonMutations ?? [];
+  const state = buildState(options.player, options.direction, null);
+  const startPosition = clonePosition(options.player.position);
   const leap = resolveLeapLanding(
-    context.board,
+    draft.board,
     options.player.position,
     options.direction,
     options.maxDistance,
-    priorTileMutations
+    draft.tileMutations
   );
 
   if (!leap.landing) {
-    return buildResolution(state, leap.path, "No landing tile");
+    return buildResolution(
+      draft,
+      state,
+      options.movement,
+      leap.path,
+      "No landing tile",
+      options.trackAffectedPlayerReason,
+      startPosition
+    );
   }
 
   for (const position of leap.path) {
     state.player.position = position;
-    runPassThroughTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
+    runPassThroughTriggers(draft, state, options.movement);
   }
 
-  runStopTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
-  return buildResolution(state, leap.path, "Movement ended");
+  runStopTriggers(draft, state, options.movement);
+
+  return buildResolution(
+    draft,
+    state,
+    options.movement,
+    leap.path,
+    "Movement ended",
+    options.trackAffectedPlayerReason,
+    startPosition
+  );
 }
 
 // Teleport displacement treats the destination as a zero-length path with pass-through plus stop semantics.
 export function resolveTeleportDisplacement(
-  context: MovementSystemContext,
+  draft: ResolutionDraft,
   options: TeleportMovementOptions
 ): MovementSystemResolution {
-  const state = buildState(options.player, options.tools, options.toolDieSeed, null, null);
-  const priorTileMutations = options.priorTileMutations ?? [];
-  const priorSummonMutations = options.priorSummonMutations ?? [];
+  const state = buildState(options.player, null, null);
+  const startPosition = clonePosition(options.player.position);
 
-  if (!isLandablePosition(context.board, options.targetPosition, priorTileMutations)) {
-    return buildResolution(state, [], "Teleport target is not landable");
+  if (!isLandablePosition(draft.board, options.targetPosition, draft.tileMutations)) {
+    return buildResolution(
+      draft,
+      state,
+      options.movement,
+      [],
+      "Teleport target is not landable",
+      options.trackAffectedPlayerReason,
+      startPosition
+    );
   }
 
   state.player.position = clonePosition(options.targetPosition);
   const path = [clonePosition(options.targetPosition)];
 
-  runPassThroughTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
-  runStopTriggers(context, state, options.movement, priorTileMutations, priorSummonMutations);
+  runPassThroughTriggers(draft, state, options.movement);
+  runStopTriggers(draft, state, options.movement);
 
-  return buildResolution(state, path, "Movement ended");
+  return buildResolution(
+    draft,
+    state,
+    options.movement,
+    path,
+    "Movement ended",
+    options.trackAffectedPlayerReason,
+    startPosition
+  );
 }

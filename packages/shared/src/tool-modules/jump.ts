@@ -1,9 +1,15 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
-import type { ActionResolution } from "../types";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
@@ -13,8 +19,6 @@ import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  appendToolPresentationEvents,
-  buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
   createToolPreview,
@@ -44,80 +48,66 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveJumpTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const direction = requireDirection(context);
   const jumpDistance = getToolParamValue(context.activeTool, "jumpDistance", 2);
   const movement = createToolMovementDescriptor(context, JUMP_TOOL_DEFINITION, "leap");
-  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  const presentationMark = markDraftPresentation(draft);
   const resolution = direction
-    ? resolveLeapDisplacement(buildMovementSystemContext(context), {
-        direction,
-        maxDistance: jumpDistance,
-        movement,
-        player: toMovementSubject(context.actor),
-        toolDieSeed: context.toolDieSeed,
-        tools: consumeActiveTool(context)
-      })
+    ? (() => {
+        setDraftToolInventory(draft, consumeActiveTool(context));
+        return resolveLeapDisplacement(draft, {
+          direction,
+          maxDistance: jumpDistance,
+          movement,
+          player: toMovementSubject(context.actor)
+        });
+      })()
     : null;
 
   if (!direction || !resolution) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Jump needs a direction", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "Jump needs a direction",
-      tools: context.tools
     });
+    return;
   }
 
   if (!resolution.path.length) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftToolInventory(draft, context.tools);
+    setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,
-      preview: createToolPreview(context, { valid: false }),
-      reason: resolution.stopReason,
-      tools: context.tools
+      preview: createToolPreview(context, { valid: false })
     });
+    return;
   }
 
+  const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
   const actorPresentation = createActorMotionPresentation(context, "actor-jump", resolution.path, "arc");
 
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      position: resolution.actor.position,
-      tags: resolution.actor.tags,
-      turnFlags: resolution.actor.turnFlags
-    },
+  setDraftActionPresentation(draft, actorPresentation);
+  appendDraftPresentationEvents(
+    draft,
+    offsetPresentationEvents(
+      [...triggerEvents, ...resolution.presentationEvents],
+      actorPresentation?.durationMs ?? 0
+    )
+  );
+  setDraftApplied(draft, createUsedSummary(JUMP_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(
       context.actor.id,
       context.actor.position,
       resolution.path,
       movement
     ),
-    affectedPlayers: resolution.affectedPlayers,
-    nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: appendToolPresentationEvents(
-      context,
-      actorPresentation,
-      offsetPresentationEvents(resolution.presentationEvents, actorPresentation?.durationMs ?? 0)
-    ),
     preview: createToolPreview(context, {
-      // actorPath: resolution.path,
-      actorTarget: resolution.actor.position,
-      affectedPlayers: resolution.affectedPlayers,
-      // effectTiles: resolution.path,
-      // selectionTiles,
+      actorTarget: draft.actor.position,
+      affectedPlayers: draft.affectedPlayers,
       valid: true
-    }),
-    summonMutations: resolution.summonMutations,
-    summary: createUsedSummary(JUMP_TOOL_DEFINITION.label),
-    tileMutations: resolution.tileMutations,
-    tools: resolution.tools,
-    triggeredSummonEffects: resolution.triggeredSummonEffects,
-    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+    })
   });
 }
 

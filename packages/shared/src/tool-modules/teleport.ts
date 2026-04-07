@@ -1,9 +1,12 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragTileInteraction } from "../toolInteraction";
-import type { ActionResolution } from "../types";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  appendDraftPresentationEvents,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireTileSelection
 } from "../rules/actionResolution";
@@ -12,8 +15,6 @@ import { resolveTeleportDisplacement } from "../rules/movementSystem";
 import { collectBoardSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  appendToolPresentationEvents,
-  buildMovementSystemContext,
   createToolMovementDescriptor,
   createToolPreview,
   createUsedSummary,
@@ -39,77 +40,56 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveTeleportTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const targetPosition = requireTileSelection(context);
   const movement = createToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "teleport");
-  // const selectionTiles = collectBoardSelectionTiles(context.board, context.actor.position);
 
   if (!targetPosition) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Teleport needs a target tile", {
       preview: createToolPreview(context, {
-        // selectionTiles,
         valid: false
-      }),
-      reason: "Teleport needs a target tile",
-      tools: context.tools
+      })
     });
+    return;
   }
 
-  const resolution = resolveTeleportDisplacement(buildMovementSystemContext(context), {
+  setDraftToolInventory(draft, consumeActiveTool(context));
+  const resolution = resolveTeleportDisplacement(draft, {
     movement,
     player: toMovementSubject(context.actor),
-    targetPosition,
-    toolDieSeed: context.toolDieSeed,
-    tools: consumeActiveTool(context)
+    targetPosition
   });
 
   if (!resolution.path.length) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftToolInventory(draft, context.tools);
+    setDraftBlocked(draft, resolution.stopReason, {
       preview: createToolPreview(context, {
         effectTiles: [targetPosition],
-        // selectionTiles,
         valid: false
-      }),
-      reason: resolution.stopReason,
-      tools: context.tools
+      })
     });
+    return;
   }
 
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      position: resolution.actor.position,
-      tags: resolution.actor.tags,
-      turnFlags: resolution.actor.turnFlags
-    },
+  appendDraftPresentationEvents(draft, resolution.presentationEvents);
+  setDraftApplied(draft, createUsedSummary(TELEPORT_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(
       context.actor.id,
       context.actor.position,
       resolution.path,
       movement
     ),
-    affectedPlayers: resolution.affectedPlayers,
-    nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: appendToolPresentationEvents(context, null, resolution.presentationEvents),
     preview: createToolPreview(context, {
       actorPath: resolution.path,
-      actorTarget: resolution.actor.position,
-      affectedPlayers: resolution.affectedPlayers,
+      actorTarget: draft.actor.position,
+      affectedPlayers: draft.affectedPlayers,
       effectTiles: [targetPosition],
-      // selectionTiles,
       valid: true
-    }),
-    summonMutations: resolution.summonMutations,
-    summary: createUsedSummary(TELEPORT_TOOL_DEFINITION.label),
-    tileMutations: resolution.tileMutations,
-    tools: resolution.tools,
-    triggeredSummonEffects: resolution.triggeredSummonEffects,
-    triggeredTerrainEffects: resolution.triggeredTerrainEffects
+    })
   });
 }
 

@@ -45,17 +45,6 @@ export function getToolParamValue(
   return typeof value === "number" ? value : fallback;
 }
 
-export function buildMovementSystemContext(context: ToolActionContext) {
-  return {
-    activeTool: context.activeTool,
-    actorId: context.actor.id,
-    board: context.board,
-    players: context.players,
-    sourceId: context.activeTool.instanceId,
-    summons: context.summons
-  };
-}
-
 export function toMovementSubject(actor: MovementActor | ToolActionContext["players"][number]) {
   return {
     characterId: actor.characterId,
@@ -135,19 +124,6 @@ export function createActorMotionPresentation(
       motionStyle
     )
     ].flatMap((event) => (event ? [event] : []))),
-    context.actor.id,
-    context.activeTool.toolId,
-    extraEvents
-  );
-}
-
-export function appendToolPresentationEvents(
-  context: ToolActionContext,
-  presentation: ActionPresentation | null,
-  extraEvents: ActionPresentationEvent[]
-): ActionPresentation | null {
-  return appendPresentationEvents(
-    presentation,
     context.actor.id,
     context.activeTool.toolId,
     extraEvents

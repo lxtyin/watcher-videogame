@@ -2,10 +2,13 @@ import type { ToolContentDefinition } from "../content/schema";
 import { getPlayerTagNumber, setPlayerTagValue } from "../playerTags";
 import { FARTHER_BANKED_MOVEMENT_TAG } from "../skills";
 import { createModalChoiceInteraction } from "../toolInteraction";
-import type { ActionResolution } from "../types";
 import {
-  buildAppliedResolution,
-  buildBlockedResolution,
+  setDraftActorTags,
+  setDraftApplied,
+  setDraftBlocked,
+  setDraftToolInventory,
+} from "../rules/actionDraft";
+import {
   consumeActiveTool,
   requireChoiceSelection
 } from "../rules/actionResolution";
@@ -45,38 +48,32 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBalanceTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
+function resolveBalanceTool(
+  draft: Parameters<ToolModule["execute"]>[0],
+  context: Parameters<ToolModule["execute"]>[1]
+): void {
   const choiceId = requireChoiceSelection(context);
   const totalMovePoints = getTotalMovementPoints(context.tools);
 
   if (!choiceId) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Balance needs a choice", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "Balance needs a choice",
-      tools: context.tools
     });
+    return;
   }
 
   if (!BALANCE_TOOL_DEFINITION.choices?.some((choice) => choice.id === choiceId)) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "Unknown balance choice", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "Unknown balance choice",
-      tools: context.tools
     });
+    return;
   }
 
   if (totalMovePoints < 1) {
-    return buildBlockedResolution({
-      actor: context.actor,
-      nextToolDieSeed: context.toolDieSeed,
+    setDraftBlocked(draft, "No move points available", {
       preview: createToolPreview(context, { valid: false }),
-      reason: "No move points available",
-      tools: context.tools
     });
+    return;
   }
 
   let nextTools = consumeActiveTool(context);
@@ -86,16 +83,14 @@ function resolveBalanceTool(context: Parameters<ToolModule["execute"]>[0]): Acti
 
   nextTools = choiceId === "trim_and_bank" ? adjustMovementTools(nextTools, -1) : clearMovementTools(nextTools);
 
-  return buildAppliedResolution({
-    actor: {
-      ...context.actor,
-      tags: setPlayerTagValue(context.actor.tags, FARTHER_BANKED_MOVEMENT_TAG, nextBankedMovement)
-    },
-    nextToolDieSeed: context.toolDieSeed,
+  setDraftActorTags(
+    draft,
+    setPlayerTagValue(context.actor.tags, FARTHER_BANKED_MOVEMENT_TAG, nextBankedMovement)
+  );
+  setDraftToolInventory(draft, nextTools);
+  setDraftApplied(draft, createUsedSummary(BALANCE_TOOL_DEFINITION.label), {
     path: [],
-    preview: createToolPreview(context, { valid: true }),
-    summary: createUsedSummary(BALANCE_TOOL_DEFINITION.label),
-    tools: nextTools
+    preview: createToolPreview(context, { valid: true })
   });
 }
 
