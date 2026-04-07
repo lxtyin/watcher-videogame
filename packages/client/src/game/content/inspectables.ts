@@ -48,7 +48,13 @@ const TILE_INSPECTION_DEFINITIONS: Record<TileType, TileInspectionDefinition> = 
     title: "坑洞",
     thumbnailToken: "坑",
     accent: "#8b705f",
-    description: "停留在上方时会立即死亡并回到出生点。"
+    description: "危险地形，会把经过或停留的玩家卷入异常结算。"
+  },
+  cannon: {
+    title: "大炮",
+    thumbnailToken: "炮",
+    accent: "#8c6850",
+    description: "停留在上方时会立即向指定方向发射一枚火箭。"
   },
   lucky: {
     title: "幸运方块",
@@ -86,16 +92,17 @@ const DIRECTION_LABELS: Record<Direction, string> = {
 // Inspection content lives in one client registry so the scene can stay free of copy branches.
 export function describeTileInspection(tile: TileDefinition): SceneInspectionCardData {
   const definition = TILE_INSPECTION_DEFINITIONS[tile.type];
+  const directionalLabel =
+    (tile.type === "conveyor" || tile.type === "cannon") && tile.direction
+      ? `${DIRECTION_LABELS[tile.direction]}${tile.type === "cannon" ? "大炮" : "传送带"}`
+      : `坐标 (${tile.x}, ${tile.y})`;
 
   return {
     accent: definition.accent,
     description: definition.description,
-    direction: tile.type === "conveyor" ? tile.direction : null,
+    direction: tile.type === "conveyor" || tile.type === "cannon" ? tile.direction : null,
     kindLabel: "地形",
-    subtitle:
-      tile.type === "conveyor" && tile.direction
-        ? `${DIRECTION_LABELS[tile.direction]}传送带`
-        : `坐标 (${tile.x}, ${tile.y})`,
+    subtitle: directionalLabel,
     thumbnailToken: definition.thumbnailToken,
     title: definition.title
   };

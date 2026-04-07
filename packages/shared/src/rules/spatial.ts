@@ -258,8 +258,27 @@ export function traceProjectile(
   maxDistance: number,
   maxBounces: number
 ): ProjectileTraceResult {
+  return traceProjectileFromPosition(
+    {
+      board: context.board,
+      players: context.players
+    },
+    context.actor.position,
+    direction,
+    maxDistance,
+    maxBounces
+  );
+}
+
+export function traceProjectileFromPosition(
+  context: Pick<ToolActionContext, "board" | "players">,
+  startPosition: GridPosition,
+  direction: Direction,
+  maxDistance: number,
+  maxBounces: number
+): ProjectileTraceResult {
   let currentDirection = direction;
-  let currentPosition = context.actor.position;
+  let currentPosition = startPosition;
   let remainingBounces = maxBounces;
   const path: GridPosition[] = [];
 
@@ -310,7 +329,7 @@ export function traceProjectile(
         collision: {
           kind: "player",
           position: target,
-          previousPosition: path[path.length - 2] ?? context.actor.position,
+          previousPosition: path[path.length - 2] ?? startPosition,
           direction: currentDirection,
           players: hitPlayers
         }

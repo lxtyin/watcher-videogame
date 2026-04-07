@@ -3,6 +3,7 @@ export type TileType =
   | "wall"
   | "earthWall"
   | "pit"
+  | "cannon"
   | "lucky"
   | "conveyor"
   | "start"

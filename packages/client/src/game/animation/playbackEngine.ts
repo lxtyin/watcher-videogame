@@ -34,7 +34,7 @@ export interface ActivePlayerMotionPlayback {
 
 export interface ActiveProjectilePlayback {
   eventId: string;
-  ownerId: string;
+  ownerId: string | null;
   position: SampledGridPosition;
   projectileType: PresentationProjectileType;
   progress: number;

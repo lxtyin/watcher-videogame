@@ -9,7 +9,12 @@ import type {
 } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createSequentialInteraction } from "../toolInteraction";
-import { buildMotionPositions, createPlayerMotionEvent, createPresentation } from "../rules/actionPresentation";
+import {
+  buildMotionPositions,
+  createPlayerMotionEvent,
+  createPresentation,
+  offsetPresentationEvents
+} from "../rules/actionPresentation";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
@@ -174,6 +179,14 @@ function resolveBombThrowTool(context: Parameters<ToolModule["execute"]>[0]): Ac
       targetPlayer.id,
       buildMotionPositions(targetPlayer.position, pushResolution.path),
       "ground"
+    );
+
+    affectedPlayers.push(...pushResolution.affectedPlayers);
+    motionEvents.push(
+      ...offsetPresentationEvents(
+        pushResolution.presentationEvents,
+        (motionEvent?.startMs ?? 0) + (motionEvent?.durationMs ?? 0)
+      )
     );
 
     if (motionEvent) {

@@ -14,7 +14,7 @@ export const DEFAULT_BOARD_LAYOUT = [
   "#.pe#e..#",
   "#..^....#",
   "#..e....#",
-  "#...##..#",
+  "#D..##..#",
   "#....<..#",
   "#########"
 ] as const;
@@ -30,5 +30,6 @@ export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   "^": { type: "conveyor", direction: "up" },
   v: { type: "conveyor", direction: "down" },
   "<": { type: "conveyor", direction: "left" },
-  ">": { type: "conveyor", direction: "right" }
+  ">": { type: "conveyor", direction: "right" },
+  "D": { type: "cannon", direction: "down" },
 };

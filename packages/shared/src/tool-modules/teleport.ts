@@ -12,6 +12,7 @@ import { resolveTeleportDisplacement } from "../rules/movementSystem";
 import { collectBoardSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
+  appendToolPresentationEvents,
   buildMovementSystemContext,
   createToolMovementDescriptor,
   createToolPreview,
@@ -91,11 +92,14 @@ function resolveTeleportTool(context: Parameters<ToolModule["execute"]>[0]): Act
       resolution.path,
       movement
     ),
+    affectedPlayers: resolution.affectedPlayers,
     nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
+    presentation: appendToolPresentationEvents(context, null, resolution.presentationEvents),
     preview: createToolPreview(context, {
       actorPath: resolution.path,
       actorTarget: resolution.actor.position,
+      affectedPlayers: resolution.affectedPlayers,
       effectTiles: [targetPosition],
       // selectionTiles,
       valid: true

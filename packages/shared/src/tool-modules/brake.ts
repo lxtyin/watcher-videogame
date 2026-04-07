@@ -9,10 +9,12 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
+import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectAxisSelectionTiles } from "../rules/previewDescriptor";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  appendToolPresentationEvents,
   buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
@@ -117,6 +119,13 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
     });
   }
 
+  const actorPresentation = createActorMotionPresentation(
+    context,
+    "actor-brake",
+    resolution.path,
+    movement.type === "leap" ? "arc" : "ground"
+  );
+
   return buildAppliedResolution({
     actor: {
       ...context.actor,
@@ -130,17 +139,18 @@ function resolveBrakeTool(context: Parameters<ToolModule["execute"]>[0]): Action
       resolution.path,
       movement
     ),
+    affectedPlayers: resolution.affectedPlayers,
     nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: createActorMotionPresentation(
+    presentation: appendToolPresentationEvents(
       context,
-      "actor-brake",
-      resolution.path,
-      movement.type === "leap" ? "arc" : "ground"
+      actorPresentation,
+      offsetPresentationEvents(resolution.presentationEvents, actorPresentation?.durationMs ?? 0)
     ),
     preview: createToolPreview(context, {
       actorPath: resolution.path,
       actorTarget: resolution.actor.position,
+      affectedPlayers: resolution.affectedPlayers,
       effectTiles: resolution.path,
       // selectionTiles,
       valid: true

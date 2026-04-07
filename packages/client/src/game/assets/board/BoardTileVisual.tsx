@@ -1,6 +1,7 @@
 import type { TileDefinition, TileType } from "@watcher/shared";
 import type { ThreeEvent } from "@react-three/fiber";
 import { toWorldPosition } from "../../utils/boardMath";
+import { CannonTileAsset } from "./CannonTileAsset";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
 import { GoalTileAsset } from "./GoalTileAsset";
 import { LuckyBlockAsset } from "./LuckyBlockAsset";
@@ -18,6 +19,7 @@ const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   wall: { color: "#455062", height: 1.15 },
   earthWall: { color: "#bc7441", height: 0.7 },
   pit: { color: "#8b705f", height: 0.22 },
+  cannon: { color: "#67584a", height: 0.22 },
   lucky: { color: "#d6bf70", height: 0.22 },
   conveyor: { color: "#b8c7cd", height: 0.22 },
   start: { color: "#9fd9d3", height: 0.22 },
@@ -51,6 +53,7 @@ export function BoardTileVisual({
         <meshStandardMaterial color={tileStyle.color} />
       </mesh>
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
+      {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
       {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
       {tile.type === "start" ? <StartTileAsset /> : null}
       {tile.type === "goal" ? <GoalTileAsset /> : null}

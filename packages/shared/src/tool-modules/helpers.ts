@@ -2,6 +2,8 @@ import { isWithinBoard, getTile } from "../board";
 import { resolveToolMovementType } from "../skills";
 import type { ToolContentDefinition } from "../content/schema";
 import type {
+  ActionPresentation,
+  ActionPresentationEvent,
   AffectedPlayerMove,
   GridPosition,
   MovementActor,
@@ -11,6 +13,7 @@ import type {
   TurnToolSnapshot
 } from "../types";
 import {
+  appendPresentationEvents,
   buildMotionPositions,
   createPlayerMotionEvent,
   createPresentation
@@ -120,16 +123,35 @@ export function createActorMotionPresentation(
   context: ToolActionContext,
   eventSuffix: string,
   path: ToolActionContext["actor"]["position"][],
-  motionStyle: "arc" | "ground"
+  motionStyle: "arc" | "ground",
+  extraEvents: ActionPresentationEvent[] = []
 ) {
-  return createPresentation(context.actor.id, context.activeTool.toolId, [
+  return appendPresentationEvents(
+    createPresentation(context.actor.id, context.activeTool.toolId, [
     createPlayerMotionEvent(
       `${context.activeTool.instanceId}:${eventSuffix}`,
       context.actor.id,
       buildMotionPositions(context.actor.position, path),
       motionStyle
     )
-  ].flatMap((event) => (event ? [event] : [])));
+    ].flatMap((event) => (event ? [event] : []))),
+    context.actor.id,
+    context.activeTool.toolId,
+    extraEvents
+  );
+}
+
+export function appendToolPresentationEvents(
+  context: ToolActionContext,
+  presentation: ActionPresentation | null,
+  extraEvents: ActionPresentationEvent[]
+): ActionPresentation | null {
+  return appendPresentationEvents(
+    presentation,
+    context.actor.id,
+    context.activeTool.toolId,
+    extraEvents
+  );
 }
 
 export function toAffectedPlayerMove(

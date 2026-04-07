@@ -13,6 +13,7 @@ import { cloneModifierIds } from "./modifiers";
 import { clonePlayerTags } from "./playerTags";
 import {
   appendPresentationEvents,
+  createPresentation,
   createPlayerMotionEvent,
   createStateTransitionEvent
 } from "./rules/actionPresentation";
@@ -432,6 +433,15 @@ function pushTerrainEvents(
       continue;
     }
 
+    if (terrainEffect.kind === "cannon") {
+      pushEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} triggered a cannon facing ${terrainEffect.direction}.`
+      );
+      continue;
+    }
+
     if (terrainEffect.kind === "lucky") {
       pushEvent(
         state,
@@ -648,12 +658,19 @@ function applyTurnStartStop(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot
 ): TriggeredTerrainEffect[] {
+  const board = buildBoardDefinition(state.snapshot);
+  const boardPlayers = buildBoardPlayers(state.snapshot);
+  const boardSummons = buildBoardSummons(state.snapshot);
   let nextPosition = clonePosition(player.position);
   let nextTags = clonePlayerTags(player.tags);
   let nextTools = [...player.tools];
   let nextTurnFlags = [...player.turnFlags];
   let nextToolDieSeed = state.runtime.toolDieSeed;
   const summonMutations: SummonMutation[] = [];
+  const tileMutations: TileMutation[] = [];
+  const affectedPlayers: import("./types").AffectedPlayerMove[] = [];
+  const presentationEvents: ActionPresentation["events"] = [];
+  let presentationToolId: ActionPresentation["toolId"] | null = null;
   const triggeredSummonEffects: TriggeredSummonEffect[] = [];
 
   const summonResolution = resolveStopSummonEffects({
@@ -669,7 +686,7 @@ function applyTurnStartStop(
     },
     position: nextPosition,
     sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
-    summons: buildBoardSummons(state.snapshot),
+    summons: boardSummons,
     toolDieSeed: nextToolDieSeed,
     tools: nextTools
   });
@@ -693,10 +710,12 @@ function applyTurnStartStop(
   summonMutations.push(...summonResolution.summonMutations);
   triggeredSummonEffects.push(...summonResolution.triggeredSummonEffects);
 
-  const tile = getTile(buildBoardDefinition(state.snapshot), nextPosition);
+  const tile = getTile(board, nextPosition);
   const terrainResolution = tile
     ? resolveStopTerrainEffect({
+        board,
         movement: null,
+        players: boardPlayers,
         player: createTerrainStopTarget(
           {
             characterId: player.characterId,
@@ -711,6 +730,7 @@ function applyTurnStartStop(
           true
         ),
         sourceId: `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+        summons: boardSummons,
         tile,
         toolDieSeed: nextToolDieSeed,
         tools: nextTools
@@ -737,13 +757,43 @@ function applyTurnStartStop(
     nextToolDieSeed = terrainResolution.nextToolDieSeed;
   }
 
+  if (terrainResolution?.tileMutations?.length) {
+    tileMutations.push(...terrainResolution.tileMutations);
+  }
+
+  if (terrainResolution?.summonMutations?.length) {
+    summonMutations.push(...terrainResolution.summonMutations);
+  }
+
+  if (terrainResolution?.affectedPlayers?.length) {
+    affectedPlayers.push(...terrainResolution.affectedPlayers);
+  }
+
+  if (terrainResolution?.presentationEvents?.length) {
+    presentationEvents.push(...terrainResolution.presentationEvents);
+    presentationToolId = terrainResolution.presentationToolId ?? presentationToolId;
+  }
+
+  if (terrainResolution?.triggeredSummonEffects?.length) {
+    triggeredSummonEffects.push(...terrainResolution.triggeredSummonEffects);
+  }
+
   player.position = clonePosition(nextPosition);
   applyPlayerTags(player, nextTags);
   applyPlayerTurnFlags(player, nextTurnFlags);
   applyToolInventory(player, nextTools, "turn-start");
+  applyTileMutations(state.snapshot, tileMutations);
   applySummonMutations(state.snapshot, summonMutations);
+  applyAffectedPlayerMoves(state.snapshot, affectedPlayers);
+  applyMovementResolvedEffects(state.snapshot, "turn-start", null, affectedPlayers);
   state.runtime.toolDieSeed = nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
+  if (presentationEvents.length) {
+    publishActionPresentation(
+      state,
+      createPresentation(player.id, presentationToolId ?? "rocket", presentationEvents)
+    );
+  }
   pushTerrainEvents(state, player.id, terrainResolution?.triggeredTerrainEffects ?? []);
   pushSummonEvents(state, triggeredSummonEffects);
   return terrainResolution?.triggeredTerrainEffects ?? [];

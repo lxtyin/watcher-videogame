@@ -1,4 +1,6 @@
 import type {
+  ActionPresentationEvent,
+  AffectedPlayerMove,
   BoardDefinition,
   BoardPlayerState,
   BoardSummonState,
@@ -71,9 +73,11 @@ interface TeleportMovementOptions extends MovementRuntimeOptions {
 }
 
 export interface MovementSystemResolution {
+  affectedPlayers: AffectedPlayerMove[];
   actor: ResolvedActorState;
   nextToolDieSeed: number;
   path: GridPosition[];
+  presentationEvents: ActionPresentationEvent[];
   stopReason: string;
   summonMutations: SummonMutation[];
   tileMutations: TileMutation[];
@@ -83,9 +87,11 @@ export interface MovementSystemResolution {
 }
 
 interface MutableMovementState {
+  affectedPlayers: AffectedPlayerMove[];
   direction: Direction | null;
   nextToolDieSeed: number;
   player: MovementSubject;
+  presentationEvents: ActionPresentationEvent[];
   remainingMovePoints: number | null;
   summonMutations: SummonMutation[];
   tileMutations: TileMutation[];
@@ -121,9 +127,11 @@ function buildState(
   remainingMovePoints: number | null
 ): MutableMovementState {
   return {
+    affectedPlayers: [],
     direction,
     nextToolDieSeed: toolDieSeed,
     player: cloneSubject(player),
+    presentationEvents: [],
     remainingMovePoints,
     summonMutations: [],
     tileMutations: [],
@@ -177,11 +185,26 @@ function applyToolStatePatch(
 function appendEffectArrays(
   state: MutableMovementState,
   patch: {
+    affectedPlayers?: AffectedPlayerMove[];
+    presentationEvents?: ActionPresentationEvent[];
     summonMutations?: SummonMutation[];
+    tileMutations?: TileMutation[];
     triggeredSummonEffects?: TriggeredSummonEffect[];
     triggeredTerrainEffects?: TriggeredTerrainEffect[];
   }
 ): void {
+  if (patch.affectedPlayers?.length) {
+    state.affectedPlayers.push(...patch.affectedPlayers);
+  }
+
+  if (patch.presentationEvents?.length) {
+    state.presentationEvents.push(...patch.presentationEvents);
+  }
+
+  if (patch.tileMutations?.length) {
+    state.tileMutations.push(...patch.tileMutations);
+  }
+
   if (patch.summonMutations?.length) {
     state.summonMutations.push(...patch.summonMutations);
   }
@@ -244,6 +267,61 @@ function buildLiveSummons(
   applySummonMutationsToMap(summonsById, priorSummonMutations);
   applySummonMutationsToMap(summonsById, localSummonMutations);
   return [...summonsById.values()];
+}
+
+function buildLivePlayers(
+  context: MovementSystemContext,
+  state: MutableMovementState
+): BoardPlayerState[] {
+  const playersById = new Map(
+    context.players.map((player) => [
+      player.id,
+      {
+        boardVisible: player.boardVisible,
+        characterId: player.characterId,
+        id: player.id,
+        modifiers: [...player.modifiers],
+        position: clonePosition(player.position),
+        spawnPosition: clonePosition(player.spawnPosition),
+        tags: clonePlayerTags(player.tags),
+        turnFlags: [...player.turnFlags]
+      } satisfies BoardPlayerState
+    ] as const)
+  );
+
+  const actorEntry = playersById.get(state.player.id);
+
+  if (actorEntry) {
+    actorEntry.modifiers = [...state.player.modifiers];
+    actorEntry.position = clonePosition(state.player.position);
+    actorEntry.spawnPosition = clonePosition(state.player.spawnPosition);
+    actorEntry.tags = clonePlayerTags(state.player.tags);
+    actorEntry.turnFlags = [...state.player.turnFlags];
+  }
+
+  for (const affectedPlayer of state.affectedPlayers) {
+    const playerEntry = playersById.get(affectedPlayer.playerId);
+
+    if (!playerEntry) {
+      continue;
+    }
+
+    playerEntry.position = clonePosition(affectedPlayer.target);
+
+    if (affectedPlayer.modifiers) {
+      playerEntry.modifiers = [...affectedPlayer.modifiers];
+    }
+
+    if (affectedPlayer.tags) {
+      playerEntry.tags = clonePlayerTags(affectedPlayer.tags);
+    }
+
+    if (affectedPlayer.turnFlags) {
+      playerEntry.turnFlags = [...affectedPlayer.turnFlags];
+    }
+  }
+
+  return [...playersById.values()];
 }
 
 function buildTileMutationSet(
@@ -334,7 +412,9 @@ function runStopTriggers(
   }
 
   const terrainResolution = resolveStopTerrainEffect({
+    board: context.board,
     movement,
+    players: buildLivePlayers(context, state),
     player: {
       characterId: state.player.characterId,
       id: state.player.id,
@@ -346,6 +426,7 @@ function runStopTriggers(
       turnFlags: [...state.player.turnFlags]
     },
     sourceId: context.sourceId,
+    summons: liveSummons,
     tile,
     toolDieSeed: state.nextToolDieSeed,
     tools: state.tools
@@ -365,6 +446,7 @@ function buildResolution(
   stopReason: string
 ): MovementSystemResolution {
   return {
+    affectedPlayers: state.affectedPlayers,
     actor: {
       modifiers: [...state.player.modifiers],
       position: clonePosition(state.player.position),
@@ -373,6 +455,7 @@ function buildResolution(
     },
     nextToolDieSeed: state.nextToolDieSeed,
     path,
+    presentationEvents: state.presentationEvents,
     stopReason,
     summonMutations: state.summonMutations,
     tileMutations: state.tileMutations,

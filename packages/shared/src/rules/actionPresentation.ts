@@ -84,7 +84,7 @@ export function createPlayerMotionEvent(
 
 export function createProjectileEvent(
   eventId: string,
-  ownerId: string,
+  ownerId: string | null,
   projectileType: PresentationProjectileType,
   positions: GridPosition[],
   startMs = 0,
@@ -218,6 +218,20 @@ export function appendPresentationEvents(
     events: nextEvents,
     durationMs: Math.max(...nextEvents.map((event) => event.startMs + event.durationMs))
   };
+}
+
+export function offsetPresentationEvents(
+  events: ActionPresentationEvent[],
+  offsetMs: number
+): ActionPresentationEvent[] {
+  if (!offsetMs) {
+    return events;
+  }
+
+  return events.map((event) => ({
+    ...event,
+    startMs: event.startMs + offsetMs
+  }));
 }
 
 function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {

@@ -9,9 +9,11 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement } from "../rules/movementSystem";
+import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
+  appendToolPresentationEvents,
   buildMovementSystemContext,
   createActorMotionPresentation,
   createToolMovementDescriptor,
@@ -79,6 +81,8 @@ function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
     });
   }
 
+  const actorPresentation = createActorMotionPresentation(context, "actor-jump", resolution.path, "arc");
+
   return buildAppliedResolution({
     actor: {
       ...context.actor,
@@ -92,12 +96,18 @@ function resolveJumpTool(context: Parameters<ToolModule["execute"]>[0]): ActionR
       resolution.path,
       movement
     ),
+    affectedPlayers: resolution.affectedPlayers,
     nextToolDieSeed: resolution.nextToolDieSeed,
     path: resolution.path,
-    presentation: createActorMotionPresentation(context, "actor-jump", resolution.path, "arc"),
+    presentation: appendToolPresentationEvents(
+      context,
+      actorPresentation,
+      offsetPresentationEvents(resolution.presentationEvents, actorPresentation?.durationMs ?? 0)
+    ),
     preview: createToolPreview(context, {
       // actorPath: resolution.path,
       actorTarget: resolution.actor.position,
+      affectedPlayers: resolution.affectedPlayers,
       // effectTiles: resolution.path,
       // selectionTiles,
       valid: true

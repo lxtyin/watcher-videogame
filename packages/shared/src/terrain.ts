@@ -2,9 +2,14 @@
 import { rollToolDie } from "./dice";
 import { cloneModifierIds } from "./modifiers";
 import { isMovementType } from "./rules/displacement";
+import { createRocketResolutionDraft, resolveRocketIntoDraft } from "./rules/rocketResolution";
 import { createRolledToolInstance } from "./tools";
 import type {
+  ActionPresentationEvent,
+  AffectedPlayerMove,
   BoardDefinition,
+  BoardPlayerState,
+  BoardSummonState,
   Direction,
   GridPosition,
   ModifierId,
@@ -12,8 +17,12 @@ import type {
   MovementDescriptor,
   PlayerTagMap,
   PlayerTurnFlag,
+  SummonMutation,
   TileDefinition,
+  TileMutation,
+  TriggeredSummonEffect,
   TriggeredTerrainEffect,
+  ToolId,
   TurnToolSnapshot
 } from "./types";
 
@@ -49,21 +58,30 @@ interface StopResolutionTarget {
 }
 
 interface TerrainStopContext {
+  board: BoardDefinition;
   movement: MovementDescriptor | null;
+  players: BoardPlayerState[];
   player: StopResolutionTarget;
   sourceId: string;
+  summons: BoardSummonState[];
   tile: TileDefinition;
   toolDieSeed: number;
   tools: TurnToolSnapshot[];
 }
 
 interface TerrainStopResult {
+  affectedPlayers?: AffectedPlayerMove[];
   nextModifiers?: ModifierId[];
   nextPosition?: GridPosition;
   nextTags?: PlayerTagMap;
   nextToolDieSeed?: number;
   nextTools?: TurnToolSnapshot[];
   nextTurnFlags?: PlayerTurnFlag[];
+  presentationEvents?: ActionPresentationEvent[];
+  presentationToolId?: ToolId;
+  summonMutations?: SummonMutation[];
+  tileMutations?: TileMutation[];
+  triggeredSummonEffects?: TriggeredSummonEffect[];
   triggeredTerrainEffects: TriggeredTerrainEffect[];
 }
 
@@ -73,6 +91,9 @@ interface TerrainDefinition {
 }
 
 const LUCKY_TURN_FLAG: PlayerTurnFlag = "lucky_tile_claimed";
+const CANNON_PROJECTILE_RANGE = 999;
+const CANNON_BLAST_LEAP_DISTANCE = 3;
+const CANNON_SPLASH_PUSH_DISTANCE = 1;
 
 // Lucky rewards derive stable ids from the source trigger so previews stay reproducible.
 function buildLuckyToolInstanceId(
@@ -145,6 +166,58 @@ const TERRAIN_DEFINITIONS: Partial<Record<TileDefinition["type"], TerrainDefinit
         }
       ]
     })
+  },
+  cannon: {
+    onStop: (context) => {
+      if (!context.tile.direction) {
+        return null;
+      }
+
+      const rocketDraft = createRocketResolutionDraft(context.tools, context.toolDieSeed);
+
+      resolveRocketIntoDraft(
+        {
+          actorId: context.player.id,
+          board: context.board,
+          players: context.players,
+          sourceId: `${context.sourceId}:cannon:${context.tile.key}`,
+          summons: context.summons
+        },
+        {
+          blastLeapDistance: CANNON_BLAST_LEAP_DISTANCE,
+          direction: context.tile.direction,
+          eventIdPrefix: `${context.sourceId}:cannon:${context.tile.key}`,
+          originPosition: context.player.position,
+          projectileOwnerId: null,
+          projectileRange: CANNON_PROJECTILE_RANGE,
+          splashPushDistance: CANNON_SPLASH_PUSH_DISTANCE,
+          tagBase: `terrain:${context.tile.type}`
+        },
+        rocketDraft
+      );
+
+      return {
+        affectedPlayers: rocketDraft.affectedPlayers,
+        nextToolDieSeed: rocketDraft.nextToolDieSeed,
+        nextTools: rocketDraft.tools,
+        presentationEvents: rocketDraft.presentationEvents,
+        presentationToolId: "rocket",
+        summonMutations: rocketDraft.summonMutations,
+        tileMutations: rocketDraft.tileMutations,
+        triggeredSummonEffects: rocketDraft.triggeredSummonEffects,
+        triggeredTerrainEffects: [
+          {
+            direction: context.tile.direction,
+            kind: "cannon",
+            movement: context.movement,
+            playerId: context.player.id,
+            position: context.player.position,
+            tileKey: context.tile.key
+          },
+          ...rocketDraft.triggeredTerrainEffects
+        ]
+      };
+    }
   },
   lucky: {
     onStop: (context) => {

@@ -12,6 +12,7 @@ import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   buildMotionPositions,
   createPlayerMotionEvent,
+  offsetPresentationEvents,
   createPresentation,
   createProjectileEvent
 } from "../rules/actionPresentation";
@@ -126,6 +127,14 @@ function resolveBasketballTool(context: Parameters<ToolModule["execute"]>[0]): A
         buildMotionPositions(hitPlayer.position, pushResolution.path),
         "ground",
         impactStartMs
+      );
+
+      affectedPlayers.push(...pushResolution.affectedPlayers);
+      motionEvents.push(
+        ...offsetPresentationEvents(
+          pushResolution.presentationEvents,
+          (motionEvent?.startMs ?? impactStartMs) + (motionEvent?.durationMs ?? 0)
+        )
       );
 
       if (motionEvent) {

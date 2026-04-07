@@ -356,6 +356,14 @@ export type TriggeredTerrainEffect =
       tileKey: string;
     }
   | {
+      direction: Direction;
+      kind: "cannon";
+      movement: MovementDescriptor | null;
+      playerId: string;
+      position: GridPosition;
+      tileKey: string;
+    }
+  | {
       grantedTool: TurnToolSnapshot;
       kind: "lucky";
       movement: MovementDescriptor | null;
@@ -420,7 +428,7 @@ export type MotionPresentationSubject =
     }
   | {
       kind: "projectile";
-      ownerId: string;
+      ownerId: string | null;
       projectileType: PresentationProjectileType;
     };
 

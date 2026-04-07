@@ -320,5 +320,146 @@ export const GOLDEN_MOVEMENT_CASES = [
                 }
             ]
         }
+    }),
+    defineGoldenCase({
+        id: "movement-stop-cannon-fires-rocket",
+        title: "Stopping on a cannon fires a rocket with terrain-owned presentation",
+        description: "Landing on a cannon should reuse the shared rocket resolution core and knock the first hit player away.",
+        scene: {
+            layout: [
+                "#######",
+                "#.c...#",
+                "#.....#",
+                "#######"
+            ],
+            symbols: {
+                c: {
+                    type: "cannon",
+                    direction: "right"
+                }
+            },
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 1
+                            }
+                        }
+                    ]
+                },
+                {
+                    id: "target",
+                    name: "Target",
+                    characterId: "leader",
+                    position: { x: 4, y: 1 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Walk onto the cannon"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#######",
+                "#.c...#",
+                "#.....#",
+                "#######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 0
+                },
+                target: {
+                    position: { x: 5, y: 1 }
+                }
+            },
+            latestPresentation: {
+                toolId: "movement",
+                eventKinds: ["motion", "motion", "motion", "reaction"]
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "movement-stop-cannon-near-wall-blasts-triggering-player",
+        title: "Stopping on a blocked cannon still blasts the triggering player",
+        description: "When a cannon explodes on its own tile, the player who just stopped there should be treated as the blast target.",
+        scene: {
+            layout: [
+                "#####",
+                "#.c##",
+                "#...#",
+                "#####"
+            ],
+            symbols: {
+                c: {
+                    type: "cannon",
+                    direction: "right"
+                }
+            },
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 1
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Walk onto the blocked cannon"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#.c##",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 1 },
+                    toolCount: 0
+                }
+            },
+            latestPresentation: {
+                toolId: "movement",
+                eventKinds: ["motion", "motion", "reaction"]
+            }
+        }
     })
 ];

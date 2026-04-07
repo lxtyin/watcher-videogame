@@ -12,6 +12,7 @@ import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   createLinkReactionEvent,
   createPlayerMotionEvent,
+  offsetPresentationEvents,
   createPresentation,
   getProjectileTravelDurationMs,
   HOOKSHOT_PULL_DELAY_MS
@@ -190,6 +191,12 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         );
         motionEvents.push(actorMotionEvent);
       }
+      motionEvents.push(
+        ...offsetPresentationEvents(
+          actorResolution.presentationEvents,
+          (actorMotionEvent?.startMs ?? pullStartMs) + (actorMotionEvent?.durationMs ?? 0)
+        )
+      );
 
       return buildAppliedResolution({
         actor: {
@@ -210,10 +217,12 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         preview: createToolPreview(context, {
           actorPath: actorResolution.path,
           actorTarget: actorResolution.actor.position,
+          affectedPlayers: actorResolution.affectedPlayers,
           effectTiles: rayPath,
           selectionTiles,
           valid: true
         }),
+        affectedPlayers: actorResolution.affectedPlayers,
         summonMutations: actorResolution.summonMutations,
         summary: createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label),
         tileMutations: actorResolution.tileMutations,
@@ -290,6 +299,7 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       summonMutations.push(...pullResolution.summonMutations);
       triggeredTerrainEffects.push(...pullResolution.triggeredTerrainEffects);
       triggeredSummonEffects.push(...pullResolution.triggeredSummonEffects);
+      affectedPlayers.push(...pullResolution.affectedPlayers);
 
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:hooked-${index}`,
@@ -297,6 +307,13 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         [hitPlayer.position, ...pullResolution.path],
         "ground",
         pullStartMs
+      );
+
+      motionEvents.push(
+        ...offsetPresentationEvents(
+          pullResolution.presentationEvents,
+          (motionEvent?.startMs ?? pullStartMs) + (motionEvent?.durationMs ?? 0)
+        )
       );
 
       if (motionEvent) {
