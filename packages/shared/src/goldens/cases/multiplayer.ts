@@ -76,7 +76,7 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       },
       latestPresentation: {
         toolId: "hookshot",
-        eventKinds: ["motion", "motion"]
+        eventKinds: ["reaction", "reaction", "motion", "reaction", "motion"]
       }
     }
   }),

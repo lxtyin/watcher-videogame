@@ -92,6 +92,69 @@
   - 将能力系统与角色组织收口到单一权威文档 `docs/arch/能力系统统一模型.md`
 - 清理并同步 `docs/index.md`、`docs/arch/架构总览.md`、`docs/arch/共享规则层.md`、`docs/arch/前后端联机原型.md` 的表现层文档边界。
 
+## 2026-04-07
+
+- 增强 shared 表现语义：
+  - 为 `hookshot` 增加 `hookshot` 投射物 motion 事件，并让拉回动作在钩锁飞行后延迟触发
+  - 为 `awmShoot` 增加 `awm_bullet` 子弹投射物 motion 事件
+  - 为土墙从 `earthWall -> floor` 的状态切换补充 `earth_wall_break` reaction 事件
+- 扩展 shared 表现资源类型：
+  - `PresentationProjectileType` 新增 `hookshot` 与 `awm_bullet`
+  - `PresentationEffectType` 新增 `earth_wall_break`
+- 新增 client procedural mesh 资源：
+  - `packages/client/src/game/assets/tools/hookshot/HookshotProjectileAsset.tsx`
+  - `packages/client/src/game/assets/tools/awm-shoot/AwmBulletProjectileAsset.tsx`
+  - `packages/client/src/game/assets/board/EarthWallBreakEffectAsset.tsx`
+- 更新 client 播放链路：
+  - `ProjectileVisual.tsx` 接入 `hookshot / awm_bullet`
+  - `EffectVisual.tsx` 接入 `earth_wall_break`
+  - `playbackEngine.ts` 为不同投射物提供独立的抛物高度
+- 调整表现可见性：
+  - 放大 AWM 子弹的弹道与尾迹
+  - 为钩锁补充更明显的链条与缆线
+  - 抬高土墙碎裂的爆点与碎块，避免在 HUD 覆盖下完全不可见
+- 更新 golden 断言：
+  - `leader-wallet-active-drag-pass` 的事件序列改为包含钩锁投射物
+  - `hookshot-pulls-stacked-players` 的事件序列改为包含钩锁投射物
+- 浏览器烟测：
+  - 用 golden 回放页检查了 `earth-wall-break`
+  - 用 golden 回放页检查了 `hookshot-pulls-stacked-players`
+  - 用 golden 回放页检查了 `awm-shoot-applies-bondage-tags`
+  - 截图中可见钩锁飞行、AWM 蓝色弹道，以及土墙碎裂抬高后的碎块轮廓
+
+## 2026-04-07
+
+- 扩展 `ActionPresentation` 表达能力：
+  - `reaction` 新增通用 `link` 子类型，用于在“玩家 / 固定位置”或“玩家 / 玩家”之间播放持续链路效果
+  - `createProjectileEvent(..., speed)` 支持由工具模块直接设置投射物飞行速度
+- 重写 `hookshot` 表现编排：
+  - 先播放出钩 projectile
+  - 命中后用 `reaction.link` 表达回收链路
+  - 拉墙时为“玩家 -> 固定位置”链路，拉人时为“玩家 -> 玩家”链路
+  - 回收期间链路和玩家移动同步播放
+- client 新增：
+  - `packages/client/src/game/assets/presentation/LinkReactionVisual.tsx`
+  - `packages/client/src/game/assets/tools/hookshot/HookshotLinkReactionAsset.tsx`
+- 修正选择地块 preview 边界：
+  - `deployWallet` 和 `bombThrow` 现在会将 `effectTiles` 裁剪到 `selectionTiles` 内
+  - 越界 hover 时不再在 `selectionTiles` 外渲染 effect preview
+- 静态规则校验：
+  - 用 `tsx` 直接调用 `buildActionPreview()` 验证 `deployWallet` 与 `bombThrow` 在超出范围时 `effectTiles = []`
+  - 范围内仍保留正常 preview
+- 浏览器烟测：
+  - `leader-wallet-active-drag-pass`
+  - `hookshot-pulls-stacked-players`
+  - `awm-shoot-applies-bondage-tags`
+  - 截图可见“先出钩，后回收”的钩锁节奏，以及更快的 AWM 蓝色弹道
+
+## 2026-04-07
+
+- 灏?`hookshot` 鐨勫嚭閽╀笌鏀堕挬鍏ㄩ儴鏀跺彛鍒?`reaction.link`锛屼笉鍐嶄娇鐢?`projectile`锛涚帺瀹剁Щ鍔ㄧ殑 `startMs` 缁熶竴鎺掑埌鈥滈挬瀛愬懡涓悗鈥濆啀寮€濮嬨€?
+- `LinkReactionVisual` 琛ュ叆 `progressStyle` 鎾斁锛屾敮鎸佲€滀粠璧风偣寤朵几鈥濅笌鈥滀繚鎸佸叏闀垮害鈥濅袱绉嶉€氱敤閾捐矾褰㈡€併€?
+- `buildWall` 鏂板鍗犱綅闄愬埗锛氭棤娉曞湪鏈夌帺瀹舵垨鍙敜鐗╃殑鍦版牸鏀剧疆锛屽苟鍚屾鏀剁揣 `selectionTiles`锛屽彧鏄剧ず鐪熸鍙敤鐨勭┖鍦版牸銆?
+- 鏂板 golden 鐢ㄤ緥 `build-wall-blocked-by-player-and-summon`锛屽苟鏇存柊 `leader-wallet-active-drag-pass`銆乣hookshot-pulls-stacked-players` 鐨勪簨浠跺簭鍒楁柇瑷€銆?
+- 楠岃瘉锛歚npm.cmd run typecheck --workspace @watcher/shared`銆乶pm.cmd run typecheck --workspace @watcher/client`銆乶pm.cmd run goldens`锛?`23/23` 閫氳繃銆?
+
 ## 2026-04-04
 
 - 将回合编排正式收口到 `packages/shared/src/gameOrchestration.ts`。

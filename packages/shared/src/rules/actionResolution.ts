@@ -30,6 +30,7 @@ import type {
 } from "../types";
 import {
   appendPresentationEvents,
+  createEffectEvent,
   createStateTransitionEvent,
   getMotionArrivalStartMs
 } from "./actionPresentation";
@@ -242,12 +243,26 @@ export function attachStateTransitionPresentation(
     return resolution;
   }
 
-  const transitionEvents: ActionPresentationEvent[] = [
-    ...resolution.tileMutations.flatMap((mutation, index) => {
+  const tileEvents: ActionPresentationEvent[] = resolution.tileMutations.flatMap((mutation, index) => {
       const transition = buildTileStateTransition(context, mutation);
 
       if (!transition) {
         return [];
+      }
+
+      const startMs = findStateTransitionStartMs(resolution.presentation, mutation.position);
+      const events: ActionPresentationEvent[] = [];
+
+      if (transition.before.type === "earthWall" && transition.after.type === "floor") {
+        events.push(
+          createEffectEvent(
+            `${context.activeTool.instanceId}:earth-wall-break-${index}`,
+            "earth_wall_break",
+            mutation.position,
+            [mutation.position],
+            startMs
+          )
+        );
       }
 
       const event = createStateTransitionEvent(
@@ -255,12 +270,12 @@ export function attachStateTransitionPresentation(
         [transition],
         [],
         [],
-        findStateTransitionStartMs(resolution.presentation, mutation.position)
+        startMs
       );
 
-      return event ? [event] : [];
-    }),
-    ...resolution.summonMutations.flatMap((mutation, index) => {
+      return event ? [...events, event] : events;
+    });
+  const summonEvents: ActionPresentationEvent[] = resolution.summonMutations.flatMap((mutation, index) => {
       const transition = buildSummonStateTransition(context, mutation);
       const anchorPosition = transition?.before?.position ?? transition?.after?.position;
 
@@ -277,8 +292,8 @@ export function attachStateTransitionPresentation(
       );
 
       return event ? [event] : [];
-    })
-  ];
+    });
+  const transitionEvents: ActionPresentationEvent[] = [...tileEvents, ...summonEvents];
 
   if (!transitionEvents.length) {
     return resolution;

@@ -14,6 +14,7 @@ import { BoardTileVisual } from "../assets/board/BoardTileVisual";
 import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
+import { LinkReactionVisual } from "../assets/presentation/LinkReactionVisual";
 import { ProjectileVisual } from "../assets/presentation/ProjectileVisual";
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
@@ -1092,6 +1093,17 @@ export function BoardScene() {
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           effect={effect}
+        />
+      ))}
+      {playbackState.reactions
+        .filter((reaction): reaction is Extract<(typeof playbackState.reactions)[number], { kind: "link" }> => reaction.kind === "link")
+        .map((reaction) => (
+        <LinkReactionVisual
+          key={reaction.eventId}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          playerPositions={displayedPlayerPositions}
+          reaction={reaction}
         />
       ))}
 

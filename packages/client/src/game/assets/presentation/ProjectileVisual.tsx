@@ -1,11 +1,13 @@
 import type { ComponentType } from "react";
 import type { PresentationProjectileType } from "@watcher/shared";
 import type { ActiveProjectilePlayback } from "../../animation/playbackEngine";
+import { AwmBulletProjectileAsset } from "../tools/awm-shoot/AwmBulletProjectileAsset";
 import { BasketballProjectileAsset } from "../tools/basketball/BasketballProjectileAsset";
 import { RocketProjectileAsset } from "../tools/rocket/RocketProjectileAsset";
 import { toWorldPositionFromGrid } from "../shared/gridPlacement";
 
 interface ProjectileAssetProps {
+  facing: ActiveProjectilePlayback["position"]["facing"];
   lift: number;
   progress: number;
   worldX: number;
@@ -15,6 +17,7 @@ interface ProjectileAssetProps {
 type ProjectileAssetComponent = ComponentType<ProjectileAssetProps>;
 
 const PROJECTILE_ASSETS: Record<PresentationProjectileType, ProjectileAssetComponent> = {
+  awm_bullet: AwmBulletProjectileAsset,
   basketball: BasketballProjectileAsset,
   rocket: RocketProjectileAsset
 };
@@ -39,6 +42,7 @@ export function ProjectileVisual({
 
   return (
     <Asset
+      facing={projectile.position.facing}
       lift={projectile.position.lift}
       progress={projectile.progress}
       worldX={worldX}

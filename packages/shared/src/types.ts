@@ -142,8 +142,10 @@ export interface EventLogEntry {
 }
 
 export type PresentationMotionStyle = "ground" | "arc" | "finish";
-export type PresentationProjectileType = "basketball" | "rocket";
+export type PresentationProjectileType = "basketball" | "rocket" | "awm_bullet";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
+export type PresentationLinkStyle = "chain";
+export type PresentationLinkProgressStyle = "full" | "extend_from_from";
 
 export interface TurnToolSnapshot {
   charges: number;
@@ -428,12 +430,29 @@ export interface MotionPresentationEvent extends ActionPresentationEventBase {
   subject: MotionPresentationSubject;
 }
 
+export type PresentationAnchor =
+  | {
+      kind: "player";
+      playerId: string;
+    }
+  | {
+      kind: "position";
+      position: GridPosition;
+    };
+
 export type ReactionPresentationPayload =
   | {
       kind: "effect";
       effectType: PresentationEffectType;
       position: GridPosition;
       tiles: GridPosition[];
+    }
+  | {
+      from: PresentationAnchor;
+      kind: "link";
+      progressStyle: PresentationLinkProgressStyle;
+      style: PresentationLinkStyle;
+      to: PresentationAnchor;
     }
   | {
       height: number;

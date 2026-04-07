@@ -9,7 +9,13 @@ import type {
 } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
-import { buildMotionPositions, createPlayerMotionEvent, createPresentation } from "../rules/actionPresentation";
+import {
+  createLinkReactionEvent,
+  createPlayerMotionEvent,
+  createPresentation,
+  getProjectileTravelDurationMs,
+  HOOKSHOT_PULL_DELAY_MS
+} from "../rules/actionPresentation";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
@@ -59,6 +65,8 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   debugGrantable: true,
   endsTurnOnUse: false
 };
+
+const HOOKSHOT_FLIGHT_SPEED = 1.8;
 
 function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const direction = requireDirection(context);
@@ -136,6 +144,53 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         });
       }
 
+      const outboundDurationMs = getProjectileTravelDurationMs(rayPath.length + 1, HOOKSHOT_FLIGHT_SPEED);
+      const motionEvents: ActionPresentationEvent[] = [
+        createLinkReactionEvent(
+          `${context.activeTool.instanceId}:hookshot-outbound`,
+          {
+            kind: "player",
+            playerId: context.actor.id
+          },
+          {
+            kind: "position",
+            position: target
+          },
+          "chain",
+          0,
+          outboundDurationMs,
+          "extend_from_from"
+        )
+      ];
+      const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
+      const actorMotionEvent = createPlayerMotionEvent(
+        `${context.activeTool.instanceId}:actor-hook`,
+        context.actor.id,
+        [context.actor.position, ...actorResolution.path],
+        "ground",
+        pullStartMs
+      );
+
+      if (actorMotionEvent) {
+        motionEvents.push(
+          createLinkReactionEvent(
+            `${context.activeTool.instanceId}:hookshot-link-wall`,
+            {
+              kind: "player",
+              playerId: context.actor.id
+            },
+            {
+              kind: "position",
+              position: target
+            },
+            "chain",
+            pullStartMs,
+            actorMotionEvent.durationMs
+          )
+        );
+        motionEvents.push(actorMotionEvent);
+      }
+
       return buildAppliedResolution({
         actor: {
           ...context.actor,
@@ -151,14 +206,7 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
         ),
         nextToolDieSeed: actorResolution.nextToolDieSeed,
         path: actorResolution.path,
-        presentation: createPresentation(context.actor.id, context.activeTool.toolId, [
-          createPlayerMotionEvent(
-            `${context.activeTool.instanceId}:actor-hook`,
-            context.actor.id,
-            buildMotionPositions(context.actor.position, actorResolution.path),
-            "ground"
-          )
-        ].flatMap((event) => (event ? [event] : []))),
+        presentation: createPresentation(context.actor.id, context.activeTool.toolId, motionEvents),
         preview: createToolPreview(context, {
           actorPath: actorResolution.path,
           actorTarget: actorResolution.actor.position,
@@ -189,7 +237,26 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
     const triggeredTerrainEffects: TriggeredTerrainEffect[] = [];
     const triggeredSummonEffects: TriggeredSummonEffect[] = [];
     const affectedPlayers: AffectedPlayerMove[] = [];
-    const motionEvents: ActionPresentationEvent[] = [];
+    const outboundTarget = rayPath[rayPath.length - 1] ?? target;
+    const outboundDurationMs = getProjectileTravelDurationMs(rayPath.length, HOOKSHOT_FLIGHT_SPEED);
+    const motionEvents: ActionPresentationEvent[] = [
+      createLinkReactionEvent(
+        `${context.activeTool.instanceId}:hookshot-outbound`,
+        {
+          kind: "player",
+          playerId: context.actor.id
+        },
+        {
+          kind: "position",
+          position: outboundTarget
+        },
+        "chain",
+        0,
+        outboundDurationMs,
+        "extend_from_from"
+      )
+    ];
+    const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
 
     for (const [index, hitPlayer] of hitPlayers.entries()) {
       const pullDistance = Math.max(0, distance - 1);
@@ -227,11 +294,28 @@ function resolveHookshotTool(context: Parameters<ToolModule["execute"]>[0]): Act
       const motionEvent = createPlayerMotionEvent(
         `${context.activeTool.instanceId}:hooked-${index}`,
         hitPlayer.id,
-        buildMotionPositions(hitPlayer.position, pullResolution.path),
-        "ground"
+        [hitPlayer.position, ...pullResolution.path],
+        "ground",
+        pullStartMs
       );
 
       if (motionEvent) {
+        motionEvents.push(
+          createLinkReactionEvent(
+            `${context.activeTool.instanceId}:hookshot-link-player-${index}`,
+            {
+              kind: "player",
+              playerId: context.actor.id
+            },
+            {
+              kind: "player",
+              playerId: hitPlayer.id
+            },
+            "chain",
+            pullStartMs,
+            motionEvent.durationMs
+          )
+        );
         motionEvents.push(motionEvent);
       }
     }

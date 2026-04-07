@@ -57,7 +57,7 @@ function resolveDeployWalletTool(context: Parameters<ToolModule["execute"]>[0]):
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,
       preview: createToolPreview(context, {
-        effectTiles: [targetPosition],
+        // effectTiles: [targetPosition],
         selectionTiles,
         valid: false
       }),

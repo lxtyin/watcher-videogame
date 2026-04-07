@@ -4,8 +4,11 @@ import type {
   GameSnapshot,
   GridPosition,
   PlayerSnapshot,
+  PresentationAnchor,
   PlayerStateTransition,
   PresentationEffectType,
+  PresentationLinkProgressStyle,
+  PresentationLinkStyle,
   PresentationMotionStyle,
   PresentationProjectileType,
   SequencedActionPresentation,
@@ -54,8 +57,19 @@ export interface ActivePlayerLiftReactionPlayback {
   progress: number;
 }
 
+export interface ActiveLinkReactionPlayback {
+  eventId: string;
+  from: PresentationAnchor;
+  kind: "link";
+  progress: number;
+  progressStyle: PresentationLinkProgressStyle;
+  style: PresentationLinkStyle;
+  to: PresentationAnchor;
+}
+
 export type ActiveReactionPlayback =
   | ActiveEffectReactionPlayback
+  | ActiveLinkReactionPlayback
   | ActivePlayerLiftReactionPlayback;
 
 interface PendingStateTransitionPlayback {
@@ -190,6 +204,17 @@ function getEventProgress(event: ActionPresentationEvent, elapsedMs: number): nu
   return clampProgress((elapsedMs - event.startMs) / event.durationMs);
 }
 
+function getProjectileLiftHeight(projectileType: PresentationProjectileType): number {
+  switch (projectileType) {
+    case "rocket":
+      return 0.18;
+    case "basketball":
+      return 0.08;
+    case "awm_bullet":
+      return 0.05;
+  }
+}
+
 function evaluateEventPlayback(
   presentation: SequencedActionPresentation | null,
   elapsedMs: number
@@ -240,7 +265,7 @@ function evaluateEventPlayback(
         position: sampleGridPath(
           event.positions,
           progress,
-          event.subject.projectileType === "rocket" ? 0.18 : 0.08
+          getProjectileLiftHeight(event.subject.projectileType)
         )
       });
       continue;
@@ -258,6 +283,19 @@ function evaluateEventPlayback(
         position: event.reaction.position,
         progress,
         tiles: event.reaction.tiles
+      });
+      continue;
+    }
+
+    if (event.reaction.kind === "link") {
+      reactions.push({
+        eventId: event.id,
+        from: event.reaction.from,
+        kind: "link",
+        progress,
+        progressStyle: event.reaction.progressStyle,
+        style: event.reaction.style,
+        to: event.reaction.to
       });
       continue;
     }

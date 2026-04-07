@@ -1,10 +1,14 @@
+import type { Direction } from "@watcher/shared";
+
 // Rocket flight is authored as a dedicated mesh so other projectiles can diverge later.
 export function RocketProjectileAsset({
+  facing: _facing,
   lift,
   progress,
   worldX,
   worldZ
 }: {
+  facing: Direction | null;
   lift: number;
   progress: number;
   worldX: number;

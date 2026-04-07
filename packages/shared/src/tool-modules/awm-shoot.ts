@@ -5,6 +5,11 @@ import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../skills/bondage";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import type { AffectedPlayerMove, ActionResolution } from "../types";
 import {
+  buildMotionPositions,
+  createPresentation,
+  createProjectileEvent
+} from "../rules/actionPresentation";
+import {
   buildAppliedResolution,
   buildBlockedResolution,
   consumeActiveTool,
@@ -38,6 +43,8 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   debugGrantable: false,
   endsTurnOnUse: false
 };
+
+const AWM_PROJECTILE_SPEED = 2.6;
 
 function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const direction = requireDirection(context);
@@ -81,6 +88,20 @@ function resolveAwmShootTool(context: Parameters<ToolModule["execute"]>[0]): Act
     affectedPlayers,
     nextToolDieSeed: context.toolDieSeed,
     path: trace.path,
+    presentation: createPresentation(
+      context.actor.id,
+      context.activeTool.toolId,
+      [
+        createProjectileEvent(
+          `${context.activeTool.instanceId}:awm-projectile`,
+          context.actor.id,
+          "awm_bullet",
+          buildMotionPositions(context.actor.position, trace.path),
+          0,
+          AWM_PROJECTILE_SPEED
+        )
+      ].flatMap((event) => (event ? [event] : []))
+    ),
     preview: createToolPreview(context, {
       actorPath: trace.path,
       affectedPlayers,

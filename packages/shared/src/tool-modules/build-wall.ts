@@ -3,6 +3,7 @@ import { getTile } from "../board";
 import { createDragTileInteraction } from "../toolInteraction";
 import { createTileMutation } from "../rules/spatial";
 import type { ActionResolution } from "../types";
+import { hasSummonAtPosition } from "../summons";
 import {
   buildAppliedResolution,
   buildBlockedResolution,
@@ -10,6 +11,7 @@ import {
   requireTileSelection
 } from "../rules/actionResolution";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
+import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
 
@@ -30,10 +32,29 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
+function canBuildWallAtPosition(
+  context: Parameters<ToolModule["execute"]>[0],
+  targetPosition: { x: number; y: number }
+): boolean {
+  const tile = getTile(context.board, targetPosition);
+
+  if (!tile || tile.type !== "floor") {
+    return false;
+  }
+
+  if (findPlayersAtPosition(context.players, targetPosition, []).length > 0) {
+    return false;
+  }
+
+  return !hasSummonAtPosition(context.summons, targetPosition);
+}
+
 function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): ActionResolution {
   const targetPosition = requireTileSelection(context);
   const wallDurability = getToolParamValue(context.activeTool, "wallDurability", 2);
-  const selectionTiles = collectAdjacentSelectionTiles(context.board, context.actor.position);
+  const selectionTiles = collectAdjacentSelectionTiles(context.board, context.actor.position).filter((position) =>
+    canBuildWallAtPosition(context, position)
+  );
 
   if (!targetPosition) {
     return buildBlockedResolution({
@@ -65,9 +86,7 @@ function resolveBuildWallTool(context: Parameters<ToolModule["execute"]>[0]): Ac
     });
   }
 
-  const tile = getTile(context.board, targetPosition);
-
-  if (!tile || tile.type !== "floor") {
+  if (!canBuildWallAtPosition(context, targetPosition)) {
     return buildBlockedResolution({
       actor: context.actor,
       nextToolDieSeed: context.toolDieSeed,

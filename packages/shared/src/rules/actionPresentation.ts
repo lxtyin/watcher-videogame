@@ -3,7 +3,10 @@ import type {
   ActionPresentationEvent,
   GridPosition,
   PlayerStateTransition,
+  PresentationAnchor,
   PresentationEffectType,
+  PresentationLinkProgressStyle,
+  PresentationLinkStyle,
   PresentationMotionStyle,
   PresentationProjectileType,
   ReactionPresentationEvent,
@@ -17,8 +20,16 @@ const ARC_MOTION_MS_PER_STEP = 210;
 const FINISH_MOTION_MS_PER_STEP = 820;
 const PROJECTILE_MOTION_MS_PER_STEP = 110;
 const ROCKET_EXPLOSION_EFFECT_MS = 420;
+const EARTH_WALL_BREAK_EFFECT_MS = 320;
 
 export const ROCKET_BLAST_DELAY_MS = 40;
+export const HOOKSHOT_PULL_DELAY_MS = 30;
+
+export function getProjectileTravelDurationMs(stepCount: number, speed = 1): number {
+  const normalizedSpeed = Math.max(0.1, speed);
+
+  return Math.max(1, Math.round((Math.max(1, stepCount) * PROJECTILE_MOTION_MS_PER_STEP) / normalizedSpeed));
+}
 
 // Presentation events stay semantic so the client can map them onto meshes and effects.
 export function createPresentation(
@@ -76,7 +87,8 @@ export function createProjectileEvent(
   ownerId: string,
   projectileType: PresentationProjectileType,
   positions: GridPosition[],
-  startMs = 0
+  startMs = 0,
+  speed = 1
 ): ActionPresentationEvent | null {
   if (positions.length < 2) {
     return null;
@@ -92,7 +104,7 @@ export function createProjectileEvent(
       projectileType
     },
     startMs,
-    durationMs: Math.max(1, positions.length - 1) * PROJECTILE_MOTION_MS_PER_STEP
+    durationMs: getProjectileTravelDurationMs(positions.length - 1, speed)
   };
 }
 
@@ -102,7 +114,7 @@ export function createEffectEvent(
   position: GridPosition,
   tiles: GridPosition[],
   startMs = 0,
-  durationMs = ROCKET_EXPLOSION_EFFECT_MS
+  durationMs = effectType === "earth_wall_break" ? EARTH_WALL_BREAK_EFFECT_MS : ROCKET_EXPLOSION_EFFECT_MS
 ): ActionPresentationEvent {
   return {
     id: eventId,
@@ -132,6 +144,30 @@ export function createPlayerLiftReactionEvent(
       kind: "player_lift",
       height,
       playerId
+    },
+    startMs,
+    durationMs
+  };
+}
+
+export function createLinkReactionEvent(
+  eventId: string,
+  from: PresentationAnchor,
+  to: PresentationAnchor,
+  style: PresentationLinkStyle,
+  startMs = 0,
+  durationMs = GROUND_MOTION_MS_PER_STEP,
+  progressStyle: PresentationLinkProgressStyle = "full"
+): ReactionPresentationEvent {
+  return {
+    id: eventId,
+    kind: "reaction",
+    reaction: {
+      from,
+      kind: "link",
+      progressStyle,
+      style,
+      to
     },
     startMs,
     durationMs

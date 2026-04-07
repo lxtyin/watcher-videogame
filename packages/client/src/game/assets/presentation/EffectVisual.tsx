@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { PresentationEffectType } from "@watcher/shared";
 import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
+import { EarthWallBreakEffectAsset } from "../board/EarthWallBreakEffectAsset";
 import { RocketExplosionEffectAsset } from "../tools/rocket/RocketExplosionEffectAsset";
 
 interface EffectAssetProps {
@@ -14,6 +15,7 @@ interface EffectAssetProps {
 type EffectAssetComponent = ComponentType<EffectAssetProps>;
 
 const EFFECT_ASSETS: Record<PresentationEffectType, EffectAssetComponent> = {
+  earth_wall_break: EarthWallBreakEffectAsset,
   rocket_explosion: RocketExplosionEffectAsset
 };
 

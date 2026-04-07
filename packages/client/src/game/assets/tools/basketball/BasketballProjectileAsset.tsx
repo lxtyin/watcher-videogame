@@ -1,10 +1,14 @@
+import type { Direction } from "@watcher/shared";
+
 // Basketball uses a compact spinning sphere asset during flight playback.
 export function BasketballProjectileAsset({
+  facing: _facing,
   lift,
   progress,
   worldX,
   worldZ
 }: {
+  facing: Direction | null;
   lift: number;
   progress: number;
   worldX: number;

@@ -220,7 +220,7 @@ export const GOLDEN_WALLET_CASES = [
       summonCount: 0,
       latestPresentation: {
         toolId: "hookshot",
-        eventKinds: ["motion", "state_transition"]
+        eventKinds: ["reaction", "reaction", "motion", "state_transition"]
       }
     }
   }),

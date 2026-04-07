@@ -228,5 +228,97 @@ export const GOLDEN_MOVEMENT_CASES = [
             },
             eventTypes: ["turn_ended", "turn_started", "player_respawned"]
         }
+    }),
+    defineGoldenCase({
+        id: "build-wall-blocked-by-player-and-summon",
+        title: "Build Wall requires an unoccupied floor tile",
+        description: "Build Wall should stay blocked when the target tile contains a player or a summon.",
+        scene: {
+            layout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "builder",
+                    name: "Builder",
+                    characterId: "ehh",
+                    position: { x: 2, y: 2 },
+                    tools: [
+                        {
+                            toolId: "buildWall"
+                        }
+                    ]
+                },
+                {
+                    id: "blocker",
+                    name: "Blocker",
+                    characterId: "leader",
+                    position: { x: 1, y: 2 }
+                }
+            ],
+            summons: [
+                {
+                    summonId: "wallet",
+                    ownerId: "builder",
+                    position: { x: 3, y: 2 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "builder",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "builder",
+                tool: "buildWall",
+                targetPosition: { x: 1, y: 2 },
+                label: "Try to build on another player",
+                expect: {
+                    blockedReasonIncludes: "empty floor tile"
+                }
+            },
+            {
+                kind: "useTool",
+                actorId: "builder",
+                tool: "buildWall",
+                targetPosition: { x: 3, y: 2 },
+                label: "Try to build on a summon",
+                expect: {
+                    blockedReasonIncludes: "empty floor tile"
+                }
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                builder: {
+                    position: { x: 2, y: 2 },
+                    toolCount: 1
+                },
+                blocker: {
+                    position: { x: 1, y: 2 }
+                }
+            },
+            summonCount: 1,
+            summons: [
+                {
+                    summonId: "wallet",
+                    ownerId: "builder",
+                    position: { x: 3, y: 2 }
+                }
+            ]
+        }
     })
 ];
