@@ -84,6 +84,12 @@
   - `useGameStore.ts` 删除旧的 `useInstantTool / useChoiceTool / perform*Action` 旁路接口
   - `HudSidebar.tsx` 删除已失效的 choice 侧栏分支
 - 验证：`npm.cmd run typecheck --workspace @watcher/client` 通过。
+- 按 `docs/AI开发指南.md` 清理当前文档体系：
+  - 删除旧的 `docs/arch/角色系统原型.md`
+  - 删除早期需求稿 `docs/架构设计_需求文档.md` 与 `docs/玩法设计_需求文档.md`
+  - 新增 `docs/arch/表现层原型.md`
+  - 重写 `docs/index.md`、`docs/arch/架构总览.md`、`docs/arch/共享规则层.md`、`docs/arch/交互层统一原型.md`、`docs/arch/能力系统统一模型.md`、`docs/arch/内容注册与资源组织.md`、`docs/arch/前后端联机原型.md`、`docs/arch/房间与大厅流程.md`
+  - 将能力系统与角色组织收口到单一权威文档 `docs/arch/能力系统统一模型.md`
 - 清理并同步 `docs/index.md`、`docs/arch/架构总览.md`、`docs/arch/共享规则层.md`、`docs/arch/前后端联机原型.md` 的表现层文档边界。
 
 ## 2026-04-04
