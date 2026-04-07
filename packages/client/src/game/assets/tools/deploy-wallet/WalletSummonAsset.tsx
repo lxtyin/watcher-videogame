@@ -1,5 +1,5 @@
 import type { GridPosition } from "@watcher/shared";
-import { toWorldPosition } from "../../utils/boardMath";
+import { toWorldPosition } from "../../../utils/boardMath";
 
 // Wallet is the first summon asset and acts as the template for future deployables.
 export function WalletSummonAsset({

@@ -4,45 +4,34 @@ import {
 } from "@watcher/shared";
 
 export type ActionUiId = "roll" | ToolId | "end";
-export type DirectionVisualVariant =
-  | "move"
-  | "jump"
-  | "hookshot"
-  | "basketball"
-  | "rocket"
-  | "special";
 
 interface ActionUiConfig {
   accent: string;
   detail: string;
-  directionalVariant?: DirectionVisualVariant;
   token: string;
 }
 
-// Scene action chips live in a content registry so future tools only need one UI entry.
+// Scene action chips stay as a small registry of labels, accents, and tokens only.
 const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   roll: {
     token: "掷",
     accent: "#efc66d",
-    detail: "开始掷骰"
+    detail: "开始投骰"
   },
   movement: {
     token: "移",
     accent: "#6abf69",
-    detail: "按住拖拽",
-    directionalVariant: "move"
+    detail: "按住拖拽"
   },
   jump: {
     token: "跃",
     accent: TOOL_DEFINITIONS.jump.color,
-    detail: "按住定向",
-    directionalVariant: "jump"
+    detail: "按住定向"
   },
   hookshot: {
     token: "钩",
     accent: TOOL_DEFINITIONS.hookshot.color,
-    detail: "按住瞄准",
-    directionalVariant: "hookshot"
+    detail: "按住瞄准"
   },
   dash: {
     token: "冲",
@@ -62,14 +51,12 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   basketball: {
     token: "球",
     accent: TOOL_DEFINITIONS.basketball.color,
-    detail: "按住定向",
-    directionalVariant: "basketball"
+    detail: "按住定向"
   },
   rocket: {
     token: "箭",
     accent: TOOL_DEFINITIONS.rocket.color,
-    detail: "按住定向",
-    directionalVariant: "rocket"
+    detail: "按住定向"
   },
   teleport: {
     token: "瞬",
@@ -84,8 +71,7 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   bombThrow: {
     token: "弹",
     accent: TOOL_DEFINITIONS.bombThrow.color,
-    detail: "按住选格定向",
-    directionalVariant: "special"
+    detail: "按住选格定向"
   },
   balance: {
     token: "衡",
@@ -114,12 +100,6 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   }
 };
 
-// Action UI config keeps scene ring labels and accents in one registry.
 export function getActionUiConfig(actionId: ActionUiId): ActionUiConfig {
   return ACTION_UI_CONFIG[actionId];
-}
-
-// Directional variants map tools onto reusable world-space arrow silhouettes.
-export function getDirectionalActionVariant(actionId: ToolId): DirectionVisualVariant {
-  return ACTION_UI_CONFIG[actionId].directionalVariant ?? "special";
 }

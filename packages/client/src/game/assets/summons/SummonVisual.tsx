@@ -1,7 +1,7 @@
 import type { ThreeEvent } from "@react-three/fiber";
 import type { ComponentType } from "react";
 import type { SummonId, SummonSnapshot } from "@watcher/shared";
-import { WalletSummonAsset } from "./WalletSummonAsset";
+import { WalletSummonAsset } from "../tools/deploy-wallet/WalletSummonAsset";
 
 interface SummonAssetProps {
   boardHeight: number;

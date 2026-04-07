@@ -132,7 +132,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
-  const hostPlayer = snapshot?.players.find((player) => player.id === snapshot.hostPlayerId) ?? null;
   const activePlayer = snapshot?.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
   const connectedPlayers = useMemo(() => snapshot?.players.filter((player) => player.isConnected) ?? [], [snapshot]);
   const allConnectedPlayersReady =
@@ -150,7 +149,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const nextRoleDefinition = getCharacterDefinition(nextCharacterId);
   const tools = useMemo(() => me?.tools ?? [], [me]);
   const otherPlayers = snapshot?.players.filter((player) => player.id !== sessionId) ?? [];
-  const selectedChoiceOptions: readonly { description: string; id: string; label: string }[] = [];
   const instantToolReady = Boolean(
     selectedTool &&
       selectedToolDefinition &&
@@ -466,42 +464,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 <p>从列表中选择一个工具，或在场景中的弧形 HUD 中选择。</p>
               </div>
             )}
-            {selectedChoiceOptions.length && selectedTool ? (
-              <div className="tool-grid role-skill-grid">
-                {selectedChoiceOptions.map((choice) => (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    className="tool-button"
-                    onClick={() =>
-                      useToolPayload(
-                        {
-                          input: {
-                            choiceId: {
-                              choiceId: choice.id,
-                              kind: "choice"
-                            }
-                          }
-                        },
-                        selectedTool.instanceId
-                      )
-                    }
-                    disabled={!selectedToolAvailability?.usable}
-                  >
-                    {choice.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {selectedChoiceOptions.length ? (
-              <div className="character-passive-list">
-                {selectedChoiceOptions.map((choice) => (
-                  <p key={`${selectedTool?.instanceId}-${choice.id}`} className="hint-copy">
-                    {choice.label}：{choice.description}
-                  </p>
-                ))}
-              </div>
-            ) : null}
             {instantToolReady && selectedTool ? (
               <button
                 type="button"

@@ -1,5 +1,5 @@
 import type { GridPosition } from "@watcher/shared";
-import { toWorldPosition } from "../../utils/boardMath";
+import { toWorldPosition } from "../../../utils/boardMath";
 
 // Landing and hit previews share one authored ring asset with configurable radius.
 export function PreviewRingAsset({

@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { PresentationEffectType } from "@watcher/shared";
 import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
-import { RocketExplosionEffectAsset } from "./RocketExplosionEffectAsset";
+import { RocketExplosionEffectAsset } from "../tools/rocket/RocketExplosionEffectAsset";
 
 interface EffectAssetProps {
   boardHeight: number;

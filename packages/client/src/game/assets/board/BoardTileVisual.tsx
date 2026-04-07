@@ -1,14 +1,12 @@
 import type { TileDefinition, TileType } from "@watcher/shared";
 import type { ThreeEvent } from "@react-three/fiber";
 import { toWorldPosition } from "../../utils/boardMath";
-import type { TilePreviewVariant } from "../../interaction/previewState";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
 import { GoalTileAsset } from "./GoalTileAsset";
 import { LuckyBlockAsset } from "./LuckyBlockAsset";
 import { PitDecorationAsset } from "./PitDecorationAsset";
 import { StartTileAsset } from "./StartTileAsset";
-import { BlastPreviewTileAsset } from "../previews/BlastPreviewTileAsset";
-import { TilePreviewAsset } from "../previews/TilePreviewAsset";
+import { ToolTilePreviewAsset } from "../tools/shared/ToolTilePreviewAsset";
 
 interface TileVisualStyle {
   color: string;
@@ -31,17 +29,15 @@ export function BoardTileVisual({
   boardHeight,
   boardWidth,
   onPointerDown,
-  previewActive,
-  previewColor,
-  previewVariant,
+  selectionActive,
+  selectionColor,
   tile
 }: {
   boardHeight: number;
   boardWidth: number;
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
-  previewActive: boolean;
-  previewColor: string;
-  previewVariant: TilePreviewVariant;
+  selectionActive: boolean;
+  selectionColor: string;
   tile: TileDefinition;
 }) {
   const [x, , z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
@@ -61,13 +57,9 @@ export function BoardTileVisual({
       {tile.type === "conveyor" && tile.direction ? (
         <ConveyorArrowAsset direction={tile.direction} />
       ) : null}
-      {previewActive ? (
+      {selectionActive ? (
         <group position={[0, -0.26, 0]}>
-          {previewVariant === "blast" ? (
-            <BlastPreviewTileAsset color={previewColor} />
-          ) : (
-            <TilePreviewAsset color={previewColor} />
-          )}
+          <ToolTilePreviewAsset color={selectionColor} />
         </group>
       ) : null}
     </group>

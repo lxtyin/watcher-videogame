@@ -69,6 +69,21 @@
 - 新增 `packages/client/src/game/animation/playbackEngine.ts` 作为客户端唯一播放引擎，统一输出当前时刻的瞬态玩家、投射物、reaction 与显示状态。
 - 删除旧的分散式 `presentationPlayback.ts` 与 `displayState.ts` 播放实现，避免表现层双轨。
 - 将 client 输入显式限制为“presentation 播放期间不可交互”，避免预览与 authoritative 播放重叠。
+
+## 2026-04-07
+
+- 重组 client 工具资源目录，按 `packages/client/src/game/assets/tools/<tool-id>/` 聚合方向箭头、投射物、爆炸与预览素材，并补一个 `shared/` 放通用 preview asset。
+- 将 `BoardScene` 的工具预览收敛成两层：
+  - `selectionTiles -> BoardTileVisual` 的统一可选范围高亮
+  - `effectTiles -> ToolEffectPreview` 的工具效果预览
+- 删除 `previewState.ts` 里的 `summonPreviews / wallGhostPositions / TilePreviewVariant`，不再为 `buildWall`、`deployWallet` 维护专用 preview 字段。
+- 收束通用地块预览逻辑，去掉 `BoardTileVisual` 里的 `blast` 分支；火箭爆炸改为通过 `ToolEffectPreview` 选择专用 effect asset。
+- 清理 client 旧交互分类残留：
+  - `toolSelection.ts` 只保留当前选中工具查询
+  - `useKeyboardInteraction.ts` 改为直接读取 shared 的 `interaction` 定义
+  - `useGameStore.ts` 删除旧的 `useInstantTool / useChoiceTool / perform*Action` 旁路接口
+  - `HudSidebar.tsx` 删除已失效的 choice 侧栏分支
+- 验证：`npm.cmd run typecheck --workspace @watcher/client` 通过。
 - 清理并同步 `docs/index.md`、`docs/arch/架构总览.md`、`docs/arch/共享规则层.md`、`docs/arch/前后端联机原型.md` 的表现层文档边界。
 
 ## 2026-04-04

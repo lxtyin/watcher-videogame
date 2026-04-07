@@ -1,10 +1,6 @@
 import {
   findToolInstance,
   getToolAvailability,
-  isChoiceTool,
-  isDirectionalTool,
-  isTileDirectionTool,
-  isTileTargetTool,
   type GameSnapshot,
   type TurnToolSnapshot
 } from "@watcher/shared";
@@ -60,97 +56,4 @@ export function getSelectedToolState(
     player,
     tool
   };
-}
-
-export function getUsableDirectionalToolState(
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): SelectedToolState | null {
-  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (
-    !selectedToolState ||
-    !isDirectionalTool(selectedToolState.tool.toolId) ||
-    !selectedToolState.availability.usable
-  ) {
-    return null;
-  }
-
-  return selectedToolState;
-}
-
-export function getUsableTileToolState(
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): SelectedToolState | null {
-  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (
-    !selectedToolState ||
-    !isTileTargetTool(selectedToolState.tool.toolId) ||
-    !selectedToolState.availability.usable
-  ) {
-    return null;
-  }
-
-  return selectedToolState;
-}
-
-export function getUsableTileDirectionToolState(
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): SelectedToolState | null {
-  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (
-    !selectedToolState ||
-    !isTileDirectionTool(selectedToolState.tool.toolId) ||
-    !selectedToolState.availability.usable
-  ) {
-    return null;
-  }
-
-  return selectedToolState;
-}
-
-export function getUsableChoiceToolState(
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): SelectedToolState | null {
-  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (
-    !selectedToolState ||
-    !isChoiceTool(selectedToolState.tool.toolId) ||
-    !selectedToolState.availability.usable
-  ) {
-    return null;
-  }
-
-  return selectedToolState;
-}
-
-export function getUsableInstantToolState(
-  snapshot: GameSnapshot | null,
-  sessionId: string | null,
-  selectedToolInstanceId: SelectedToolInstanceId
-): SelectedToolState | null {
-  const selectedToolState = getSelectedToolState(snapshot, sessionId, selectedToolInstanceId);
-
-  if (
-    !selectedToolState ||
-    isDirectionalTool(selectedToolState.tool.toolId) ||
-    isTileTargetTool(selectedToolState.tool.toolId) ||
-    isTileDirectionTool(selectedToolState.tool.toolId) ||
-    isChoiceTool(selectedToolState.tool.toolId) ||
-    !selectedToolState.availability.usable
-  ) {
-    return null;
-  }
-
-  return selectedToolState;
 }

@@ -1,5 +1,5 @@
 import type { GridPosition } from "@watcher/shared";
-import { toWorldPosition } from "../../utils/boardMath";
+import { toWorldPosition } from "../../../utils/boardMath";
 
 // Rocket explosion stays as an authored effect asset driven by semantic playback data.
 export function RocketExplosionEffectAsset({

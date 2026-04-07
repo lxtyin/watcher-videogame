@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import {
   createDirectionSelection,
-  isDirectionalTool,
-  isTileTargetTool,
+  getToolInteractionDefinition,
   type Direction
 } from "@watcher/shared";
 import { useGameStore } from "../state/useGameStore";
@@ -50,17 +49,22 @@ export function useKeyboardInteraction(): void {
         sessionId,
         selectedToolInstanceId
       );
+      const interaction = selectedToolState
+        ? getToolInteractionDefinition(selectedToolState.tool.toolId)
+        : null;
+      const firstStage = interaction?.stages[0];
 
       if (
         direction &&
         selectedToolState?.availability.usable &&
-        isDirectionalTool(selectedToolState.tool.toolId)
+        interaction?.stages.length === 1 &&
+        firstStage?.kind === "drag-direction-release"
       ) {
         event.preventDefault();
         useToolPayload(
           {
             input: {
-              direction: createDirectionSelection(direction)
+              [firstStage.directionKey]: createDirectionSelection(direction)
             }
           },
           selectedToolState.tool.instanceId
@@ -81,8 +85,7 @@ export function useKeyboardInteraction(): void {
       if (
         (event.key === "Enter" || event.key === " ") &&
         selectedToolState?.availability.usable &&
-        !isDirectionalTool(selectedToolState.tool.toolId) &&
-        !isTileTargetTool(selectedToolState.tool.toolId)
+        interaction?.stages.length === 0
       ) {
         event.preventDefault();
         useToolPayload({ input: {} }, selectedToolState.tool.instanceId);

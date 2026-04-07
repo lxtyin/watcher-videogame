@@ -1,8 +1,8 @@
 import type { GridPosition } from "@watcher/shared";
-import { toWorldPosition } from "../../utils/boardMath";
+import { toWorldPosition } from "../../../utils/boardMath";
 
-// Wall placement previews are treated like a ghost asset so build tools stay data-driven.
-export function PreviewWallGhostAsset({
+// Build-wall previews reuse effectTiles but swap in a wall ghost mesh.
+export function BuildWallEffectPreviewAsset({
   boardHeight,
   boardWidth,
   color,

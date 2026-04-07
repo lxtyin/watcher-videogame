@@ -1,13 +1,8 @@
 import { create } from "zustand";
 import type { Client as ColyseusClient, Room } from "colyseus.js";
 import {
-  createChoiceSelection,
-  createDirectionSelection,
-  createTileSelection,
   type CharacterId,
-  type Direction,
   type GameSnapshot,
-  type GridPosition,
   type SequencedActionPresentation,
   type ToolId,
   type UseToolCommandPayload
@@ -67,18 +62,6 @@ interface GameStore {
   returnToRoom: () => void;
   setCharacter: (characterId: CharacterId) => void;
   grantDebugTool: (toolId: ToolId) => void;
-  useInstantTool: (toolInstanceId?: string | null) => boolean;
-  useChoiceTool: (choiceId: string, toolInstanceId?: string | null) => boolean;
-  performDirectionalAction: (direction: Direction | null, toolInstanceId?: string | null) => boolean;
-  performTileTargetAction: (
-    targetPosition: GridPosition | null,
-    toolInstanceId?: string | null
-  ) => boolean;
-  performTileDirectionAction: (
-    targetPosition: GridPosition | null,
-    direction: Direction | null,
-    toolInstanceId?: string | null
-  ) => boolean;
   useToolPayload: (
     payload?: Omit<UseToolCommandPayload, "toolInstanceId">,
     toolInstanceId?: string | null
@@ -308,62 +291,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     sendGrantDebugTool(state.room, toolId);
-  },
-  useInstantTool: (toolInstanceId) => {
-    return get().useToolPayload({ input: {} }, toolInstanceId);
-  },
-  useChoiceTool: (choiceId, toolInstanceId) => {
-    return get().useToolPayload(
-      {
-        input: {
-          choiceId: createChoiceSelection(choiceId)
-        }
-      },
-      toolInstanceId
-    );
-  },
-  performDirectionalAction: (direction, toolInstanceId) => {
-    if (!direction) {
-      return false;
-    }
-
-    return get().useToolPayload(
-      {
-        input: {
-          direction: createDirectionSelection(direction)
-        }
-      },
-      toolInstanceId
-    );
-  },
-  performTileTargetAction: (targetPosition, toolInstanceId) => {
-    if (!targetPosition) {
-      return false;
-    }
-
-    return get().useToolPayload(
-      {
-        input: {
-          targetPosition: createTileSelection(targetPosition)
-        }
-      },
-      toolInstanceId
-    );
-  },
-  performTileDirectionAction: (targetPosition, direction, toolInstanceId) => {
-    if (!targetPosition || !direction) {
-      return false;
-    }
-
-    return get().useToolPayload(
-      {
-        input: {
-          direction: createDirectionSelection(direction),
-          targetPosition: createTileSelection(targetPosition)
-        }
-      },
-      toolInstanceId
-    );
   },
   useToolPayload: (payload = { input: {} }, toolInstanceId) => {
     const state = get();

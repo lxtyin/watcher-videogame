@@ -15,16 +15,13 @@ import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset"
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
 import { ProjectileVisual } from "../assets/presentation/ProjectileVisual";
-import { PreviewRingAsset } from "../assets/previews/PreviewRingAsset";
-import { PreviewWallGhostAsset } from "../assets/previews/PreviewWallGhostAsset";
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
+import { PreviewRingAsset } from "../assets/tools/shared/PreviewRingAsset";
+import { ToolEffectPreview } from "../assets/tools/shared/ToolEffectPreview";
 import { evaluatePlaybackEngine } from "../animation/playbackEngine";
 import { projectClientToGround } from "../interaction/aiming";
-import {
-  resolveScenePreviewState,
-  type TilePreviewVariant
-} from "../interaction/previewState";
+import { resolveScenePreviewState } from "../interaction/previewState";
 import {
   applyToolInteractionChoice,
   beginToolInteractionPointer,
@@ -694,29 +691,25 @@ export function BoardScene() {
   const scenePreview = useMemo(() => {
     const basePreview = resolveScenePreviewState({
       previewDescriptor,
-      sessionId,
       snapshot,
       toolId: interactionSession?.toolId ?? null
     });
 
     if (fallbackTargetPosition && !previewDescriptor && snapshot) {
-      const previewKeys = new Set(basePreview.previewKeys);
-      previewKeys.add(`${fallbackTargetPosition.x},${fallbackTargetPosition.y}`);
+      const selectionKeys = new Set(basePreview.selectionKeys);
+      selectionKeys.add(`${fallbackTargetPosition.x},${fallbackTargetPosition.y}`);
 
       return {
         ...basePreview,
-        previewKeys
+        selectionKeys
       };
     }
 
     return basePreview;
   }, [
-    displayedPlayerPositions,
     fallbackTargetPosition,
     interactionSession?.toolId,
-    myPlayer,
     previewDescriptor,
-    sessionId,
     snapshot
   ]);
 
@@ -908,20 +901,17 @@ export function BoardScene() {
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           onPointerDown={(event) => handleTilePointerDown(tile, event)}
-          previewActive={scenePreview.previewKeys.has(tile.key)}
-          previewColor={scenePreview.previewColor}
-          previewVariant={scenePreview.previewVariant}
+          selectionActive={scenePreview.selectionKeys.has(tile.key)}
+          selectionColor={scenePreview.previewColor}
         />
       ))}
-      {scenePreview.wallGhostPositions.map((position) => (
-        <PreviewWallGhostAsset
-          key={`preview-wall-${position.x}-${position.y}`}
-          boardWidth={snapshot.boardWidth}
-          boardHeight={snapshot.boardHeight}
-          position={position}
-          color={scenePreview.previewColor}
-        />
-      ))}
+      <ToolEffectPreview
+        boardWidth={snapshot.boardWidth}
+        boardHeight={snapshot.boardHeight}
+        color={scenePreview.previewColor}
+        effectTiles={scenePreview.effectTiles}
+        toolId={interactionSession?.toolId ?? null}
+      />
       {displayedSummons.map((summon) => {
         const ownerColor =
           snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
@@ -937,16 +927,6 @@ export function BoardScene() {
           />
         );
       })}
-      {scenePreview.summonPreviews.map((preview) => (
-        <SummonVisual
-          key={preview.key}
-          summon={preview.summon}
-          boardWidth={snapshot.boardWidth}
-          boardHeight={snapshot.boardHeight}
-          color={preview.color}
-          {...(preview.opacity !== undefined ? { opacity: preview.opacity } : {})}
-        />
-      ))}
 
       {renderedPlayers.map((player, index) => {
         const activeMotion = playbackState.playerMotions[player.id] ?? null;
