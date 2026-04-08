@@ -23,7 +23,19 @@ interface RoomTileState {
   key: string;
   x: number;
   y: number;
-  type: "floor" | "wall" | "earthWall" | "pit" | "lucky" | "conveyor" | "start" | "goal";
+  type:
+    | "floor"
+    | "wall"
+    | "earthWall"
+    | "highwall"
+    | "poison"
+    | "pit"
+    | "cannon"
+    | "lucky"
+    | "emptyLucky"
+    | "conveyor"
+    | "start"
+    | "goal";
   durability: number;
   direction: Direction | "";
 }

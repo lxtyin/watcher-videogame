@@ -41,10 +41,10 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
-    brakeRange: 3
+    movePoints: 3
   },
   buttonValue: {
-    paramId: "brakeRange",
+    paramId: "movePoints",
     unit: "tile"
   },
   color: "#53a6b9",
@@ -57,7 +57,7 @@ function resolveBrakeTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
-  const maxRange = getToolParamValue(context.activeTool, "brakeRange", 3);
+  const maxRange = getToolParamValue(context.activeTool, "movePoints", 3);
   const targetPosition = requireTileSelection(context);
   const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
   const movement = createToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");

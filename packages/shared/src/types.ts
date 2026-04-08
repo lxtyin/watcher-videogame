@@ -35,7 +35,7 @@ export type ToolSource = ContentToolSource;
 export type ToolInteractionAnchor = ContentToolInteractionAnchorDefinition;
 export type ToolInteractionStageDefinition = ContentToolInteractionStageDefinition;
 export type ToolInteractionDefinition = ContentToolInteractionDefinition;
-export type PlayerTurnFlag = "lucky_tile_claimed";
+export type PlayerTurnFlag = string;
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
 export type PlayerTagValue = boolean | number | string;
@@ -141,7 +141,7 @@ export interface EventLogEntry {
   type: EventType;
 }
 
-export type PresentationMotionStyle = "ground" | "arc" | "finish";
+export type PresentationMotionStyle = "ground" | "arc" | "finish" | "fall_side" | "spin_drop";
 export type PresentationProjectileType = "basketball" | "rocket" | "awm_bullet";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
 export type PresentationLinkStyle = "chain";
@@ -349,6 +349,14 @@ export type TriggeredTerrainEffect =
     }
   | {
       kind: "pit";
+      movement: MovementDescriptor | null;
+      playerId: string;
+      position: GridPosition;
+      respawnPosition: GridPosition;
+      tileKey: string;
+    }
+  | {
+      kind: "poison";
       movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;

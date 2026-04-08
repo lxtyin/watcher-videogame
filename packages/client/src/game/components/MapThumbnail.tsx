@@ -10,8 +10,24 @@ function getTileGlyph(tile: TileDefinition): string {
     return "G";
   }
 
+  if (tile.type === "poison") {
+    return "P";
+  }
+
+  if (tile.type === "highwall") {
+    return "H";
+  }
+
+  if (tile.type === "cannon") {
+    return "C";
+  }
+
   if (tile.type === "lucky") {
     return "?";
+  }
+
+  if (tile.type === "emptyLucky") {
+    return "";
   }
 
   if (tile.type === "conveyor") {

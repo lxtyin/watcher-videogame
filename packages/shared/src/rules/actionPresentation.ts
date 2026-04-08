@@ -18,9 +18,9 @@ import type {
 const GROUND_MOTION_MS_PER_STEP = 150;
 const ARC_MOTION_MS_PER_STEP = 210;
 const FINISH_MOTION_MS_PER_STEP = 820;
+const FALL_SIDE_MOTION_MS = 420;
+const SPIN_DROP_MOTION_MS = 520;
 const PROJECTILE_MOTION_MS_PER_STEP = 110;
-const ROCKET_EXPLOSION_EFFECT_MS = 420;
-const EARTH_WALL_BREAK_EFFECT_MS = 320;
 
 export const ROCKET_BLAST_DELAY_MS = 40;
 export const HOOKSHOT_PULL_DELAY_MS = 30;
@@ -78,6 +78,10 @@ export function createPlayerMotionEvent(
         ? ARC_MOTION_MS_PER_STEP
         : motionStyle === "finish"
           ? FINISH_MOTION_MS_PER_STEP
+          : motionStyle === "fall_side"
+            ? FALL_SIDE_MOTION_MS
+            : motionStyle === "spin_drop"
+              ? SPIN_DROP_MOTION_MS
           : GROUND_MOTION_MS_PER_STEP)
   };
 }
@@ -114,7 +118,7 @@ export function createEffectEvent(
   position: GridPosition,
   tiles: GridPosition[],
   startMs = 0,
-  durationMs = effectType === "earth_wall_break" ? EARTH_WALL_BREAK_EFFECT_MS : ROCKET_EXPLOSION_EFFECT_MS
+  durationMs = 1000
 ): ActionPresentationEvent {
   return {
     id: eventId,
@@ -241,6 +245,14 @@ function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {
 
   if (motionStyle === "finish") {
     return FINISH_MOTION_MS_PER_STEP;
+  }
+
+  if (motionStyle === "fall_side") {
+    return FALL_SIDE_MOTION_MS;
+  }
+
+  if (motionStyle === "spin_drop") {
+    return SPIN_DROP_MOTION_MS;
   }
 
   return GROUND_MOTION_MS_PER_STEP;

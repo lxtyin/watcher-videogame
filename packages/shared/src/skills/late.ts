@@ -24,7 +24,7 @@ export const LATE_MODIFIER_DEFINITION: ModifierDefinition = {
           toolId: "brake",
           params: {
             ...tool.params,
-            brakeRange: typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0
+            movePoints: typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0
           }
         }
       };

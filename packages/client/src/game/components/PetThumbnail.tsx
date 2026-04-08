@@ -29,7 +29,7 @@ export function PetThumbnail({
             fallbackSeed={fallbackSeed}
             petId={petId}
             position={[0, 0, 0]}
-            rotationY={5 * Math.PI / 4}
+            rotation={[0, 5 * Math.PI / 4, 0]}
           />
         </group>
       </Canvas>

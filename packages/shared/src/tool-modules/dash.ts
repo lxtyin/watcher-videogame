@@ -28,15 +28,14 @@ function resolveDashTool(
 ): void {
   const dashBonus = getToolParamValue(context.activeTool, "dashBonus", 2);
   const nextTools = consumeActiveTool(context).map((tool) =>
-    tool.toolId === "movement"
+    tool.toolId === "movement" || tool.toolId === "brake"
       ? {
           ...tool,
           params: {
             ...tool.params,
             movePoints: (typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0) + dashBonus
           }
-        }
-        : tool
+      } : tool
   );
 
   setDraftToolInventory(draft, nextTools);

@@ -7,11 +7,11 @@ interface PetPieceProps {
   fallbackSeed?: string | undefined;
   petId?: string | undefined;
   position: [number, number, number];
-  rotationY: number;
+  rotation: [number, number, number];
 }
 
 // Cube-pet models are normalized to a shared board footprint before being rendered.
-export function PetPiece({ fallbackSeed, petId, position, rotationY }: PetPieceProps) {
+export function PetPiece({ fallbackSeed, petId, position, rotation }: PetPieceProps) {
   const modelPath = getPetModelPath(petId, fallbackSeed);
   const { scene } = useGLTF(modelPath);
 
@@ -47,7 +47,11 @@ export function PetPiece({ fallbackSeed, petId, position, rotationY }: PetPieceP
   }, [scene]);
 
   return (
-    <group position={position} rotation={[0, rotationY + PET_MODEL_FORWARD_OFFSET_Y, 0]} scale={normalizedModel.scale}>
+    <group
+      position={position}
+      rotation={[rotation[0], rotation[1] + PET_MODEL_FORWARD_OFFSET_Y, rotation[2]]}
+      scale={normalizedModel.scale}
+    >
       <Clone object={scene} position={normalizedModel.offset} />
     </group>
   );

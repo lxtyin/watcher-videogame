@@ -10,7 +10,6 @@ export const TOOL_PARAMETER_LABELS: Record<
   jumpDistance: { label: "飞跃距离", unit: "tile" },
   hookLength: { label: "钩锁长度", unit: "tile" },
   dashBonus: { label: "冲刺加成", unit: "point" },
-  brakeRange: { label: "制动距离", unit: "tile" },
   projectileRange: { label: "射程", unit: "tile" },
   projectileBounceCount: { label: "反弹次数", unit: "count" },
   projectilePushDistance: { label: "推动距离", unit: "tile" },

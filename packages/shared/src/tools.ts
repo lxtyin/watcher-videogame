@@ -231,17 +231,10 @@ export function getToolAvailability(
     };
   }
 
-  if (tool.toolId === "movement" && getToolParam(tool, "movePoints") < 1) {
+  if ((tool.toolId === "movement" || tool.toolId === "brake") && getToolParam(tool, "movePoints") < 1) {
     return {
       usable: false,
       reason: "没有剩余点数"
-    };
-  }
-
-  if (tool.toolId === "brake" && getToolParam(tool, "brakeRange") < 1) {
-    return {
-      usable: false,
-      reason: "没有剩余距离"
     };
   }
 

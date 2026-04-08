@@ -4,15 +4,23 @@ import {
   type GoldenCasePlayback,
   type GoldenCaseResult
 } from "@watcher/shared";
-import { useEffect, useMemo, useState } from "react";
-import { GameBoardCanvas } from "./GameBoardCanvas";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimationClock } from "../hooks/useAnimationClock";
 import { useGameStore } from "../state/useGameStore";
+import { GameBoardCanvas } from "./GameBoardCanvas";
 
 const CASE_BOOT_MS = 360;
 const CASE_GAP_MS = 520;
 const STEP_IDLE_MS = 320;
 const STEP_PRESENTATION_BUFFER_MS = 240;
+
+interface GoldenRunRequest {
+  kind: "all" | "single";
+  resetResults: boolean;
+  serial: number;
+  startIndex: number;
+  targetCaseId: string | null;
+}
 
 function getSelectedCaseId(): string | null {
   const url = new URL(window.location.href);
@@ -52,6 +60,12 @@ function sleep(ms: number): Promise<void> {
 
 function buildResultLookup(results: GoldenCaseResult[]): Record<string, GoldenCaseResult> {
   return Object.fromEntries(results.map((result) => [result.caseId, result]));
+}
+
+function upsertResult(results: GoldenCaseResult[], nextResult: GoldenCaseResult): GoldenCaseResult[] {
+  const nextResults = results.filter((result) => result.caseId !== nextResult.caseId);
+  nextResults.push(nextResult);
+  return nextResults;
 }
 
 function getCaseStatus(
@@ -119,31 +133,83 @@ export function GoldenCaseRunnerApp() {
   const clearLocalPlayback = useGameStore((state) => state.clearLocalPlayback);
   const [results, setResults] = useState<GoldenCaseResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [runSerial, setRunSerial] = useState(0);
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [activeStepIndex, setActiveStepIndex] = useState<number | null>(null);
+  const [pauseAfterCurrentCase, setPauseAfterCurrentCase] = useState(false);
+  const [pausedQueueIndex, setPausedQueueIndex] = useState<number | null>(null);
+  const [runRequest, setRunRequest] = useState<GoldenRunRequest>({
+    kind: "all",
+    resetResults: true,
+    serial: 1,
+    startIndex: 0,
+    targetCaseId: null
+  });
+  const resultsRef = useRef<GoldenCaseResult[]>([]);
+  const pauseAfterCurrentCaseRef = useRef(false);
+
+  useEffect(() => {
+    resultsRef.current = results;
+  }, [results]);
+
+  useEffect(() => {
+    pauseAfterCurrentCaseRef.current = pauseAfterCurrentCase;
+  }, [pauseAfterCurrentCase]);
+
+  const requestRunAll = (startIndex = 0, resetResults = true) => {
+    setPausedQueueIndex(null);
+    setRunRequest((current) => ({
+      kind: "all",
+      resetResults,
+      serial: current.serial + 1,
+      startIndex,
+      targetCaseId: null
+    }));
+  };
+
+  const requestSingleCaseRun = (caseId: string) => {
+    setPauseAfterCurrentCase(false);
+    setPausedQueueIndex(null);
+    setRunRequest((current) => ({
+      kind: "single",
+      resetResults: true,
+      serial: current.serial + 1,
+      startIndex: 0,
+      targetCaseId: caseId
+    }));
+  };
 
   useEffect(() => {
     let cancelled = false;
 
     async function runCasesSequentially() {
-      setResults([]);
+      const requestedPlaybacks =
+        runRequest.kind === "single"
+          ? playbacks.filter((playback) => playback.result.caseId === runRequest.targetCaseId)
+          : playbacks.slice(runRequest.startIndex);
+      const completedResults = runRequest.resetResults ? [] : [...resultsRef.current];
+
+      setResults(completedResults);
       setActiveCaseId(null);
       setActiveStepIndex(null);
 
-      if (!playbacks.length) {
+      if (!requestedPlaybacks.length) {
         clearLocalPlayback();
         setIsRunning(false);
         return;
       }
 
       setIsRunning(true);
-      const completedResults: GoldenCaseResult[] = [];
 
-      for (const playback of playbacks) {
+      for (let playbackIndex = 0; playbackIndex < requestedPlaybacks.length; playbackIndex += 1) {
         if (cancelled) {
           return;
         }
+
+        const playback = requestedPlaybacks[playbackIndex]!;
+        const queueIndex =
+          runRequest.kind === "single"
+            ? playbacks.findIndex((item) => item.result.caseId === playback.result.caseId)
+            : runRequest.startIndex + playbackIndex;
 
         setActiveCaseId(playback.result.caseId);
         setActiveStepIndex(null);
@@ -160,13 +226,32 @@ export function GoldenCaseRunnerApp() {
           await sleep(getStepWaitMs(playback, stepIndex));
         }
 
-        completedResults.push(playback.result);
+        const nextResults = upsertResult(completedResults, playback.result);
+        completedResults.splice(0, completedResults.length, ...nextResults);
+        resultsRef.current = [...completedResults];
         setResults([...completedResults]);
         setActiveStepIndex(null);
-        await sleep(CASE_GAP_MS);
+
+        if (
+          runRequest.kind === "all" &&
+          pauseAfterCurrentCaseRef.current &&
+          queueIndex >= 0 &&
+          queueIndex < playbacks.length - 1
+        ) {
+          setPausedQueueIndex(queueIndex + 1);
+          setPauseAfterCurrentCase(false);
+          setIsRunning(false);
+          return;
+        }
+
+        if (playbackIndex < requestedPlaybacks.length - 1) {
+          await sleep(CASE_GAP_MS);
+        }
       }
 
       if (!cancelled) {
+        setPausedQueueIndex(null);
+        setPauseAfterCurrentCase(false);
         setIsRunning(false);
       }
     }
@@ -177,7 +262,7 @@ export function GoldenCaseRunnerApp() {
       cancelled = true;
       clearLocalPlayback();
     };
-  }, [clearLocalPlayback, playbacks, runSerial, setLocalSnapshot, startLocalPlayback]);
+  }, [clearLocalPlayback, playbacks, runRequest, setLocalSnapshot, startLocalPlayback]);
 
   useEffect(() => {
     window.advanceTime = (ms: number) => {
@@ -189,6 +274,8 @@ export function GoldenCaseRunnerApp() {
       const payload = {
         mode: "goldens",
         running: isRunning,
+        pauseAfterCurrentCase,
+        pausedQueueIndex,
         selectedCaseId,
         activeCaseId,
         activeStepIndex,
@@ -221,7 +308,7 @@ export function GoldenCaseRunnerApp() {
       window.render_game_to_text = undefined;
       window.watcher_store = undefined;
     };
-  }, [activeCaseId, activeStepIndex, isRunning, playbacks.length, results, selectedCaseId]);
+  }, [activeCaseId, activeStepIndex, isRunning, pauseAfterCurrentCase, pausedQueueIndex, playbacks.length, results, selectedCaseId]);
 
   const resultsById = useMemo(() => buildResultLookup(results), [results]);
   const activePlayback =
@@ -244,8 +331,12 @@ export function GoldenCaseRunnerApp() {
 
         <section className="golden-toolbar">
           <div className="golden-toolbar__stats">
-            <span className={`status-pill ${isRunning ? "status-connecting" : "status-connected"}`}>
-              {isRunning ? "运行中" : "已完成"}
+            <span
+              className={`status-pill ${
+                isRunning ? "status-connecting" : pausedQueueIndex !== null ? "status-error" : "status-connected"
+              }`}
+            >
+              {isRunning ? "播放中" : pausedQueueIndex !== null ? "已暂停" : "已完成"}
             </span>
             <strong>
               {passedCount}/{results.length || playbacks.length} 通过
@@ -254,9 +345,25 @@ export function GoldenCaseRunnerApp() {
             {selectedCaseId ? <span>过滤案例: {selectedCaseId}</span> : null}
           </div>
 
-          <button type="button" onClick={() => setRunSerial((value) => value + 1)}>
-            重新运行
-          </button>
+          <div className="golden-toolbar__actions">
+            <button type="button" onClick={() => requestRunAll(0, true)}>
+              重新播放
+            </button>
+            <button
+              type="button"
+              disabled={!isRunning || playbacks.length < 2}
+              onClick={() => setPauseAfterCurrentCase(true)}
+            >
+              "暂停"
+            </button>
+            <button
+              type="button"
+              disabled={pausedQueueIndex === null || isRunning}
+              onClick={() => requestRunAll(pausedQueueIndex ?? 0, false)}
+            >
+              继续
+            </button>
+          </div>
         </section>
 
         {!playbacks.length ? (
@@ -281,7 +388,9 @@ export function GoldenCaseRunnerApp() {
                         ? activeResult.passed
                           ? "status-connected"
                           : "status-error"
-                        : "status-connecting"
+                        : pausedQueueIndex !== null
+                          ? "status-error"
+                          : "status-connecting"
                   }`}
                 >
                   {!activePlayback
@@ -290,11 +399,13 @@ export function GoldenCaseRunnerApp() {
                       ? activeResult.passed
                         ? "通过"
                         : "失败"
-                      : "播放中"}
+                      : pausedQueueIndex !== null
+                        ? "已暂停"
+                        : "播放中"}
                 </span>
               </header>
               <p className="golden-case-card__description">
-                {activePlayback?.result.description ?? "案例将按顺序自动装载并播放。"}
+                {activePlayback?.result.description ?? "案例将按顺序自动加载并播放。"}
               </p>
               {activePlayback ? (
                 <ol className="golden-step-list">
@@ -355,28 +466,37 @@ export function GoldenCaseRunnerApp() {
                       key={playback.result.caseId}
                       className={`golden-progress-item golden-progress-item--${caseStatus}`}
                     >
-                      <div>
+                      <div className="golden-progress-item__meta">
                         <p className="eyebrow">Case {index + 1}</p>
                         <strong>{playback.result.title}</strong>
                         <p className="golden-case-card__id">{playback.result.caseId}</p>
                       </div>
-                      <span
-                        className={`status-pill ${
-                          caseStatus === "passed"
-                            ? "status-connected"
+                      <div className="golden-progress-item__actions">
+                        <span
+                          className={`status-pill ${
+                            caseStatus === "passed"
+                              ? "status-connected"
+                              : caseStatus === "failed"
+                                ? "status-error"
+                                : "status-connecting"
+                          }`}
+                        >
+                          {caseStatus === "passed"
+                            ? "通过"
                             : caseStatus === "failed"
-                              ? "status-error"
-                              : "status-connecting"
-                        }`}
-                      >
-                        {caseStatus === "passed"
-                          ? "通过"
-                          : caseStatus === "failed"
-                            ? "失败"
-                            : caseStatus === "running"
-                              ? "播放中"
-                              : "等待中"}
-                      </span>
+                              ? "失败"
+                              : caseStatus === "running"
+                                ? "播放中"
+                                : "等待中"}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid={`golden-play-case-${playback.result.caseId}`}
+                          onClick={() => requestSingleCaseRun(playback.result.caseId)}
+                        >
+                          播放
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

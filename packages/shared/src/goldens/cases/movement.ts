@@ -118,9 +118,9 @@ export const GOLDEN_MOVEMENT_CASES = [
         }
     }),
     defineGoldenCase({
-        id: "turn-start-lucky-grants-pre-roll-tool",
-        title: "Turn start stop triggers lucky before the roll",
-        description: "Starting a turn on a lucky tile should immediately grant one rolled tool during the turn-start phase.",
+        id: "turn-action-lucky-grants-post-roll-tool",
+        title: "Lucky triggers after the roll when action phase begins",
+        description: "Starting a turn on a lucky tile should wait for the roll to finish, then grant one extra tool as action phase begins.",
         scene: {
             layout: [
                 "#####",
@@ -151,6 +151,77 @@ export const GOLDEN_MOVEMENT_CASES = [
                 kind: "endTurn",
                 actorId: "hero",
                 label: "End the turn while standing on lucky"
+            },
+            {
+                kind: "rollDice",
+                actorId: "hero",
+                label: "Roll into the action phase"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#.x.#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 4
+                }
+            },
+            turnInfo: {
+                currentPlayerId: "hero",
+                phase: "turn-action",
+                turnNumber: 2
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "turn-start-restores-empty-lucky",
+        title: "Turn start restores empty lucky tiles",
+        description: "Lucky tiles claimed on the previous turn should restore as the next turn begins.",
+        scene: {
+            layout: [
+                "#####",
+                "#.l.#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 2, y: 1 },
+                    spawnPosition: { x: 1, y: 2 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action",
+                turnNumber: 1
+            },
+            seeds: {
+                toolDieSeed: 1
+            }
+        },
+        steps: [
+            {
+                kind: "endTurn",
+                actorId: "hero",
+                label: "End the first turn on lucky"
+            },
+            {
+                kind: "rollDice",
+                actorId: "hero",
+                label: "Claim lucky at action phase start"
+            },
+            {
+                kind: "endTurn",
+                actorId: "hero",
+                label: "Advance into the next turn start"
             }
         ],
         expect: {
@@ -163,22 +234,25 @@ export const GOLDEN_MOVEMENT_CASES = [
             players: {
                 hero: {
                     position: { x: 2, y: 1 },
-                    toolCount: 1,
-                    turnFlags: ["lucky_tile_claimed"]
+                    toolCount: 0
                 }
             },
             turnInfo: {
                 currentPlayerId: "hero",
                 phase: "turn-start",
-                turnNumber: 2
+                turnNumber: 3
+            },
+            latestPresentation: {
+                toolId: "movement",
+                eventKinds: ["state_transition"]
             }
         }
     }),
 
     defineGoldenCase({
-        id: "turn-start-pit-respawns-before-roll",
-        title: "Turn start stop triggers pit before the roll",
-        description: "Starting a turn on a pit should immediately respawn the player to their spawn tile before rolling.",
+        id: "turn-action-poison-respawns-after-roll",
+        title: "Poison triggers after the roll when action phase begins",
+        description: "Starting a turn on poison should wait for the roll to finish, then respawn the player as action phase begins.",
         scene: {
             layout: [
                 "#####",
@@ -205,7 +279,12 @@ export const GOLDEN_MOVEMENT_CASES = [
             {
                 kind: "endTurn",
                 actorId: "hero",
-                label: "End the turn while standing on pit"
+                label: "End the turn while standing on poison"
+            },
+            {
+                kind: "rollDice",
+                actorId: "hero",
+                label: "Roll into the action phase"
             }
         ],
         expect: {
@@ -218,15 +297,132 @@ export const GOLDEN_MOVEMENT_CASES = [
             players: {
                 hero: {
                     position: { x: 1, y: 2 },
-                    toolCount: 0
+                    toolCount: 3
                 }
             },
             turnInfo: {
                 currentPlayerId: "hero",
-                phase: "turn-start",
+                phase: "turn-action",
                 turnNumber: 2
             },
-            eventTypes: ["turn_ended", "turn_started", "player_respawned"]
+            eventTypes: ["turn_ended", "turn_started", "dice_rolled", "player_respawned"]
+        }
+    }),
+    defineGoldenCase({
+        id: "pit-pass-through-respawns-mid-move",
+        title: "Passing through a pit respawns immediately",
+        description: "Pit should trigger while moving through it, stop the move, and respawn the player to spawn.",
+        scene: {
+            layout: [
+                "######",
+                "#.o..#",
+                "#....#",
+                "######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    spawnPosition: { x: 1, y: 2 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 3
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Move through the pit"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "######",
+                "#.o..#",
+                "#....#",
+                "######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 2 },
+                    toolCount: 0
+                }
+            },
+            latestPresentation: {
+                toolId: "movement",
+                eventKinds: ["motion", "motion"]
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "highwall-blocks-leap-traversal",
+        title: "Highwall blocks leap traversal",
+        description: "Jump cannot leap over a highwall and must settle before it if a landing tile exists.",
+        scene: {
+            layout: [
+                "#######",
+                "#..H..#",
+                "#.....#",
+                "#######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "jump",
+                            params: {
+                                jumpDistance: 3
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "jump",
+                direction: "right",
+                label: "Try to jump over the highwall"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#######",
+                "#..H..#",
+                "#.....#",
+                "#######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 0
+                }
+            }
         }
     }),
     defineGoldenCase({
@@ -327,37 +523,48 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Landing on a cannon should reuse the shared rocket resolution core and knock the first hit player away.",
         scene: {
             layout: [
-                "#######",
-                "#.c...#",
-                "#.....#",
-                "#######"
+                "#########",
+                "#D.....L#",
+                "#.......#",
+                "#.......#",
+                "#R.....U#",
+                "#########"
             ],
-            symbols: {
-                c: {
-                    type: "cannon",
-                    direction: "right"
-                }
-            },
             players: [
                 {
                     id: "hero",
                     name: "Hero",
                     characterId: "ehh",
-                    position: { x: 1, y: 1 },
+                    position: { x: 4, y: 1 },
                     tools: [
                         {
-                            toolId: "movement",
-                            params: {
-                                movePoints: 1
-                            }
+                            toolId: "basketball",
                         }
                     ]
                 },
                 {
-                    id: "target",
-                    name: "Target",
-                    characterId: "leader",
-                    position: { x: 4, y: 1 }
+                    id: "p1",
+                    name: "P1",
+                    characterId: "ehh",
+                    position: { x: 2, y: 1 }
+                },
+                {
+                    id: "p2",
+                    name: "P2",
+                    characterId: "ehh",
+                    position: { x: 1, y: 2 }
+                },
+                {
+                    id: "p3",
+                    name: "P3",
+                    characterId: "ehh",
+                    position: { x: 4, y: 4 }
+                },
+                {
+                    id: "p4",
+                    name: "P4",
+                    characterId: "ehh",
+                    position: { x: 7, y: 2 }
                 }
             ],
             turn: {
@@ -369,30 +576,37 @@ export const GOLDEN_MOVEMENT_CASES = [
             {
                 kind: "useTool",
                 actorId: "hero",
-                tool: "movement",
-                direction: "right",
-                label: "Walk onto the cannon"
+                tool: "basketball",
+                direction: "left",
+                label: "Throw basketball"
             }
         ],
         expect: {
             boardLayout: [
-                "#######",
-                "#.c...#",
-                "#.....#",
-                "#######"
+                "#########",
+                "#D.....L#",
+                "#.......#",
+                "#.......#",
+                "#R.....U#",
+                "#########"
             ],
             players: {
                 hero: {
-                    position: { x: 2, y: 1 },
+                    position: { x: 1, y: 1 },
                     toolCount: 0
                 },
-                target: {
-                    position: { x: 5, y: 1 }
-                }
-            },
-            latestPresentation: {
-                toolId: "movement",
-                eventKinds: ["motion", "motion", "motion", "reaction"]
+                p1: {
+                    position: { x: 1, y: 1 }
+                },
+                p2: {
+                    position: { x: 1, y: 4 }
+                },
+                p3: {
+                    position: { x: 7, y: 4 }
+                },
+                p4: {
+                    position: { x: 7, y: 1 }
+                },
             }
         }
     }),
@@ -403,16 +617,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         scene: {
             layout: [
                 "#####",
-                "#.c##",
+                "#.R##",
                 "#...#",
                 "#####"
             ],
-            symbols: {
-                c: {
-                    type: "cannon",
-                    direction: "right"
-                }
-            },
             players: [
                 {
                     id: "hero",
@@ -446,7 +654,7 @@ export const GOLDEN_MOVEMENT_CASES = [
         expect: {
             boardLayout: [
                 "#####",
-                "#.c##",
+                "#.R##",
                 "#...#",
                 "#####"
             ],

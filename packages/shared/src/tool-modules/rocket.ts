@@ -37,6 +37,9 @@ import {
   toMovementSubject
 } from "./helpers";
 
+const ROCKET_EXPLOSION_EFFECT_MS = 420;
+
+
 export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "火箭",
   description: "向所选方向发射火箭，命中后在落点爆炸并击飞周围玩家。",
@@ -222,7 +225,8 @@ export function resolveRocketCore(
       "rocket_explosion",
       explosionPosition,
       effectTiles,
-      explosionStartMs
+      explosionStartMs,
+      ROCKET_EXPLOSION_EFFECT_MS
     )
   ]);
 

@@ -521,7 +521,7 @@ export function createTurnStartResolutionDraft(
   sourceId: string,
   toolDieSeed: number,
   tools: TurnToolSnapshot[],
-  presentationToolId: ToolId = "rocket"
+  presentationToolId: ToolId = "movement"
 ): ResolutionDraft {
   return createResolutionDraft({
     actor,

@@ -17,6 +17,7 @@ import {
   createPlayerMotionEvent,
   createStateTransitionEvent
 } from "./rules/actionPresentation";
+import { buildStateTransitionPresentationEvents } from "./rules/actionResolution";
 import { createTurnStartResolutionDraft } from "./rules/actionDraft";
 import { resolveToolAction } from "./actions";
 import {
@@ -283,6 +284,15 @@ function applyPlayerTags(player: PlayerSnapshot, tags: PlayerTagMap): void {
   player.tags = clonePlayerTags(tags);
 }
 
+function clonePlayerTools(tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
+  return tools.map((tool) => ({
+    ...tool,
+    params: {
+      ...tool.params
+    }
+  }));
+}
+
 function applyTileMutations(snapshot: GameSnapshot, tileMutations: TileMutation[]): void {
   const tilesByKey = new Map(snapshot.tiles.map((tile) => [tile.key, tile] as const));
 
@@ -429,7 +439,16 @@ function pushTerrainEvents(
       pushEvent(
         state,
         "player_respawned",
-        `${affectedPlayer.name} fell into a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "poison") {
+      pushEvent(
+        state,
+        "player_respawned",
+        `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
       );
       continue;
     }
@@ -570,6 +589,80 @@ function publishActionPresentation(
   state.runtime.nextPresentationSequence += 1;
 }
 
+function publishDraftPresentation(
+  state: MutableGameOrchestrationState,
+  options: {
+    actorId: string;
+    board: BoardDefinition;
+    presentationEvents: ActionPresentation["events"];
+    sourceId: string;
+    summonMutations: SummonMutation[];
+    summons: BoardSummonState[];
+    tileMutations: TileMutation[];
+    toolId: TurnToolSnapshot["toolId"];
+  }
+): void {
+  const basePresentation = createPresentation(
+    options.actorId,
+    options.toolId,
+    options.presentationEvents
+  );
+  const transitionEvents = buildStateTransitionPresentationEvents({
+    activePresentation: basePresentation,
+    board: options.board,
+    sourceId: options.sourceId,
+    summonMutations: options.summonMutations,
+    summons: options.summons,
+    tileMutations: options.tileMutations
+  });
+
+  publishActionPresentation(
+    state,
+    appendPresentationEvents(
+      basePresentation,
+      options.actorId,
+      options.toolId,
+      transitionEvents
+    )
+  );
+}
+
+function restoreLuckyTilesForTurnStart(
+  state: MutableGameOrchestrationState,
+  playerId: string
+): void {
+  const tileMutations = state.snapshot.tiles
+    .filter((tile) => tile.type === "emptyLucky")
+    .map((tile) => ({
+      key: tile.key,
+      nextDurability: tile.durability,
+      nextType: "lucky" as const,
+      position: clonePosition({
+        x: tile.x,
+        y: tile.y
+      })
+    }));
+
+  if (!tileMutations.length) {
+    return;
+  }
+
+  const board = buildBoardDefinition(state.snapshot);
+  const summons = buildBoardSummons(state.snapshot);
+
+  publishDraftPresentation(state, {
+    actorId: playerId,
+    board,
+    presentationEvents: [],
+    sourceId: `turn-start:${playerId}:${state.snapshot.turnInfo.turnNumber}:lucky-restore`,
+    summonMutations: [],
+    summons,
+    tileMutations,
+    toolId: "movement"
+  });
+  applyTileMutations(state.snapshot, tileMutations);
+}
+
 function detectNextToolInstanceSerial(players: PlayerSnapshot[]): number {
   const serials = players.flatMap((player) =>
     player.tools.map((tool) => {
@@ -655,10 +748,13 @@ function applyPhaseStartToPlayer(
   );
 }
 
-function applyTurnStartStop(
+function applyPhaseEntryStop(
   state: MutableGameOrchestrationState,
-  player: PlayerSnapshot
+  player: PlayerSnapshot,
+  phase: TurnInfoSnapshot["phase"]
 ): TriggeredTerrainEffect[] {
+  const board = buildBoardDefinition(state.snapshot);
+  const summons = buildBoardSummons(state.snapshot);
   const draft = createTurnStartResolutionDraft(
     state.snapshot,
     {
@@ -670,9 +766,10 @@ function applyTurnStartStop(
       tags: clonePlayerTags(player.tags),
       turnFlags: [...player.turnFlags]
     },
-    `turn-start:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+    `${phase}:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
     state.runtime.toolDieSeed,
-    [...player.tools]
+    [...player.tools],
+    "movement"
   );
 
   resolveStopSummonEffects(draft, {
@@ -696,18 +793,24 @@ function applyTurnStartStop(
   applyPlayerModifiers(player, draft.actor.modifiers);
   applyPlayerTags(player, draft.actor.tags);
   applyPlayerTurnFlags(player, draft.actor.turnFlags);
-  applyToolInventory(player, draft.tools, "turn-start");
+  player.tools = clonePlayerTools(draft.tools);
   applyTileMutations(state.snapshot, draft.tileMutations);
   applySummonMutations(state.snapshot, draft.summonMutations);
   applyAffectedPlayerMoves(state.snapshot, draft.affectedPlayers);
-  applyMovementResolvedEffects(state.snapshot, "turn-start", null, draft.affectedPlayers);
+  applyMovementResolvedEffects(state.snapshot, phase, null, draft.affectedPlayers);
   state.runtime.toolDieSeed = draft.nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
-  if (draft.presentationEvents.length) {
-    publishActionPresentation(
-      state,
-      createPresentation(player.id, draft.presentationToolId, draft.presentationEvents)
-    );
+  if (draft.presentationEvents.length || draft.tileMutations.length || draft.summonMutations.length) {
+    publishDraftPresentation(state, {
+      actorId: player.id,
+      board,
+      presentationEvents: draft.presentationEvents,
+      sourceId: draft.sourceId,
+      summonMutations: draft.summonMutations,
+      summons,
+      tileMutations: draft.tileMutations,
+      toolId: draft.presentationToolId
+    });
   }
   pushTerrainEvents(state, player.id, draft.triggeredTerrainEffects);
   pushSummonEvents(state, draft.triggeredSummonEffects);
@@ -767,6 +870,20 @@ function enterActionPhaseWithRoll(
   state.snapshot.turnInfo.lastRolledToolId =
     (diceRollModifiers.rolledTool?.toolId as TurnInfoSnapshot["lastRolledToolId"]) ?? null;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
+  const triggeredTerrainEffects = applyPhaseEntryStop(state, player, "turn-action");
+  const goalProgress = applyRaceGoalProgress(state, player.id, triggeredTerrainEffects);
+
+  if (goalProgress.actorFinished) {
+    queueRaceFinishAdvance(
+      state,
+      player,
+      state.snapshot.latestPresentation,
+      true,
+      goalProgress.settlementComplete
+    );
+    return;
+  }
+
   applyPhaseStartToPlayer(state, player, "turn-action");
 }
 
@@ -916,16 +1033,9 @@ function beginTurnFor(
     state.snapshot.turnInfo.turnNumber += 1;
   }
 
+  restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
-  const triggeredTerrainEffects = applyTurnStartStop(state, player);
   applyPhaseStartToPlayer(state, player, "turn-start");
-  const goalProgress = applyRaceGoalProgress(state, player.id, triggeredTerrainEffects);
-
-  if (!goalProgress.actorFinished) {
-    return;
-  }
-
-  queueRaceFinishAdvance(state, player, null, true, goalProgress.settlementComplete);
 }
 
 function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): void {
@@ -936,13 +1046,7 @@ function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): 
   }
 
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
-  const triggeredTerrainEffects = applyTurnStartStop(state, activePlayer);
   applyPhaseStartToPlayer(state, activePlayer, "turn-start");
-  const goalProgress = applyRaceGoalProgress(state, activePlayer.id, triggeredTerrainEffects);
-
-  if (goalProgress.actorFinished) {
-    queueRaceFinishAdvance(state, activePlayer, null, true, goalProgress.settlementComplete);
-  }
 }
 
 function hasPendingAdvance(runtime: GameRuntimeState): boolean {
@@ -1019,17 +1123,16 @@ function runRollDiceCommand(
 
   const toolRoll = rollToolDie(state.runtime.toolDieSeed);
   state.runtime.toolDieSeed = toolRoll.nextSeed;
+  pushEvent(
+    state,
+    "dice_rolled",
+    `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
+  );
   enterActionPhaseWithRoll(
     state,
     player,
     movementRoll.value,
     toolRoll.value
-  );
-
-  pushEvent(
-    state,
-    "dice_rolled",
-    `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
   );
 
   return buildOkOutcome(`${player.name} rolled successfully.`);

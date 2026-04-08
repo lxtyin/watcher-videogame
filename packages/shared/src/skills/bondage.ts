@@ -20,7 +20,7 @@ export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
         return null;
       }
 
-      if (tool.toolId === "movement") {
+      if (tool.toolId === "movement" || tool.toolId === "brake") {
         return {
           tool: {
             ...tool,
@@ -28,21 +28,6 @@ export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
               ...tool.params,
               movePoints: reduceToolValue(
                 typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0,
-                bondageStacks
-              )
-            }
-          }
-        };
-      }
-
-      if (tool.toolId === "brake") {
-        return {
-          tool: {
-            ...tool,
-            params: {
-              ...tool.params,
-              brakeRange: reduceToolValue(
-                typeof tool.params.brakeRange === "number" ? tool.params.brakeRange : 0,
                 bondageStacks
               )
             }

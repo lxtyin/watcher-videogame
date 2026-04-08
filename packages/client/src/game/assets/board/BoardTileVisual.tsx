@@ -4,8 +4,10 @@ import { toWorldPosition } from "../../utils/boardMath";
 import { CannonTileAsset } from "./CannonTileAsset";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
 import { GoalTileAsset } from "./GoalTileAsset";
+import { HighwallTileAsset } from "./HighwallTileAsset";
 import { LuckyBlockAsset } from "./LuckyBlockAsset";
 import { PitDecorationAsset } from "./PitDecorationAsset";
+import { PoisonTileAsset } from "./PoisonTileAsset";
 import { StartTileAsset } from "./StartTileAsset";
 import { ToolTilePreviewAsset } from "../tools/shared/ToolTilePreviewAsset";
 
@@ -18,9 +20,12 @@ const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   floor: { color: "#d5c6a1", height: 0.22 },
   wall: { color: "#455062", height: 1.15 },
   earthWall: { color: "#bc7441", height: 0.7 },
+  highwall: { color: "#556273", height: 1.3 },
+  poison: { color: "#4c6b3e", height: 0.22 },
   pit: { color: "#8b705f", height: 0.22 },
   cannon: { color: "#67584a", height: 0.22 },
   lucky: { color: "#d6bf70", height: 0.22 },
+  emptyLucky: { color: "#b7a36a", height: 0.22 },
   conveyor: { color: "#b8c7cd", height: 0.22 },
   start: { color: "#9fd9d3", height: 0.22 },
   goal: { color: "#e59e96", height: 0.22 }
@@ -53,7 +58,9 @@ export function BoardTileVisual({
         <meshStandardMaterial color={tileStyle.color} />
       </mesh>
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
+      {tile.type === "poison" ? <PoisonTileAsset /> : null}
       {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
+      {tile.type === "highwall" ? <HighwallTileAsset /> : null}
       {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
       {tile.type === "start" ? <StartTileAsset /> : null}
       {tile.type === "goal" ? <GoalTileAsset /> : null}

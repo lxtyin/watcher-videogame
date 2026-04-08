@@ -58,10 +58,10 @@ function getTileTransitionDirection(
 }
 
 function buildTileStateTransition(
-  context: ToolActionContext,
+  board: ToolActionContext["board"],
   mutation: TileMutation
 ): TileStateTransition | null {
-  const previousTile = getTile(context.board, mutation.position);
+  const previousTile = getTile(board, mutation.position);
 
   if (!previousTile) {
     return null;
@@ -80,11 +80,11 @@ function buildTileStateTransition(
 }
 
 function buildSummonStateTransition(
-  context: ToolActionContext,
+  summons: BoardSummonState[],
   mutation: SummonMutation
 ): SummonStateTransition | null {
   const previousSummon =
-    context.summons.find((summon) => summon.instanceId === mutation.instanceId) ?? null;
+    summons.find((summon) => summon.instanceId === mutation.instanceId) ?? null;
 
   if (mutation.kind === "upsert") {
     return {
@@ -137,6 +137,70 @@ function findStateTransitionStartMs(
   return arrivalTimes.length ? Math.min(...arrivalTimes) : 0;
 }
 
+export function buildStateTransitionPresentationEvents(options: {
+  activePresentation: ActionPresentation | null;
+  board: ToolActionContext["board"];
+  sourceId: string;
+  summonMutations: SummonMutation[];
+  summons: BoardSummonState[];
+  tileMutations: TileMutation[];
+}): ActionPresentationEvent[] {
+  const tileEvents: ActionPresentationEvent[] = options.tileMutations.flatMap((mutation, index) => {
+    const transition = buildTileStateTransition(options.board, mutation);
+
+    if (!transition) {
+      return [];
+    }
+
+    const startMs = findStateTransitionStartMs(options.activePresentation, mutation.position);
+    const events: ActionPresentationEvent[] = [];
+    const earthWallBreakEffectMs = 320;
+
+    if (transition.before.type === "earthWall" && transition.after.type === "floor") {
+      events.push(
+        createEffectEvent(
+          `${options.sourceId}:earth-wall-break-${index}`,
+          "earth_wall_break",
+          mutation.position,
+          [mutation.position],
+          startMs,
+          earthWallBreakEffectMs
+        )
+      );
+    }
+
+    const event = createStateTransitionEvent(
+      `${options.sourceId}:tile-transition-${index}`,
+      [transition],
+      [],
+      [],
+      startMs
+    );
+
+    return event ? [...events, event] : events;
+  });
+  const summonEvents: ActionPresentationEvent[] = options.summonMutations.flatMap((mutation, index) => {
+    const transition = buildSummonStateTransition(options.summons, mutation);
+    const anchorPosition = transition?.before?.position ?? transition?.after?.position;
+
+    if (!transition || !anchorPosition) {
+      return [];
+    }
+
+    const event = createStateTransitionEvent(
+      `${options.sourceId}:summon-transition-${index}`,
+      [],
+      [transition],
+      [],
+      findStateTransitionStartMs(options.activePresentation, anchorPosition)
+    );
+
+    return event ? [event] : [];
+  });
+
+  return [...tileEvents, ...summonEvents];
+}
+
 // Presentation state transitions let the client delay board/summon visuals until the semantic moment they occur.
 export function attachStateTransitionPresentation(
   context: ToolActionContext,
@@ -148,58 +212,14 @@ export function attachStateTransitionPresentation(
   ) {
     return resolution;
   }
-
-  const tileEvents: ActionPresentationEvent[] = resolution.tileMutations.flatMap((mutation, index) => {
-      const transition = buildTileStateTransition(context, mutation);
-
-      if (!transition) {
-        return [];
-      }
-
-      const startMs = findStateTransitionStartMs(resolution.presentation, mutation.position);
-      const events: ActionPresentationEvent[] = [];
-
-      if (transition.before.type === "earthWall" && transition.after.type === "floor") {
-        events.push(
-          createEffectEvent(
-            `${context.activeTool.instanceId}:earth-wall-break-${index}`,
-            "earth_wall_break",
-            mutation.position,
-            [mutation.position],
-            startMs
-          )
-        );
-      }
-
-      const event = createStateTransitionEvent(
-        `${context.activeTool.instanceId}:tile-transition-${index}`,
-        [transition],
-        [],
-        [],
-        startMs
-      );
-
-      return event ? [...events, event] : events;
-    });
-  const summonEvents: ActionPresentationEvent[] = resolution.summonMutations.flatMap((mutation, index) => {
-      const transition = buildSummonStateTransition(context, mutation);
-      const anchorPosition = transition?.before?.position ?? transition?.after?.position;
-
-      if (!transition || !anchorPosition) {
-        return [];
-      }
-
-      const event = createStateTransitionEvent(
-        `${context.activeTool.instanceId}:summon-transition-${index}`,
-        [],
-        [transition],
-        [],
-        findStateTransitionStartMs(resolution.presentation, anchorPosition)
-      );
-
-      return event ? [event] : [];
-    });
-  const transitionEvents: ActionPresentationEvent[] = [...tileEvents, ...summonEvents];
+  const transitionEvents = buildStateTransitionPresentationEvents({
+    activePresentation: resolution.presentation,
+    board: context.board,
+    sourceId: context.activeTool.instanceId,
+    summonMutations: resolution.summonMutations,
+    summons: context.summons,
+    tileMutations: resolution.tileMutations
+  });
 
   if (!transitionEvents.length) {
     return resolution;

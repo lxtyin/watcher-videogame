@@ -7,6 +7,7 @@ import {
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
+  type PresentationMotionStyle,
   type SummonSnapshot,
   type TurnToolSnapshot
 } from "@watcher/shared";
@@ -123,6 +124,40 @@ function getAnimatedStackIndex(
   return fromIndex + (toIndex - fromIndex) * progress;
 }
 
+function getPlayerPresentationPose(
+  motionStyle: PresentationMotionStyle | null,
+  progress: number,
+  baseRotationY: number,
+  facingDirection: Direction
+): { rotation: [number, number, number]; yOffset: number } {
+  if (motionStyle === "spin_drop") {
+    return {
+      rotation: [progress * Math.PI * 1.4, baseRotationY + progress * Math.PI * 4, 0],
+      yOffset: -progress * 0.82
+    };
+  }
+
+  if (motionStyle === "fall_side") {
+    const tilt = progress * Math.PI * 0.44;
+    const sideSign = facingDirection === "left" || facingDirection === "up" ? -1 : 1;
+
+    return facingDirection === "left" || facingDirection === "right"
+      ? {
+          rotation: [0, baseRotationY, tilt * sideSign],
+          yOffset: -progress * 0.22
+        }
+      : {
+          rotation: [tilt * sideSign, baseRotationY, 0],
+          yOffset: -progress * 0.22
+        };
+  }
+
+  return {
+    rotation: [0, motionStyle === "finish" ? baseRotationY + progress * Math.PI * 6 : baseRotationY, 0],
+    yOffset: 0
+  };
+}
+
 // Facing falls back to the dominant net movement axis when a player changes cells.
 function getFacingFromDelta(
   previousPosition: GridPosition | undefined,
@@ -236,6 +271,7 @@ export function BoardScene() {
   const displayedTiles = playbackState.displayedTiles;
   const displayedPlayers = playbackState.displayedPlayers;
   const displayedSummons = playbackState.displayedSummons;
+  const showActionRingArc = !isPresentationBusy && !shouldHideToolInteractionArc(interactionSession);
   const playerStackLayout = useMemo(() => {
     const layout = new Map<string, PlayerStackLayout>();
 
@@ -965,9 +1001,12 @@ export function BoardScene() {
           reactionLift;
         const pieceTopY = pieceBaseY + 0.96;
         const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
-        const pieceRotationY =
-          DIRECTION_ROTATION_Y[facingDirection] +
-          (activeMotion?.motionStyle === "finish" ? activeMotion.progress * Math.PI * 6 : 0);
+        const playerPose = getPlayerPresentationPose(
+          activeMotion?.motionStyle ?? null,
+          activeMotion?.progress ?? 0,
+          DIRECTION_ROTATION_Y[facingDirection],
+          facingDirection
+        );
         const activeRingColor = mixSceneColor(player.color, "#fff4ce", 0.5);
         const directionArrowPosition: [number, number, number] =
           isMe &&
@@ -997,7 +1036,7 @@ export function BoardScene() {
                 screenOffsetX={actionRingOffset.x}
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
-                showArc={!isMe || !shouldHideToolInteractionArc(interactionSession)}
+                showArc={!isMe || showActionRingArc}
                 onBeginPointerTool={(toolInstanceId, clientX, clientY) => {
                   if (!isMe || !canInteract) {
                     return;
@@ -1071,8 +1110,8 @@ export function BoardScene() {
             <PetPiece
               fallbackSeed={player.id}
               petId={player.petId}
-              position={[0, pieceBaseY, 0]}
-              rotationY={pieceRotationY}
+              position={[0, pieceBaseY + playerPose.yOffset, 0]}
+              rotation={playerPose.rotation}
             />
           </group>
         );

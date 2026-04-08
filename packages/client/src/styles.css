@@ -864,13 +864,32 @@ button:disabled {
   color: #f8ead3;
 }
 
+.map-thumbnail__tile--highwall {
+  background: linear-gradient(180deg, #7c8a9b, #556273);
+  color: #f6f2ea;
+}
+
+.map-thumbnail__tile--poison {
+  background: radial-gradient(circle, #7ecb54 0%, #3f5f31 100%);
+  color: #f5ffe8;
+}
+
 .map-thumbnail__tile--pit {
   background: radial-gradient(circle, #3f352c 0%, #1f1a17 100%);
   color: transparent;
 }
 
+.map-thumbnail__tile--cannon {
+  background: linear-gradient(180deg, #8c735c, #67584a);
+  color: #fff0d8;
+}
+
 .map-thumbnail__tile--lucky {
   background: linear-gradient(180deg, #ffe792, #eab743);
+}
+
+.map-thumbnail__tile--emptyLucky {
+  background: linear-gradient(180deg, #c7b27b, #9d8658);
 }
 
 .map-thumbnail__tile--conveyor {
@@ -927,6 +946,14 @@ button:disabled {
   color: #4e5b66;
 }
 
+.golden-toolbar__actions,
+.golden-progress-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .golden-case-list {
   display: flex;
   flex-direction: column;
@@ -959,6 +986,12 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
+}
+
+.golden-progress-item__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
 }
 
 .golden-progress-item--running,
@@ -1309,8 +1342,20 @@ button:disabled {
   background: #bc7441;
 }
 
+.legend-swatch.highwall {
+  background: #556273;
+}
+
+.legend-swatch.poison {
+  background: #6da552;
+}
+
 .legend-swatch.pit {
   background: #5b4b46;
+}
+
+.legend-swatch.cannon {
+  background: #8c6850;
 }
 
 .legend-swatch.lucky {

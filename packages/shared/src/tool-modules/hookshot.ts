@@ -25,7 +25,7 @@ import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
   findPlayersAtPosition,
   getOppositeDirection,
-  isSolidTileType,
+  isProjectileBlockingTileType,
   stepPosition
 } from "../rules/spatial";
 import type { ToolModule } from "./types";
@@ -103,7 +103,7 @@ function resolveHookshotTool(
 
     const tile = getTile(context.board, target);
 
-    if (tile && isSolidTileType(tile.type)) {
+    if (tile && isProjectileBlockingTileType(tile.type)) {
       const pullDistance = distance - 1;
 
       if (pullDistance < 1) {

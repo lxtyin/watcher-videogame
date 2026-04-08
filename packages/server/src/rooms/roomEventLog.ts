@@ -39,7 +39,25 @@ export function pushTerrainEvents(
       pushRoomEvent(
         state,
         "player_respawned",
-        `${affectedPlayer.name} fell into a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "poison") {
+      pushRoomEvent(
+        state,
+        "player_respawned",
+        `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "cannon") {
+      pushRoomEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} triggered a cannon facing ${terrainEffect.direction}.`
       );
       continue;
     }

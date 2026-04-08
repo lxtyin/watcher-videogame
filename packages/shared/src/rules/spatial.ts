@@ -9,6 +9,11 @@ import type {
   TileType,
   ToolActionContext
 } from "../types";
+import {
+  blocksGroundMovementForTileType,
+  blocksLeapTraversalForTileType,
+  blocksProjectileForTileType
+} from "../terrain-modules/traversal";
 
 export interface AxisTarget {
   direction: Direction;
@@ -90,9 +95,13 @@ export function stepPosition(
   };
 }
 
-// Solid tiles block grounded traversal and landing checks.
+// Ground blockers prevent landing and direct entry.
 export function isSolidTileType(tileType: TileType): boolean {
-  return tileType === "wall" || tileType === "earthWall";
+  return blocksGroundMovementForTileType(tileType);
+}
+
+export function isProjectileBlockingTileType(tileType: TileType): boolean {
+  return blocksProjectileForTileType(tileType);
 }
 
 export function positionsEqual(a: GridPosition, b: GridPosition): boolean {
@@ -230,24 +239,37 @@ export function resolveLeapLanding(
   maxDistance: number,
   tileMutations: TileMutation[] = []
 ): { landing: GridPosition | null; path: GridPosition[] } {
-  for (let distance = maxDistance; distance >= 1; distance -= 1) {
-    const landing = stepPosition(startPosition, direction, distance);
+  const traversedPath: GridPosition[] = [];
+
+  for (let distance = 1; distance <= maxDistance; distance += 1) {
+    const position = stepPosition(startPosition, direction, distance);
+
+    if (!isWithinBoard(board, position)) {
+      break;
+    }
+
+    traversedPath.push(position);
+    const tile = getTileAfterMutations(board, tileMutations, position);
+
+    if (tile && blocksLeapTraversalForTileType(tile.type)) {
+      break;
+    }
+  }
+
+  for (let index = traversedPath.length - 1; index >= 0; index -= 1) {
+    const landing = traversedPath[index]!;
 
     if (isLandablePosition(board, landing, tileMutations)) {
       return {
         landing,
-        path: Array.from({ length: distance }, (_, index) =>
-          stepPosition(startPosition, direction, index + 1)
-        )
+        path: traversedPath.slice(0, index + 1)
       };
     }
   }
 
   return {
     landing: null,
-    path: Array.from({ length: Math.max(0, maxDistance) }, (_, index) =>
-      stepPosition(startPosition, direction, index + 1)
-    )
+    path: traversedPath
   };
 }
 
@@ -298,7 +320,7 @@ export function traceProjectileFromPosition(
 
     const tile = getTile(context.board, target);
 
-    if (tile && isSolidTileType(tile.type)) {
+    if (tile && isProjectileBlockingTileType(tile.type)) {
       if (remainingBounces > 0) {
         remainingBounces -= 1;
         currentDirection = getOppositeDirection(currentDirection);

@@ -69,6 +69,8 @@ interface MutableMovementState {
   player: MovementSubject;
   presentationEvents: ActionPresentationEvent[];
   remainingMovePoints: number | null;
+  shouldContinueMovement: boolean;
+  shouldResolveStopTriggers: boolean;
 }
 
 function clonePosition(position: GridPosition): GridPosition {
@@ -99,7 +101,9 @@ function buildState(
     direction,
     player: cloneSubject(player),
     presentationEvents: [],
-    remainingMovePoints
+    remainingMovePoints,
+    shouldContinueMovement: true,
+    shouldResolveStopTriggers: true
   };
 }
 
@@ -139,6 +143,8 @@ function runPassThroughTriggers(
     return;
   }
 
+  const triggerPosition = clonePosition(state.player.position);
+
   applyResolvedPlayerStateToDraft(draft, state.player);
 
   resolvePassThroughTerrainEffect(draft, {
@@ -147,15 +153,20 @@ function runPassThroughTriggers(
     tile
   });
 
-  resolvePassThroughSummonEffects(draft, {
-    ...(state.direction ? { direction: state.direction } : {}),
-    movement,
-    player: state.player,
-    position: state.player.position,
-    ...(typeof state.remainingMovePoints === "number"
-      ? { remainingMovePoints: state.remainingMovePoints }
-      : {})
-  });
+  if (
+    state.player.position.x === triggerPosition.x &&
+    state.player.position.y === triggerPosition.y
+  ) {
+    resolvePassThroughSummonEffects(draft, {
+      ...(state.direction ? { direction: state.direction } : {}),
+      movement,
+      player: state.player,
+      position: state.player.position,
+      ...(typeof state.remainingMovePoints === "number"
+        ? { remainingMovePoints: state.remainingMovePoints }
+        : {})
+    });
+  }
 
   syncMovementStatePlayerFromDraft(draft, state.player);
 }
@@ -239,7 +250,7 @@ export function resolveLinearDisplacement(
   let stepsTaken = 0;
   let stopReason = "Movement ended";
 
-  while ((state.remainingMovePoints ?? 0) > 0 && stepsTaken < maxSteps) {
+  while ((state.remainingMovePoints ?? 0) > 0 && stepsTaken < maxSteps && state.shouldContinueMovement) {
     const direction = state.direction;
 
     if (!direction) {
@@ -261,7 +272,7 @@ export function resolveLinearDisplacement(
       break;
     }
 
-    if (tile.type === "wall") {
+    if (tile.type === "wall" || tile.type === "highwall") {
       stopReason = "Wall";
       break;
     }
@@ -285,7 +296,7 @@ export function resolveLinearDisplacement(
     runPassThroughTriggers(draft, state, options.movement);
   }
 
-  if (path.length) {
+  if (path.length && state.shouldResolveStopTriggers) {
     runStopTriggers(draft, state, options.movement);
   }
 
@@ -307,6 +318,7 @@ export function resolveLeapDisplacement(
 ): MovementSystemResolution {
   const state = buildState(options.player, options.direction, null);
   const startPosition = clonePosition(options.player.position);
+  const traversedPath: GridPosition[] = [];
   const leap = resolveLeapLanding(
     draft.board,
     options.player.position,
@@ -329,16 +341,23 @@ export function resolveLeapDisplacement(
 
   for (const position of leap.path) {
     state.player.position = position;
+    traversedPath.push(clonePosition(position));
     runPassThroughTriggers(draft, state, options.movement);
+
+    if (!state.shouldContinueMovement) {
+      break;
+    }
   }
 
-  runStopTriggers(draft, state, options.movement);
+  if (traversedPath.length && state.shouldResolveStopTriggers) {
+    runStopTriggers(draft, state, options.movement);
+  }
 
   return buildResolution(
     draft,
     state,
     options.movement,
-    leap.path,
+    traversedPath,
     "Movement ended",
     options.trackAffectedPlayerReason,
     startPosition
@@ -369,7 +388,10 @@ export function resolveTeleportDisplacement(
   const path = [clonePosition(options.targetPosition)];
 
   runPassThroughTriggers(draft, state, options.movement);
-  runStopTriggers(draft, state, options.movement);
+
+  if (state.shouldResolveStopTriggers) {
+    runStopTriggers(draft, state, options.movement);
+  }
 
   return buildResolution(
     draft,
