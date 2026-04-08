@@ -7,7 +7,7 @@ import {
   setDraftToolInventory,
   type ResolutionDraft
 } from "../rules/actionDraft";
-import { createPlayerMotionEvent, getMotionArrivalStartMs } from "../rules/actionPresentation";
+import { createPlayerMotionEvent } from "../rules/actionPresentation";
 import { applyOnGetToolModifiers } from "../skills";
 import type {
   GridPosition,
@@ -30,6 +30,7 @@ export function respawnPlayerOnTerrain(
     eventId: string;
     motionStyle: "fall_side" | "spin_drop";
     player: MovementActor;
+    startMs: number;
     triggerPosition: GridPosition;
   }
 ): void {
@@ -37,7 +38,8 @@ export function respawnPlayerOnTerrain(
     options.eventId,
     options.player.id,
     [clonePosition(options.triggerPosition), clonePosition(options.triggerPosition)],
-    options.motionStyle
+    options.motionStyle,
+    options.startMs
   );
 
   if (motionEvent) {
@@ -72,29 +74,6 @@ export function mutateTerrainTile(
       })
     }
   ]);
-}
-
-export function getDraftPlayerArrivalStartMs(
-  draft: ResolutionDraft,
-  playerId: string,
-  position: GridPosition
-): number {
-  const arrivalTimes = draft.presentationEvents.flatMap((event) => {
-    if (event.kind !== "motion" || event.subject.kind !== "player" || event.subject.playerId !== playerId) {
-      return [];
-    }
-
-    const arrivalMs = getMotionArrivalStartMs(
-      event.positions,
-      event.subject.motionStyle,
-      position,
-      event.startMs
-    );
-
-    return arrivalMs === null ? [] : [arrivalMs];
-  });
-
-  return arrivalTimes.length ? Math.min(...arrivalTimes) : 0;
 }
 
 export function grantLuckyReward(

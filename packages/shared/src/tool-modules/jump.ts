@@ -1,7 +1,6 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import {
-  appendDraftPresentationEvents,
   consumeDraftPresentationFrom,
   markDraftPresentation,
   setDraftActionPresentation,
@@ -9,17 +8,16 @@ import {
   setDraftBlocked,
   setDraftToolInventory
 } from "../rules/actionDraft";
+import { createPresentation } from "../rules/actionPresentation";
 import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement } from "../rules/movementSystem";
-import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  createActorMotionPresentation,
   createToolMovementDescriptor,
   createToolPreview,
   createUsedSummary,
@@ -63,7 +61,8 @@ function resolveJumpTool(
           direction,
           maxDistance: jumpDistance,
           movement,
-          player: toMovementSubject(context.actor)
+          player: toMovementSubject(context.actor),
+          startMs: 0
         });
       })()
     : null;
@@ -84,16 +83,10 @@ function resolveJumpTool(
     return;
   }
 
-  const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
-  const actorPresentation = createActorMotionPresentation(context, "actor-jump", resolution.path, "arc");
-
-  setDraftActionPresentation(draft, actorPresentation);
-  appendDraftPresentationEvents(
+  const presentationEvents = consumeDraftPresentationFrom(draft, presentationMark);
+  setDraftActionPresentation(
     draft,
-    offsetPresentationEvents(
-      [...triggerEvents, ...resolution.presentationEvents],
-      actorPresentation?.durationMs ?? 0
-    )
+    createPresentation(context.actor.id, context.activeTool.toolId, presentationEvents)
   );
   setDraftApplied(draft, createUsedSummary(JUMP_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(

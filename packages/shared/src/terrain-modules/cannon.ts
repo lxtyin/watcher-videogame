@@ -28,6 +28,7 @@ export const CANNON_TERRAIN_MODULE: TerrainModule = {
       projectileOwnerId: null,
       projectileRange: CANNON_PROJECTILE_RANGE,
       splashPushDistance: CANNON_SPLASH_PUSH_DISTANCE,
+      startMs: context.startMs,
       tagBase: `terrain:${context.tile.type}`
     });
   },

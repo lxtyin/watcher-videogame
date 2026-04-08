@@ -4,7 +4,6 @@ import { appendDraftPresentationEvents } from "../rules/actionDraft";
 import { createRolledToolInstance } from "../tools";
 import {
   appendTerrainTrigger,
-  getDraftPlayerArrivalStartMs,
   grantLuckyReward,
   mutateTerrainTile
 } from "./helpers";
@@ -33,11 +32,6 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
       buildLuckyToolInstanceId(context.draft.sourceId, context.tile.key, toolRoll.value.toolId),
       toolRoll.value
     );
-    const claimStartMs = getDraftPlayerArrivalStartMs(
-      context.draft,
-      context.player.id,
-      context.position
-    );
 
     grantLuckyReward(context.draft, context.player, rewardedTool, toolRoll.nextSeed);
     mutateTerrainTile(context.draft, context.tile, "emptyLucky");
@@ -47,7 +41,7 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
         "lucky_claim",
         context.position,
         [context.position],
-        claimStartMs,
+        context.startMs,
         LUCKY_CLAIM_EFFECT_MS
       )
     ]);

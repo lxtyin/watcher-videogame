@@ -775,7 +775,8 @@ function applyPhaseEntryStop(
   resolveStopSummonEffects(draft, {
     movement: null,
     player: draft.actor,
-    position: draft.actor.position
+    position: draft.actor.position,
+    startMs: 0
   });
 
   const tile = getTile(draft.board, draft.actor.position);
@@ -785,6 +786,7 @@ function applyPhaseEntryStop(
       movement: null,
       player: draft.actor,
       position: draft.actor.position,
+      startMs: 0,
       tile
     });
   }

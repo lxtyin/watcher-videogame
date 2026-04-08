@@ -1,11 +1,14 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragTileInteraction } from "../toolInteraction";
 import {
-  appendDraftPresentationEvents,
+  consumeDraftPresentationFrom,
+  markDraftPresentation,
+  setDraftActionPresentation,
   setDraftApplied,
   setDraftBlocked,
   setDraftToolInventory
 } from "../rules/actionDraft";
+import { createPresentation } from "../rules/actionPresentation";
 import {
   consumeActiveTool,
   requireTileSelection
@@ -57,9 +60,11 @@ function resolveTeleportTool(
   }
 
   setDraftToolInventory(draft, consumeActiveTool(context));
+  const presentationMark = markDraftPresentation(draft);
   const resolution = resolveTeleportDisplacement(draft, {
     movement,
     player: toMovementSubject(context.actor),
+    startMs: 0,
     targetPosition
   });
 
@@ -74,7 +79,11 @@ function resolveTeleportTool(
     return;
   }
 
-  appendDraftPresentationEvents(draft, resolution.presentationEvents);
+  const presentationEvents = consumeDraftPresentationFrom(draft, presentationMark);
+  setDraftActionPresentation(
+    draft,
+    createPresentation(context.actor.id, context.activeTool.toolId, presentationEvents)
+  );
   setDraftApplied(draft, createUsedSummary(TELEPORT_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(
       context.actor.id,

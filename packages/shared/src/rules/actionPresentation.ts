@@ -238,7 +238,7 @@ export function offsetPresentationEvents(
   }));
 }
 
-function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {
+export function getMotionStepDurationMs(motionStyle: PresentationMotionStyle): number {
   if (motionStyle === "arc") {
     return ARC_MOTION_MS_PER_STEP;
   }

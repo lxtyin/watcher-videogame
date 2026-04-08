@@ -3,11 +3,9 @@ import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   createLinkReactionEvent,
-  createPlayerMotionEvent,
   createPresentation,
   getProjectileTravelDurationMs,
-  HOOKSHOT_PULL_DELAY_MS,
-  offsetPresentationEvents
+  HOOKSHOT_PULL_DELAY_MS
 } from "../rules/actionPresentation";
 import {
   appendDraftPresentationEvents,
@@ -120,13 +118,19 @@ function resolveHookshotTool(
       }
 
       setDraftToolInventory(draft, consumeActiveTool(context));
+      const outboundDurationMs = getProjectileTravelDurationMs(
+        rayPath.length + 1,
+        HOOKSHOT_FLIGHT_SPEED
+      );
+      const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
       const presentationMark = markDraftPresentation(draft);
       const actorResolution = resolveLinearDisplacement(draft, {
         direction,
         maxSteps: pullDistance,
         movePoints: pullDistance,
         movement: actorMovement,
-        player: toMovementSubject(context.actor)
+        player: toMovementSubject(context.actor),
+        startMs: pullStartMs
       });
 
       if (!actorResolution.path.length) {
@@ -143,11 +147,7 @@ function resolveHookshotTool(
         return;
       }
 
-      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
-      const outboundDurationMs = getProjectileTravelDurationMs(
-        rayPath.length + 1,
-        HOOKSHOT_FLIGHT_SPEED
-      );
+      const movementEvents = consumeDraftPresentationFrom(draft, presentationMark);
       const motionEvents: ActionPresentationEvent[] = [
         createLinkReactionEvent(
           `${context.activeTool.instanceId}:hookshot-outbound`,
@@ -165,16 +165,12 @@ function resolveHookshotTool(
           "extend_from_from"
         )
       ];
-      const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
-      const actorMotionEvent = createPlayerMotionEvent(
-        `${context.activeTool.instanceId}:actor-hook`,
-        context.actor.id,
-        [context.actor.position, ...actorResolution.path],
-        "ground",
-        pullStartMs
-      );
+      const pullDurationMs =
+        actorResolution.motionStartMs !== null && actorResolution.motionEndMs !== null
+          ? actorResolution.motionEndMs - actorResolution.motionStartMs
+          : 0;
 
-      if (actorMotionEvent) {
+      if (pullDurationMs > 0) {
         motionEvents.push(
           createLinkReactionEvent(
             `${context.activeTool.instanceId}:hookshot-link-wall`,
@@ -188,21 +184,17 @@ function resolveHookshotTool(
             },
             "chain",
             pullStartMs,
-            actorMotionEvent.durationMs
+            pullDurationMs
           )
         );
-        motionEvents.push(actorMotionEvent);
       }
 
       setDraftActionPresentation(
         draft,
-        createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
-      );
-      appendDraftPresentationEvents(
-        draft,
-        offsetPresentationEvents(
-          [...triggerEvents, ...actorResolution.presentationEvents],
-          (actorMotionEvent?.startMs ?? pullStartMs) + (actorMotionEvent?.durationMs ?? 0)
+        createPresentation(
+          context.actor.id,
+          context.activeTool.toolId,
+          [...motionEvents, ...movementEvents]
         )
       );
       setDraftApplied(draft, createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label), {
@@ -238,7 +230,7 @@ function resolveHookshotTool(
       rayPath.length,
       HOOKSHOT_FLIGHT_SPEED
     );
-    const motionEvents: ActionPresentationEvent[] = [
+    const presentationEvents: ActionPresentationEvent[] = [
       createLinkReactionEvent(
         `${context.activeTool.instanceId}:hookshot-outbound`,
         {
@@ -256,7 +248,6 @@ function resolveHookshotTool(
       )
     ];
     const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
-    const nestedEvents: ActionPresentationEvent[] = [];
     let pullSucceeded = false;
 
     for (const [index, hitPlayer] of hitPlayers.entries()) {
@@ -273,6 +264,7 @@ function resolveHookshotTool(
         movePoints: pullDistance,
         movement: pulledMovement,
         player: toMovementSubject(hitPlayer),
+        startMs: pullStartMs,
         trackAffectedPlayerReason: "hookshot"
       });
 
@@ -281,25 +273,14 @@ function resolveHookshotTool(
       }
 
       pullSucceeded = true;
-      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
+      const pulledPlayerEvents = consumeDraftPresentationFrom(draft, presentationMark);
+      const pullDurationMs =
+        pullResolution.motionStartMs !== null && pullResolution.motionEndMs !== null
+          ? pullResolution.motionEndMs - pullResolution.motionStartMs
+          : 0;
 
-      const motionEvent = createPlayerMotionEvent(
-        `${context.activeTool.instanceId}:hooked-${index}`,
-        hitPlayer.id,
-        [hitPlayer.position, ...pullResolution.path],
-        "ground",
-        pullStartMs
-      );
-
-      nestedEvents.push(
-        ...offsetPresentationEvents(
-          [...triggerEvents, ...pullResolution.presentationEvents],
-          (motionEvent?.startMs ?? pullStartMs) + (motionEvent?.durationMs ?? 0)
-        )
-      );
-
-      if (motionEvent) {
-        motionEvents.push(
+      if (pullDurationMs > 0) {
+        presentationEvents.push(
           createLinkReactionEvent(
             `${context.activeTool.instanceId}:hookshot-link-player-${index}`,
             {
@@ -312,11 +293,12 @@ function resolveHookshotTool(
             },
             "chain",
             pullStartMs,
-            motionEvent.durationMs
+            pullDurationMs
           )
         );
-        motionEvents.push(motionEvent);
       }
+
+      presentationEvents.push(...pulledPlayerEvents);
     }
 
     if (!pullSucceeded) {
@@ -335,9 +317,8 @@ function resolveHookshotTool(
 
     setDraftActionPresentation(
       draft,
-      createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
+      createPresentation(context.actor.id, context.activeTool.toolId, presentationEvents)
     );
-    appendDraftPresentationEvents(draft, nestedEvents);
     setDraftApplied(draft, createUsedSummary(HOOKSHOT_TOOL_DEFINITION.label), {
       path: rayPath,
       preview: createToolPreview(context, {

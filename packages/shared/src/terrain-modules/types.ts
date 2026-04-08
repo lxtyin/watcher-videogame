@@ -11,6 +11,7 @@ export interface PassThroughTerrainState {
 export interface TerrainPassThroughContext {
   draft: ResolutionDraft;
   movement: MovementDescriptor;
+  startMs: number;
   state: PassThroughTerrainState;
   tile: TileDefinition;
 }
@@ -20,6 +21,7 @@ export interface TerrainStopContext {
   movement: MovementDescriptor | null;
   player: MovementActor;
   position: GridPosition;
+  startMs: number;
   tile: TileDefinition;
 }
 

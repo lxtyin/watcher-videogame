@@ -4,9 +4,7 @@ import { createDragDirectionInteraction } from "../toolInteraction";
 import {
   buildMotionPositions,
   createEffectEvent,
-  createPlayerMotionEvent,
   createProjectileEvent,
-  offsetPresentationEvents,
   ROCKET_BLAST_DELAY_MS
 } from "../rules/actionPresentation";
 import {
@@ -67,6 +65,7 @@ export interface RocketCoreSpec {
   projectileOwnerId: string | null;
   projectileRange: number;
   splashPushDistance: number;
+  startMs: number;
   tagBase: string;
 }
 
@@ -126,9 +125,10 @@ export function resolveRocketCore(
     `${spec.eventIdPrefix}:projectile`,
     spec.projectileOwnerId,
     "rocket",
-    buildMotionPositions(spec.originPosition, trace.path)
+    buildMotionPositions(spec.originPosition, trace.path),
+    spec.startMs
   );
-  const explosionStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
+  const explosionStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : spec.startMs;
 
   if (projectileEvent) {
     appendDraftPresentationEvents(draft, [projectileEvent]);
@@ -146,32 +146,13 @@ export function resolveRocketCore(
       maxDistance: spec.blastLeapDistance,
       movement: blastMovement,
       player: toMovementSubject(hitPlayer),
+      startMs: explosionStartMs + ROCKET_BLAST_DELAY_MS,
       trackAffectedPlayerReason: "rocket_blast"
     });
 
     if (!leapResolution.path.length) {
       return;
     }
-
-    const motionEvent = createPlayerMotionEvent(
-      `${spec.eventIdPrefix}:blast-${index}`,
-      hitPlayer.id,
-      buildMotionPositions(hitPlayer.position, leapResolution.path),
-      "arc",
-      explosionStartMs + ROCKET_BLAST_DELAY_MS
-    );
-    const nestedStartMs =
-      (motionEvent?.startMs ?? explosionStartMs + ROCKET_BLAST_DELAY_MS) +
-      (motionEvent?.durationMs ?? 0);
-
-    if (motionEvent) {
-      appendDraftPresentationEvents(draft, [motionEvent]);
-    }
-
-    appendDraftPresentationEvents(
-      draft,
-      offsetPresentationEvents(leapResolution.presentationEvents, nestedStartMs)
-    );
   });
 
   for (const splashDirection of CARDINAL_DIRECTIONS) {
@@ -189,32 +170,13 @@ export function resolveRocketCore(
         movePoints: spec.splashPushDistance,
         movement: splashMovement,
         player: toMovementSubject(splashPlayer),
+        startMs: explosionStartMs + ROCKET_BLAST_DELAY_MS,
         trackAffectedPlayerReason: "rocket_splash"
       });
 
       if (!pushResolution.path.length) {
         continue;
       }
-
-      const motionEvent = createPlayerMotionEvent(
-        `${spec.eventIdPrefix}:splash-${splashPlayer.id}-${splashDirection}`,
-        splashPlayer.id,
-        buildMotionPositions(splashPlayer.position, pushResolution.path),
-        "ground",
-        explosionStartMs + ROCKET_BLAST_DELAY_MS
-      );
-      const nestedStartMs =
-        (motionEvent?.startMs ?? explosionStartMs + ROCKET_BLAST_DELAY_MS) +
-        (motionEvent?.durationMs ?? 0);
-
-      if (motionEvent) {
-        appendDraftPresentationEvents(draft, [motionEvent]);
-      }
-
-      appendDraftPresentationEvents(
-        draft,
-        offsetPresentationEvents(pushResolution.presentationEvents, nestedStartMs)
-      );
     }
   }
 
@@ -295,6 +257,7 @@ function resolveRocketTool(
     projectileOwnerId: context.actor.id,
     projectileRange,
     splashPushDistance,
+    startMs: 0,
     tagBase: `tool:${context.activeTool.toolId}`
   });
 

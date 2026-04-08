@@ -7,6 +7,7 @@ export const POISON_TERRAIN_MODULE: TerrainModule = {
       eventId: `${context.draft.sourceId}:poison:${context.tile.key}`,
       motionStyle: "fall_side",
       player: context.player,
+      startMs: context.startMs,
       triggerPosition: context.position
     });
     appendTerrainTrigger(context.draft, {

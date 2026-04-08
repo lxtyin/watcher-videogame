@@ -31,6 +31,7 @@ export interface ResolutionDraft {
   actorId: string;
   board: BoardDefinition;
   nextToolDieSeed: number;
+  nextEventOrdinal: number;
   playersById: Map<string, BoardPlayerState>;
   presentationEvents: ActionPresentationEvent[];
   presentationToolId: ToolId;
@@ -133,6 +134,7 @@ export function createResolutionDraft(options: {
     actorId: options.actor.id,
     board: options.board,
     nextToolDieSeed: options.nextToolDieSeed,
+    nextEventOrdinal: 0,
     playersById: new Map(
       options.players.map((player) => [player.id, cloneBoardPlayerState(player)] as const)
     ),
@@ -152,6 +154,15 @@ export function createResolutionDraft(options: {
 
   syncDraftActorPlayerEntry(draft);
   return draft;
+}
+
+export function createDraftEventId(
+  draft: ResolutionDraft,
+  scope: string
+): string {
+  const eventId = `${draft.sourceId}:${scope}:${draft.nextEventOrdinal}`;
+  draft.nextEventOrdinal += 1;
+  return eventId;
 }
 
 export function createToolActionDraft(context: ToolActionContext): ToolActionDraft {

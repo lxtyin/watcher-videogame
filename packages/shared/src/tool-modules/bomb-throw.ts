@@ -2,10 +2,7 @@ import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createSequentialInteraction } from "../toolInteraction";
 import {
-  buildMotionPositions,
-  createPlayerMotionEvent,
   createPresentation,
-  offsetPresentationEvents
 } from "../rules/actionPresentation";
 import {
   appendDraftPresentationEvents,
@@ -141,6 +138,7 @@ function resolveBombThrowTool(
       movePoints: pushDistance,
       movement: pushMovement,
       player: toMovementSubject(targetPlayer),
+      startMs: 0,
       trackAffectedPlayerReason: "bomb_throw"
     });
 
@@ -148,24 +146,7 @@ function resolveBombThrowTool(
       continue;
     }
 
-    const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
-    const motionEvent = createPlayerMotionEvent(
-      `${context.activeTool.instanceId}:bomb-push-${targetPlayer.id}-${index}`,
-      targetPlayer.id,
-      buildMotionPositions(targetPlayer.position, pushResolution.path),
-      "ground"
-    );
-
-    nestedEvents.push(
-      ...offsetPresentationEvents(
-        [...triggerEvents, ...pushResolution.presentationEvents],
-        (motionEvent?.startMs ?? 0) + (motionEvent?.durationMs ?? 0)
-      )
-    );
-
-    if (motionEvent) {
-      motionEvents.push(motionEvent);
-    }
+    motionEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
   }
 
   if (!draft.affectedPlayers.length) {
@@ -184,7 +165,6 @@ function resolveBombThrowTool(
     draft,
     createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
   );
-  appendDraftPresentationEvents(draft, nestedEvents);
   setDraftApplied(draft, createUsedSummary(BOMB_THROW_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, {

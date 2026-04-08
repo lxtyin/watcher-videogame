@@ -8,15 +8,15 @@ export interface LayoutSymbolDefinition {
 
 // Default board content lives outside the runtime builder so map edits stay data-only.
 export const DEFAULT_BOARD_LAYOUT = [
-  "#########",
-  "#.>l#...#",
-  "#.v.#...#",
-  "#.pe#e..#",
-  "#..^....#",
-  "#..e....#",
-  "#D..##..#",
-  "#....<..#",
-  "#########"
+  "###########",
+  "#s>lx..g..#",
+  "#.v.H..U..#",
+  "#.pe#e.L..#",
+  "#..^..o...#",
+  "#..e..R...#",
+  "#D..##....#",
+  "#....<....#",
+  "###########"
 ] as const;
 
 export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {

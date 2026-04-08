@@ -9,6 +9,7 @@ export function resolvePassThroughTerrainEffect(
   draft: ResolutionDraft,
   context: {
     movement: import("./types").MovementDescriptor;
+    startMs: number;
     state: PassThroughTerrainState;
     tile: import("./types").TileDefinition;
   }
@@ -22,6 +23,7 @@ export function resolvePassThroughTerrainEffect(
   terrainDefinition.onPassThrough({
     draft,
     movement: context.movement,
+    startMs: context.startMs,
     state: context.state,
     tile: context.tile
   });
@@ -34,6 +36,7 @@ export function resolveStopTerrainEffect(
     movement: import("./types").MovementDescriptor | null;
     player: import("./types").MovementActor;
     position: GridPosition;
+    startMs: number;
     tile: import("./types").TileDefinition;
   }
 ): void {
@@ -48,6 +51,7 @@ export function resolveStopTerrainEffect(
     movement: context.movement,
     player: context.player,
     position: context.position,
+    startMs: context.startMs,
     tile: context.tile
   });
 }

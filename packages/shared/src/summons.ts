@@ -42,6 +42,7 @@ interface SummonTriggerContext {
   player: SummonTriggerTarget;
   position: GridPosition;
   remainingMovePoints?: number;
+  startMs: number;
   summon: BoardSummonState;
 }
 
@@ -51,6 +52,7 @@ interface SummonPhaseContext {
   player: MovementActor;
   position: GridPosition;
   remainingMovePoints?: number;
+  startMs: number;
 }
 
 export interface SummonDefinition {
@@ -189,6 +191,7 @@ function runSummonPhase(
         turnFlags: [...context.player.turnFlags]
       },
       position: context.position,
+      startMs: context.startMs,
       ...(typeof context.remainingMovePoints === "number"
         ? { remainingMovePoints: context.remainingMovePoints }
         : {}),

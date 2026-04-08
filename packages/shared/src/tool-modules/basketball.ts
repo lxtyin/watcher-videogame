@@ -2,11 +2,9 @@ import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import {
-  buildMotionPositions,
-  createPlayerMotionEvent,
   createPresentation,
   createProjectileEvent,
-  offsetPresentationEvents
+  buildMotionPositions
 } from "../rules/actionPresentation";
 import {
   appendDraftPresentationEvents,
@@ -87,35 +85,18 @@ function resolveBasketballTool(
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         maxSteps: pushDistance,
-        movePoints: pushDistance,
-        movement: pushedMovement,
-        player: toMovementSubject(hitPlayer),
-        trackAffectedPlayerReason: "basketball"
-      });
+      movePoints: pushDistance,
+      movement: pushedMovement,
+      player: toMovementSubject(hitPlayer),
+      startMs: impactStartMs,
+      trackAffectedPlayerReason: "basketball"
+    });
 
       if (!pushResolution.path.length) {
         continue;
       }
 
-      const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
-      const motionEvent = createPlayerMotionEvent(
-        `${context.activeTool.instanceId}:basketball-hit-${index}`,
-        hitPlayer.id,
-        buildMotionPositions(hitPlayer.position, pushResolution.path),
-        "ground",
-        impactStartMs
-      );
-
-      nestedEvents.push(
-        ...offsetPresentationEvents(
-          [...triggerEvents, ...pushResolution.presentationEvents],
-          (motionEvent?.startMs ?? impactStartMs) + (motionEvent?.durationMs ?? 0)
-        )
-      );
-
-      if (motionEvent) {
-        motionEvents.push(motionEvent);
-      }
+      nestedEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
     }
   }
 

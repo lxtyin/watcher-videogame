@@ -1,7 +1,6 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { createDragAxisTileInteraction } from "../toolInteraction";
 import {
-  appendDraftPresentationEvents,
   consumeDraftPresentationFrom,
   markDraftPresentation,
   setDraftActionPresentation,
@@ -9,18 +8,17 @@ import {
   setDraftBlocked,
   setDraftToolInventory
 } from "../rules/actionDraft";
+import { createPresentation } from "../rules/actionPresentation";
 import {
   consumeActiveTool,
   requireTileSelection
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
-import { offsetPresentationEvents } from "../rules/actionPresentation";
 import { collectAxisSelectionTiles } from "../rules/previewDescriptor";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  createActorMotionPresentation,
   createToolMovementDescriptor,
   createToolPreview,
   createUsedSummary,
@@ -89,14 +87,16 @@ function resolveBrakeTool(
           direction: axisTarget.direction,
           maxDistance: requestedDistance,
           movement,
-          player: toMovementSubject(context.actor)
+          player: toMovementSubject(context.actor),
+          startMs: 0
         })
       : resolveLinearDisplacement(draft, {
           direction: axisTarget.direction,
           maxSteps: requestedDistance,
           movePoints: requestedDistance,
           movement,
-          player: toMovementSubject(context.actor)
+          player: toMovementSubject(context.actor),
+          startMs: 0
         });
 
   if (!resolution.path.length) {
@@ -112,21 +112,10 @@ function resolveBrakeTool(
     return;
   }
 
-  const triggerEvents = consumeDraftPresentationFrom(draft, presentationMark);
-  const actorPresentation = createActorMotionPresentation(
-    context,
-    "actor-brake",
-    resolution.path,
-    movement.type === "leap" ? "arc" : "ground"
-  );
-
-  setDraftActionPresentation(draft, actorPresentation);
-  appendDraftPresentationEvents(
+  const presentationEvents = consumeDraftPresentationFrom(draft, presentationMark);
+  setDraftActionPresentation(
     draft,
-    offsetPresentationEvents(
-      [...triggerEvents, ...resolution.presentationEvents],
-      actorPresentation?.durationMs ?? 0
-    )
+    createPresentation(context.actor.id, context.activeTool.toolId, presentationEvents)
   );
   setDraftApplied(draft, createUsedSummary(BRAKE_TOOL_DEFINITION.label), {
     actorMovement: createResolvedPlayerMovement(

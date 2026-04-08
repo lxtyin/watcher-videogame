@@ -1,5 +1,6 @@
 import { appendTerrainTrigger, respawnPlayerOnTerrain } from "./helpers";
 import type { TerrainModule } from "./types";
+import { isMovementType } from "../rules/displacement";
 
 export const PIT_TERRAIN_MODULE: TerrainModule = {
   onPassThrough: (context) => {
@@ -8,10 +9,15 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
       y: context.state.player.position.y
     };
 
+    if (!isMovementType(context.movement, "translate")) {
+      return;
+    }
+
     respawnPlayerOnTerrain(context.draft, {
       eventId: `${context.draft.sourceId}:pit:${context.tile.key}`,
       motionStyle: "spin_drop",
       player: context.state.player,
+      startMs: context.startMs,
       triggerPosition
     });
     context.state.direction = null;
@@ -28,3 +34,4 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
   },
   type: "pit"
 };
+
