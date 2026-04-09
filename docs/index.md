@@ -18,9 +18,11 @@
    - shared 内容注册、terrain-modules、client 资源目录
 8. [前后端联机原型](./arch/前后端联机原型.md)
    - room、schema、snapshot、presentation 同步链路
-9. [房间与大厅流程](./arch/房间与大厅流程.md)
+9. [地图编辑器原型](./arch/地图编辑器原型.md)
+   - `/mapeditor`、布局文本、地形库与自定义地图联机测试
+10. [房间与大厅流程](./arch/房间与大厅流程.md)
    - room 生命周期、lobby、开局、结算、回房
-10. [progress](../progress.md)
+11. [progress](./progress.md)
    - 最近完成的结构调整与验证记录
 
 ## 说明

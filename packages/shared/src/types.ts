@@ -212,6 +212,13 @@ export interface GameSnapshot {
   turnInfo: TurnInfoSnapshot;
 }
 
+export interface CustomMapDefinition {
+  allowDebugTools: boolean;
+  layout: string[];
+  mapLabel: string;
+  mode: GameMode;
+}
+
 export interface UseToolCommandPayload {
   input: ToolSelectionRecord;
   toolInstanceId: string;

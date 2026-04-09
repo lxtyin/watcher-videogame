@@ -11,6 +11,7 @@ export * from "./modifiers";
 export * from "./playerTags";
 export * from "./simulation";
 export * from "./rules/actionPresentation";
+export * from "./content/boards/defaultBoard";
 export * from "./content/maps";
 export * from "./skills";
 export * from "./summons";

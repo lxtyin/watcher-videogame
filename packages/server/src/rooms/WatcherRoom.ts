@@ -2,12 +2,16 @@ import { type Client, Room } from "colyseus";
 import type { Delayed } from "@colyseus/timer";
 import {
   buildGameMapRuntimeMetadata,
+  createBoardDefinitionFromLayout,
   createBoardDefinition,
   createGameOrchestrator,
   createInitialGameRuntimeState,
+  getBoardSpawnPosition,
   getCharacterDefinition,
   getCharacterIds,
   getGameMapSpawnPosition,
+  type BoardDefinition,
+  type CustomMapDefinition,
   type GameOrchestrator,
   type GameRuntimeState,
   PLAYER_COLORS,
@@ -30,6 +34,7 @@ interface JoinOptions {
 }
 
 interface CreateOptions {
+  customMap?: CustomMapDefinition;
   mapId?: string;
 }
 
@@ -45,6 +50,7 @@ function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
 }
 
 export class WatcherRoom extends Room<WatcherState> {
+  private customBoard: BoardDefinition | null = null;
   private pendingKickMessages = new Map<string, string>();
   private pendingRaceAdvanceTimer: Delayed | null = null;
   private runtimeState = createInitialGameRuntimeState();
@@ -55,14 +61,23 @@ export class WatcherRoom extends Room<WatcherState> {
     this.setPatchRate(1000 / 15);
     this.setState(new WatcherState());
 
-    const mapMetadata = buildGameMapRuntimeMetadata(options.mapId);
-    this.state.mapId = mapMetadata.mapId;
-    this.state.mapLabel = mapMetadata.mapLabel;
-    this.state.mode = mapMetadata.mode;
+    if (options.customMap) {
+      this.customBoard = createBoardDefinitionFromLayout(options.customMap.layout);
+      this.state.mapId = "custom";
+      this.state.mapLabel = options.customMap.mapLabel.trim() || "自定义地图";
+      this.state.mode = options.customMap.mode;
+      this.state.allowDebugTools = options.customMap.allowDebugTools;
+    } else {
+      const mapMetadata = buildGameMapRuntimeMetadata(options.mapId);
+      this.state.mapId = mapMetadata.mapId;
+      this.state.mapLabel = mapMetadata.mapLabel;
+      this.state.mode = mapMetadata.mode;
+      this.state.allowDebugTools = mapMetadata.allowDebugTools;
+    }
+
     this.state.roomCode = this.roomId;
     this.state.roomPhase = "lobby";
     this.state.hostPlayerId = "";
-    this.state.allowDebugTools = mapMetadata.allowDebugTools;
     this.state.settlementState = "active";
 
     this.seedBoard();
@@ -122,7 +137,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     const spawnIndex = this.state.players.size;
     const characterIds = getCharacterIds();
-    const spawn = getGameMapSpawnPosition(this.state.mapId, spawnIndex);
+    const spawn = this.getSpawnPosition(spawnIndex);
     const player = new PlayerState();
 
     player.id = client.sessionId;
@@ -197,7 +212,7 @@ export class WatcherRoom extends Room<WatcherState> {
   }
 
   private seedBoard(): void {
-    const board = createBoardDefinition(this.state.mapId);
+    const board = this.getRoomBoard();
 
     this.state.boardWidth = board.width;
     this.state.boardHeight = board.height;
@@ -213,6 +228,18 @@ export class WatcherRoom extends Room<WatcherState> {
       tileState.direction = tile.direction ?? "";
       this.state.board.set(tile.key, tileState);
     }
+  }
+
+  private getRoomBoard(): BoardDefinition {
+    return this.customBoard ?? createBoardDefinition(this.state.mapId);
+  }
+
+  private getSpawnPosition(playerIndex: number): { x: number; y: number } {
+    if (this.customBoard) {
+      return getBoardSpawnPosition(this.customBoard, this.state.mode, playerIndex);
+    }
+
+    return getGameMapSpawnPosition(this.state.mapId, playerIndex);
   }
 
   private findClientBySessionId(sessionId: string): Client | null {
@@ -271,7 +298,7 @@ export class WatcherRoom extends Room<WatcherState> {
         return;
       }
 
-      const spawn = getGameMapSpawnPosition(this.state.mapId, index);
+      const spawn = this.getSpawnPosition(index);
       player.x = spawn.x;
       player.y = spawn.y;
       player.spawnX = spawn.x;

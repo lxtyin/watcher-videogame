@@ -7,6 +7,48 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-04-09
+
+- 新增 `/mapeditor` 地图编辑器页面：
+  - 新增 `packages/client/src/map-editor/MapEditorApp.tsx`
+  - 3D 棋盘、hover 虚影与拖拽连续摆放复用 `BoardTileVisual`
+  - 地形库缩略图通过 `TerrainThumbnail` 复用单格渲染
+- 补齐 shared 布局辅助函数：
+  - `createBoardDefinitionFromLayout()`
+  - `resizeBoardLayout()`
+  - `getBoardSpawnPosition()`
+- 新增自定义地图联机测试链路：
+  - client `createRoom()` 支持 `{ mapId: "custom", customMap }`
+  - `WatcherRoom` 支持从布局文本直接建盘并推导出生点
+  - 自定义地图仍复用原有 `WatcherRoom + shared orchestration`
+- 新增地图编辑器文档：
+  - `docs/arch/地图编辑器原型.md`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`
+  - 结果：`28/28` golden cases passed
+- 修复地图编辑器主棋盘白屏：
+  - 原因是地形库里每个缩略图都创建独立 WebGL canvas，导致主棋盘 context 被浏览器回收
+  - 改为单个隐藏 canvas 批量生成缩略图图片，地形库只展示缓存图片
+  - `MapEditorScene` 也补上了自己的 Three scene 背景色
+- 调整地图编辑器布局与 hover 稳定性：
+  - 右侧改为固定视口内的上下两段布局，让地图和地形库同时占满页面
+  - 地形库卡片取消 hover 缩放，避免鼠标 cover 时卡片抖动
+  - 棋盘放置预览改为单层 ghost tile，移除会互相干扰的双层高亮
+- 补齐地图编辑器地形旋转与操作提示：
+  - 选中地形后支持按 `R` 顺时针旋转，当前仅对大炮与传送带生效
+  - 地形库收口为单个传送带与单个大炮条目
+  - 左侧栏新增地形编辑操作说明
+- 修正地图编辑器旋转与缩略图问题：
+  - 旋转后的预览与实际落子统一使用当前选中的真实符号，而不是地形库条目的默认符号
+  - 缩略图缓存扩展到旋转后的符号集合，并改为方形采样，消除裁切错位
+- 统一 client 地形资产入口：
+  - 新增 `WallTileAsset` 与 `EarthWallTileAsset`
+  - `BoardTileVisual` 现在对 `wall / earthWall / highwall` 都走显式 asset，而不是只有基础盒体
+  - 缩略图采样延迟到稳定帧后再抓取，修正图标与地形名称错位
+
 ## 2026-04-08
 
 - 修正 `lucky` 的全局状态模型：
@@ -23,7 +65,7 @@
   - 旧 `pit` 改为经过触发并把玩家送回出生点
   - 新增 `highwall`，阻挡地面移动、飞跃穿越与投射物
   - `cannon` 接入地形模块并继续复用火箭核心结算
-  - `lucky` 改为“逻辑不改地形，显示按当前玩家回合状态隐藏”
+  - `lucky` 与 `emptyLucky` 之间通过真实地形状态切换表达可领取与不可领取
 - 扩展 shared presentation：
   - `PresentationMotionStyle` 新增 `fall_side` 与 `spin_drop`
   - `effect` 新增 `lucky_claim`
@@ -32,7 +74,7 @@
   - 新增 `PoisonTileAsset`
   - 新增 `HighwallTileAsset`
   - 新增 `LuckyClaimEffectAsset`
-  - `BoardScene` 依据当前行动玩家 `turnFlags` 控制 lucky 方块是否显示
+  - `BoardScene` 改为直接消费 `lucky / emptyLucky` 地形状态与 `state_transition`
 - 更新默认棋盘符号：
   - `p -> poison`
   - `o -> pit`

@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Room } from "colyseus.js";
 import { Client } from "colyseus.js";
-import { WATCHER_ROOM_NAME, getToolAvailability, type GameMapId } from "@watcher/shared";
+import {
+  WATCHER_ROOM_NAME,
+  getToolAvailability,
+  type CustomMapDefinition,
+  type GameMapId
+} from "@watcher/shared";
 import { getRandomPetId, resolvePetId } from "../content/pets";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
 
 interface CreateRoomInput {
-  mapId: GameMapId;
+  customMap?: CustomMapDefinition;
+  mapId?: GameMapId | "custom";
   petId: string;
   playerName: string;
 }
@@ -46,16 +52,16 @@ function getServerUrl(): string {
   return import.meta.env.VITE_SERVER_URL ?? "ws://localhost:2567";
 }
 
-function normalizePlayerName(playerName: string): string {
-  return playerName.trim();
+function normalizePlayerName(playerName: string | null | undefined): string {
+  return typeof playerName === "string" ? playerName.trim() : "";
 }
 
 function normalizePetId(petId: string): string {
   return resolvePetId(petId);
 }
 
-function normalizeRoomCode(roomCode: string): string {
-  return roomCode.trim();
+function normalizeRoomCode(roomCode: string | null | undefined): string {
+  return typeof roomCode === "string" ? roomCode.trim() : "";
 }
 
 function createRandomPlayerName(): string {
@@ -264,11 +270,12 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
   );
 
   const createRoom = useCallback(
-    async ({ mapId, petId, playerName }: CreateRoomInput): Promise<string | null> => {
+    async ({ customMap, mapId, petId, playerName }: CreateRoomInput): Promise<string | null> => {
       const room = await connectToRoom(
         (client) =>
           client.create(WATCHER_ROOM_NAME, {
-            mapId,
+            mapId: customMap ? "custom" : mapId,
+            customMap,
             requestedPetId: normalizePetId(petId),
             requestedPlayerName: normalizePlayerName(playerName)
           }),

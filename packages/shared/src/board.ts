@@ -1,6 +1,8 @@
+import { DEFAULT_BOARD_SYMBOLS, type LayoutSymbolDefinition } from "./content/boards/defaultBoard";
 import { DEFAULT_GAME_MAP_ID, getGameMapDefinition } from "./content/maps";
 import type {
   BoardDefinition,
+  GameMode,
   GridPosition,
   TileDefinition
 } from "./types";
@@ -56,13 +58,13 @@ function buildBoardFromLayout(
   };
 }
 
-// Runtime board creation flows through the shared map registry so each map binds mode and spawn rules.
-export function createBoardDefinition(mapId: string = DEFAULT_GAME_MAP_ID): BoardDefinition {
-  const definition = getGameMapDefinition(mapId);
-
+export function createBoardDefinitionFromLayout(
+  layout: readonly string[],
+  symbols: Partial<Record<string, LayoutSymbolDefinition>> = DEFAULT_BOARD_SYMBOLS
+): BoardDefinition {
   return buildBoardFromLayout(
-    definition.layout,
-    definition.symbols as Record<
+    layout,
+    symbols as Record<
       string,
       {
         direction?: TileDefinition["direction"];
@@ -71,6 +73,13 @@ export function createBoardDefinition(mapId: string = DEFAULT_GAME_MAP_ID): Boar
       }
     >
   );
+}
+
+// Runtime board creation flows through the shared map registry so each map binds mode and spawn rules.
+export function createBoardDefinition(mapId: string = DEFAULT_GAME_MAP_ID): BoardDefinition {
+  const definition = getGameMapDefinition(mapId);
+
+  return createBoardDefinitionFromLayout(definition.layout, definition.symbols);
 }
 
 // Existing callers still treat the free-mode map as the default board.
@@ -95,4 +104,46 @@ export function isWithinBoard(board: BoardDefinition, position: GridPosition): b
     position.y >= 0 &&
     position.y < board.height
   );
+}
+
+export function resizeBoardLayout(
+  layout: readonly string[],
+  nextWidth: number,
+  nextHeight: number,
+  fillSymbol = "."
+): string[] {
+  if (nextWidth < 1 || nextHeight < 1) {
+    throw new Error("Board size must stay positive.");
+  }
+
+  return Array.from({ length: nextHeight }, (_unused, y) => {
+    const sourceRow = layout[y] ?? "";
+    const resizedRow = Array.from({ length: nextWidth }, (_unusedColumn, x) => sourceRow[x] ?? fillSymbol);
+    return resizedRow.join("");
+  });
+}
+
+export function getBoardSpawnPositions(board: BoardDefinition): GridPosition[] {
+  return getTilesByType(board, "start").map((tile) => ({
+    x: tile.x,
+    y: tile.y
+  }));
+}
+
+export function getBoardSpawnPosition(
+  board: BoardDefinition,
+  mode: GameMode,
+  playerIndex: number
+): GridPosition {
+  const spawnPositions = getBoardSpawnPositions(board);
+
+  if (!spawnPositions.length) {
+    return { x: 1, y: 1 };
+  }
+
+  if (mode === "race") {
+    return spawnPositions[0] ?? { x: 1, y: 1 };
+  }
+
+  return spawnPositions[playerIndex % spawnPositions.length] ?? spawnPositions[0] ?? { x: 1, y: 1 };
 }
