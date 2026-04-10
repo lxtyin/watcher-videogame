@@ -130,3 +130,18 @@
 - 将回合编排正式收口到 `packages/shared/src/gameOrchestration.ts`
 - `WatcherRoom.ts` 改为 shared orchestration 的适配层
 - `packages/shared/src/simulation/engine.ts` 改为 shared orchestration 的本地包装层
+## 2026-04-10 Heavy Golden Benchmark
+
+- Added shared heavy cases for large maps, dense terrain mixes, and multi-step tool chains.
+- Added `/heavy_goldens` in the client and reused the existing golden playback UI plus live Three scene.
+- Added `window.render_perf_to_text()` so automation can read render benchmark JSON directly from the page.
+- `BoardScene` now exposes playback and scene counts, and `GameBoardCanvas` exposes WebGL renderer stats.
+- Added `scripts/run-heavy-golden-benchmark.mjs` and `npm.cmd run heavy-goldens:perf`.
+- Benchmark script supports `--case`, `--mobile`, `--device`, `--cpu-throttle`, and `--output`.
+- Verified with:
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`
+  - `npm.cmd run heavy-goldens:perf`
+  - `npm.cmd run heavy-goldens:perf -- --case heavy-raceboard-turn-start-terrain-chain --mobile`

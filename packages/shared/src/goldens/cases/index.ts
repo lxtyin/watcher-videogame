@@ -1,4 +1,5 @@
 import { GOLDEN_CHARACTER_CASES } from "./characters";
+import { HEAVY_GOLDEN_CASES } from "./heavy";
 import { GOLDEN_MULTIPLAYER_CASES } from "./multiplayer";
 import { GOLDEN_MOVEMENT_CASES } from "./movement";
 import { GOLDEN_RACE_CASES } from "./race";
@@ -13,3 +14,4 @@ export const GOLDEN_CASES = [
   ...GOLDEN_RACE_CASES
 ];
 
+export { HEAVY_GOLDEN_CASES };

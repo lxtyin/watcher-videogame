@@ -12,7 +12,8 @@
     "dev:server": "npm run build --workspace @watcher/shared && npm run dev --workspace @watcher/server",
     "build": "npm run build --workspace @watcher/shared && npm run build --workspace @watcher/server && npm run build --workspace @watcher/client",
     "typecheck": "npm run typecheck --workspace @watcher/shared && npm run build --workspace @watcher/shared && npm run typecheck --workspace @watcher/server && npm run typecheck --workspace @watcher/client",
-    "goldens": "npm run build --workspace @watcher/shared && node scripts/run-golden-cases.mjs"
+    "goldens": "npm run build --workspace @watcher/shared && node scripts/run-golden-cases.mjs",
+    "heavy-goldens:perf": "node scripts/run-heavy-golden-benchmark.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

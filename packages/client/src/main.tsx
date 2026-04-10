@@ -1,7 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { GoldenCaseRunnerApp } from "./game/components/GoldenCaseRunnerApp";
+import {
+  GoldenCaseRunnerApp,
+  HeavyGoldenCaseRunnerApp
+} from "./game/components/GoldenCaseRunnerApp";
 import MapEditorApp from "./map-editor/MapEditorApp";
 import "./styles.css";
 
@@ -12,11 +15,20 @@ if (!container) {
 }
 
 const routeMode = new URL(window.location.href).searchParams.get("mode");
+const normalizedPath = window.location.pathname.replace(/\/+$/, "") || "/";
 const isGoldenRunnerRoute =
-  window.location.pathname.replace(/\/+$/, "") === "/goldens" || routeMode === "goldens";
+  normalizedPath === "/goldens" || routeMode === "goldens";
+const isHeavyGoldenRunnerRoute =
+  normalizedPath === "/heavy_goldens" || routeMode === "heavy_goldens";
 const isMapEditorRoute =
-  window.location.pathname.replace(/\/+$/, "") === "/mapeditor" || routeMode === "mapeditor";
-const RootComponent = isGoldenRunnerRoute ? GoldenCaseRunnerApp : isMapEditorRoute ? MapEditorApp : App;
+  normalizedPath === "/mapeditor" || routeMode === "mapeditor";
+const RootComponent = isHeavyGoldenRunnerRoute
+  ? HeavyGoldenCaseRunnerApp
+  : isGoldenRunnerRoute
+    ? GoldenCaseRunnerApp
+    : isMapEditorRoute
+      ? MapEditorApp
+      : App;
 
 createRoot(container).render(
   <StrictMode>

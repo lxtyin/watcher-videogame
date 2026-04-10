@@ -802,7 +802,21 @@ export function BoardScene() {
             direction: tile.direction
           }
         ])
-      )
+      ),
+      playback: {
+        activePresentationSequence: activeActionPresentation?.sequence ?? null,
+        activePlayerMotionCount: Object.keys(playbackState.playerMotions).length,
+        activeProjectileCount: playbackState.projectiles.length,
+        activeReactionCount: playbackState.reactions.length,
+        queuedPresentationCount: actionPresentationQueue.length
+      },
+      scene: {
+        boardHeight: snapshot.boardHeight,
+        boardWidth: snapshot.boardWidth,
+        playerCount: displayedPlayers.length,
+        summonCount: displayedSummons.length,
+        tileCount: displayedTiles.length
+      }
     };
 
     return () => {
@@ -810,6 +824,8 @@ export function BoardScene() {
     };
   }, [
     cellEntrySerialByPlayer,
+    actionPresentationQueue.length,
+    activeActionPresentation,
     displayedPlayers,
     displayedPlayerPositions,
     displayedSummons,

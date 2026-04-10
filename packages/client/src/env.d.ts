@@ -39,15 +39,41 @@ interface WatcherSceneDebugState {
       type: TileType;
     }
   >;
+  playback: {
+    activePresentationSequence: number | null;
+    activePlayerMotionCount: number;
+    activeProjectileCount: number;
+    activeReactionCount: number;
+    queuedPresentationCount: number;
+  };
+  scene: {
+    boardHeight: number;
+    boardWidth: number;
+    playerCount: number;
+    summonCount: number;
+    tileCount: number;
+  };
+}
+
+interface WatcherRenderStats {
+  calls: number;
+  frameAtMs: number;
+  geometries: number;
+  lines: number;
+  points: number;
+  textures: number;
+  triangles: number;
 }
 
 declare global {
   interface Window {
     render_game_to_text: (() => string) | undefined;
+    render_perf_to_text: (() => string) | undefined;
     advanceTime: ((ms: number) => void) | undefined;
     project_grid_to_client:
       | ((x: number, y: number, elevation?: number) => { x: number; y: number } | null)
       | undefined;
+    watcher_render_stats: WatcherRenderStats | undefined;
     watcher_store: typeof useGameStore | undefined;
     watcher_scene_debug: WatcherSceneDebugState | undefined;
   }
