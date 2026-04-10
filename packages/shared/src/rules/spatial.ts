@@ -9,11 +9,6 @@ import type {
   TileType,
   ToolActionContext
 } from "../types";
-import {
-  blocksGroundMovementForTileType,
-  blocksLeapTraversalForTileType,
-  blocksProjectileForTileType
-} from "../terrain-modules/traversal";
 
 export interface AxisTarget {
   direction: Direction;
@@ -97,11 +92,15 @@ export function stepPosition(
 
 // Ground blockers prevent landing and direct entry.
 export function isSolidTileType(tileType: TileType): boolean {
-  return blocksGroundMovementForTileType(tileType);
+  return tileType == "wall" || tileType == "earthWall" || tileType == "highwall";
+}
+
+export function isLeapBlockingTileType(tileType: TileType): boolean {
+  return tileType == "highwall";
 }
 
 export function isProjectileBlockingTileType(tileType: TileType): boolean {
-  return blocksProjectileForTileType(tileType);
+  return tileType == "wall" || tileType == "earthWall" || tileType == "highwall";
 }
 
 export function positionsEqual(a: GridPosition, b: GridPosition): boolean {
@@ -251,7 +250,7 @@ export function resolveLeapLanding(
     traversedPath.push(position);
     const tile = getTileAfterMutations(board, tileMutations, position);
 
-    if (tile && blocksLeapTraversalForTileType(tile.type)) {
+    if (tile && isLeapBlockingTileType(tile.type)) {
       break;
     }
   }

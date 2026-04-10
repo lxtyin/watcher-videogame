@@ -39,15 +39,3 @@ export const TERRAIN_REGISTRY = Object.fromEntries(
 export function getTerrainModule(tileType: TileDefinition["type"]): TerrainModule {
   return TERRAIN_REGISTRY[tileType];
 }
-
-export function blocksGroundMovementForTileType(tileType: TileDefinition["type"]): boolean {
-  return Boolean(getTerrainModule(tileType)?.blocksGroundMovement);
-}
-
-export function blocksProjectileForTileType(tileType: TileDefinition["type"]): boolean {
-  return Boolean(getTerrainModule(tileType)?.blocksProjectile);
-}
-
-export function blocksLeapTraversalForTileType(tileType: TileDefinition["type"]): boolean {
-  return Boolean(getTerrainModule(tileType)?.blocksLeapTraversal);
-}

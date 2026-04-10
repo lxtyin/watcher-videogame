@@ -271,6 +271,13 @@ export function BoardScene() {
   const displayedTiles = playbackState.displayedTiles;
   const displayedPlayers = playbackState.displayedPlayers;
   const displayedSummons = playbackState.displayedSummons;
+  const snapshotPlayersById = useMemo(
+    () =>
+      new Map(
+        (snapshot?.players ?? []).map((player) => [player.id, player] as const)
+      ),
+    [snapshot]
+  );
   const showActionRingArc = !isPresentationBusy && !shouldHideToolInteractionArc(interactionSession);
   const playerStackLayout = useMemo(() => {
     const layout = new Map<string, PlayerStackLayout>();
@@ -966,6 +973,7 @@ export function BoardScene() {
       })}
 
       {renderedPlayers.map((player, index) => {
+        const snapshotPlayer = snapshotPlayersById.get(player.id) ?? player;
         const activeMotion = playbackState.playerMotions[player.id] ?? null;
         const displayedGridPosition = displayedPlayerPositions[player.id] ?? player.position;
         const [x, , z] = toWorldPositionFromGrid(
@@ -1030,7 +1038,7 @@ export function BoardScene() {
                 choiceOptions={isMe ? getToolInteractionChoiceOptions(interactionSession) : []}
                 hidden={isPointerInteractionActive && isMe}
                 interactive={isMe && canInteract}
-                tools={player.tools}
+                tools={snapshotPlayer.tools}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
                 screenOffsetX={actionRingOffset.x}
@@ -1042,7 +1050,7 @@ export function BoardScene() {
                     return;
                   }
 
-                  const tool = findToolInstance(player.tools, toolInstanceId);
+                  const tool = findToolInstance(snapshotPlayer.tools, toolInstanceId);
 
                   if (tool) {
                     startToolInteractionPointer(tool, clientX, clientY);

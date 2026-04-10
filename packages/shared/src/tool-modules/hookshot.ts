@@ -24,6 +24,7 @@ import {
   findPlayersAtPosition,
   getOppositeDirection,
   isProjectileBlockingTileType,
+  isSolidTileType,
   stepPosition
 } from "../rules/spatial";
 import type { ToolModule } from "./types";
@@ -51,7 +52,7 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   conditions: [],
   defaultCharges: 1,
   defaultParams: {
-    hookLength: 3
+    hookLength: 4
   },
   color: "#6ca7d9",
   rollable: true,
@@ -101,7 +102,7 @@ function resolveHookshotTool(
 
     const tile = getTile(context.board, target);
 
-    if (tile && isProjectileBlockingTileType(tile.type)) {
+    if (tile && isSolidTileType(tile.type)) {
       const pullDistance = distance - 1;
 
       if (pullDistance < 1) {
@@ -157,7 +158,7 @@ function resolveHookshotTool(
           },
           {
             kind: "position",
-            position: target
+            position: stepPosition(target, direction, -0.5) // hook the edge of the wall
           },
           "chain",
           0,
@@ -180,7 +181,7 @@ function resolveHookshotTool(
             },
             {
               kind: "position",
-              position: target
+              position: stepPosition(target, direction, -0.5)
             },
             "chain",
             pullStartMs,
@@ -347,7 +348,7 @@ export const HOOKSHOT_TOOL_MODULE: ToolModule<"hookshot"> = {
   definition: HOOKSHOT_TOOL_DEFINITION,
   dieFace: {
     params: {
-      hookLength: 3
+      hookLength: 4
     }
   },
   execute: resolveHookshotTool

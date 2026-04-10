@@ -147,11 +147,12 @@ export function SceneActionRing({
   const incomingClearTimerRef = useRef<number | null>(null);
   const selectedTool = tools.find((tool) => tool.instanceId === selectedToolInstanceId) ?? null;
   const actionToolIds = useMemo(() => tools.map((tool) => tool.instanceId), [tools]);
+  const actionToolIdsSignature = useMemo(() => actionToolIds.join("|"), [actionToolIds]);
 
   useEffect(() => {
     if (phase !== "turn-action") {
       previousActionToolIdsRef.current = [];
-      setIncomingToolInstanceIds([]);
+      setIncomingToolInstanceIds((currentIds) => (currentIds.length ? [] : currentIds));
 
       if (incomingClearTimerRef.current !== null) {
         window.clearTimeout(incomingClearTimerRef.current);
@@ -176,17 +177,28 @@ export function SceneActionRing({
       return;
     }
 
-    setIncomingToolInstanceIds((currentIds) => Array.from(new Set([...currentIds, ...nextIncomingToolIds])));
+    setIncomingToolInstanceIds((currentIds) => {
+      const nextIds = Array.from(new Set([...currentIds, ...nextIncomingToolIds]));
+
+      if (
+        nextIds.length === currentIds.length &&
+        nextIds.every((toolInstanceId, index) => toolInstanceId === currentIds[index])
+      ) {
+        return currentIds;
+      }
+
+      return nextIds;
+    });
 
     if (incomingClearTimerRef.current !== null) {
       window.clearTimeout(incomingClearTimerRef.current);
     }
 
     incomingClearTimerRef.current = window.setTimeout(() => {
-      setIncomingToolInstanceIds([]);
+      setIncomingToolInstanceIds((currentIds) => (currentIds.length ? [] : currentIds));
       incomingClearTimerRef.current = null;
     }, 560);
-  }, [actionToolIds, phase]);
+  }, [actionToolIdsSignature, phase]);
 
   useEffect(
     () => () => {
