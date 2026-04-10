@@ -18,7 +18,7 @@ interface TileVisualStyle {
   height: number;
 }
 
-const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
+export const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   floor: { color: "#d5c6a1", height: 0.22 },
   wall: { color: "#455062", height: 0.8 },
   earthWall: { color: "#bc7441", height: 0.8 },
@@ -32,6 +32,43 @@ const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   start: { color: "#9fd9d3", height: 0.22 },
   goal: { color: "#e59e96", height: 0.22 }
 };
+
+export function BoardTileDecorationAsset({ tile }: { tile: TileDefinition }) {
+  return (
+    <>
+      {tile.type === "wall" ? <WallTileAsset /> : null}
+      {tile.type === "earthWall" ? <EarthWallTileAsset /> : null}
+      {tile.type === "pit" ? <PitDecorationAsset /> : null}
+      {tile.type === "poison" ? <PoisonTileAsset /> : null}
+      {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
+      {tile.type === "highwall" ? <HighwallTileAsset /> : null}
+      {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
+      {tile.type === "start" ? <StartTileAsset /> : null}
+      {tile.type === "goal" ? <GoalTileAsset /> : null}
+      {tile.type === "conveyor" && tile.direction ? (
+        <ConveyorArrowAsset direction={tile.direction} />
+      ) : null}
+    </>
+  );
+}
+
+export function BoardTileSelectionOverlay({
+  active,
+  color
+}: {
+  active: boolean;
+  color: string;
+}) {
+  if (!active) {
+    return null;
+  }
+
+  return (
+    <group position={[0, -0.26, 0]}>
+      <ToolTilePreviewAsset color={color} />
+    </group>
+  );
+}
 
 // Board tiles compose a base block plus optional content assets and preview overlays.
 export function BoardTileVisual({
@@ -75,23 +112,8 @@ export function BoardTileVisual({
           opacity={baseOpacity}
         />
       </mesh>
-      {tile.type === "wall" ? <WallTileAsset /> : null}
-      {tile.type === "earthWall" ? <EarthWallTileAsset /> : null}
-      {tile.type === "pit" ? <PitDecorationAsset /> : null}
-      {tile.type === "poison" ? <PoisonTileAsset /> : null}
-      {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
-      {tile.type === "highwall" ? <HighwallTileAsset /> : null}
-      {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
-      {tile.type === "start" ? <StartTileAsset /> : null}
-      {tile.type === "goal" ? <GoalTileAsset /> : null}
-      {tile.type === "conveyor" && tile.direction ? (
-        <ConveyorArrowAsset direction={tile.direction} />
-      ) : null}
-      {selectionActive ? (
-        <group position={[0, -0.26, 0]}>
-          <ToolTilePreviewAsset color={selectionColor} />
-        </group>
-      ) : null}
+      <BoardTileDecorationAsset tile={tile} />
+      <BoardTileSelectionOverlay active={selectionActive} color={selectionColor} />
     </group>
   );
 }

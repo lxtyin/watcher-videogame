@@ -145,3 +145,23 @@
   - `npm.cmd run goldens`
   - `npm.cmd run heavy-goldens:perf`
   - `npm.cmd run heavy-goldens:perf -- --case heavy-raceboard-turn-start-terrain-chain --mobile`
+
+## 2026-04-10 Client Rendering Optimization
+
+- Split client route loading with `React.lazy` so `/`, `/goldens`, `/heavy_goldens`, and `/mapeditor` no longer ship as one eager entry chunk.
+- Added Vite `manualChunks` for `react`, `colyseus`, `r3f`, and `three-core` vendor bundles.
+- Reworked board rendering:
+  - Added `BoardStaticTileLayer`
+  - Instanced repeated tile base blocks by tile type
+  - Split tile decorations from dynamic selection overlays
+  - Added a cheap instanced tile hit layer so static tile rendering no longer needs one mesh per tile for input
+- `BoardScene` now stabilizes displayed tile arrays and passes the static board through memoized children so animation ticks do not re-render the whole board layer.
+- Removed an accidental `node:process` import from `HighwallTileAsset`.
+- Benchmark notes:
+  - Full heavy desktop baseline before this pass was roughly `drawCallsP95 384`, `geometriesMax 576`
+  - After this pass, full heavy desktop is roughly `drawCallsP95 187`, `geometriesMax 307`
+  - Single-case `heavy-raceboard-rocket-cluster` dropped from roughly `drawCallsMax 312` / `geometriesMax 314` to `drawCallsMax 139` / `geometriesMax 134`
+  - Frame-time improvement in headless Chromium is noisier because the benchmark still reports `ReadPixels` GPU-stall warnings, so draw calls and geometry counts are the more reliable signal right now
+- Remaining follow-up:
+  - `three-core` is still a large chunk (~696 kB minified); next options are trimming Three usage, route-isolating editor-only assets, or investigating whether some helpers can load lazily inside the gameplay route
+  - Shadows are still on by default; a low-end/mobile quality tier is still worth doing

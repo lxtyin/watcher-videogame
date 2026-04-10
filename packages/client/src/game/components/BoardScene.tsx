@@ -1,5 +1,5 @@
 import { useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
   findToolInstance,
@@ -9,9 +9,9 @@ import {
   type PlayerSnapshot,
   type PresentationMotionStyle,
   type SummonSnapshot,
+  type TileDefinition,
   type TurnToolSnapshot
 } from "@watcher/shared";
-import { BoardTileVisual } from "../assets/board/BoardTileVisual";
 import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
@@ -54,6 +54,7 @@ import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneInspectionCard } from "./SceneInspectionCard";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
+import { BoardStaticTileLayer, BoardTileSelectionLayer } from "./BoardStaticTileLayer";
 import {
   buildActionPreview,
   toWorldPosition
@@ -98,6 +99,30 @@ function areNumberMapsEqual(left: Record<string, number>, right: Record<string, 
   }
 
   return leftKeys.every((key) => left[key] === right[key]);
+}
+
+function areTileDefinitionsEqual(left: TileDefinition, right: TileDefinition): boolean {
+  return (
+    left.key === right.key &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.type === right.type &&
+    left.durability === right.durability &&
+    left.direction === right.direction
+  );
+}
+
+function useStableTileDefinitions(tiles: TileDefinition[]): TileDefinition[] {
+  const stableTilesRef = useRef(tiles);
+
+  if (
+    stableTilesRef.current.length !== tiles.length ||
+    stableTilesRef.current.some((tile, index) => !areTileDefinitionsEqual(tile, tiles[index]!))
+  ) {
+    stableTilesRef.current = tiles;
+  }
+
+  return stableTilesRef.current;
 }
 
 function mixSceneColor(base: string, target: string, ratio: number): string {
@@ -269,6 +294,7 @@ export function BoardScene() {
   );
   const displayedPlayerPositions = playbackState.displayedPlayerPositions;
   const displayedTiles = playbackState.displayedTiles;
+  const stableDisplayedTiles = useStableTileDefinitions(displayedTiles);
   const displayedPlayers = playbackState.displayedPlayers;
   const displayedSummons = playbackState.displayedSummons;
   const snapshotPlayersById = useMemo(
@@ -521,12 +547,12 @@ export function BoardScene() {
     };
   }, []);
 
-  const cancelInspection = () => {
+  const cancelInspection = useCallback(() => {
     clearInspectionTimer(inspectionTimerRef);
     setInspectionCard(null);
-  };
+  }, []);
 
-  const projectPointerToGround = (clientX: number, clientY: number) => {
+  const projectPointerToGround = useCallback((clientX: number, clientY: number) => {
     return projectClientToGround(
       clientX,
       clientY,
@@ -537,39 +563,45 @@ export function BoardScene() {
       dragPlane,
       dragIntersection
     );
-  };
+  }, [camera, dragIntersection, dragPlane, dragPointer, dragRaycaster, gl]);
 
-  const startToolInteractionPointer = (tool: TurnToolSnapshot, clientX: number, clientY: number) => {
-    if (!snapshot || !myPlayer || !canInteract || isInstantInteractionTool(tool.toolId)) {
-      return;
-    }
+  const startToolInteractionPointer = useCallback(
+    (tool: TurnToolSnapshot, clientX: number, clientY: number) => {
+      if (!snapshot || !myPlayer || !canInteract || isInstantInteractionTool(tool.toolId)) {
+        return;
+      }
 
-    const currentSession = interactionSessionRef.current;
-    const baseSession =
-      currentSession && currentSession.toolInstanceId === tool.instanceId
-        ? currentSession
-        : createToolInteractionSession(tool);
-    const nextSession = updateToolInteractionFromPointer(beginToolInteractionPointer(baseSession), {
-      actorPosition: myPlayer.position,
-      boardHeight: snapshot.boardHeight,
-      boardWidth: snapshot.boardWidth,
-      pointerWorld: projectPointerToGround(clientX, clientY)
-    });
+      const currentSession = interactionSessionRef.current;
+      const baseSession =
+        currentSession && currentSession.toolInstanceId === tool.instanceId
+          ? currentSession
+          : createToolInteractionSession(tool);
+      const nextSession = updateToolInteractionFromPointer(beginToolInteractionPointer(baseSession), {
+        actorPosition: myPlayer.position,
+        boardHeight: snapshot.boardHeight,
+        boardWidth: snapshot.boardWidth,
+        pointerWorld: projectPointerToGround(clientX, clientY)
+      });
 
-    interactionSessionRef.current = nextSession;
-    setSelectedToolInstanceId(tool.instanceId);
-    setInteractionSession(nextSession);
-    cancelInspection();
-  };
+      interactionSessionRef.current = nextSession;
+      setSelectedToolInstanceId(tool.instanceId);
+      setInteractionSession(nextSession);
+      cancelInspection();
+    },
+    [cancelInspection, canInteract, myPlayer, projectPointerToGround, setSelectedToolInstanceId, snapshot]
+  );
 
-  const startSelectedInteractionPointer = (clientX: number, clientY: number): boolean => {
-    if (!selectedInteractiveTool) {
-      return false;
-    }
+  const startSelectedInteractionPointer = useCallback(
+    (clientX: number, clientY: number): boolean => {
+      if (!selectedInteractiveTool) {
+        return false;
+      }
 
-    startToolInteractionPointer(selectedInteractiveTool, clientX, clientY);
-    return true;
-  };
+      startToolInteractionPointer(selectedInteractiveTool, clientX, clientY);
+      return true;
+    },
+    [selectedInteractiveTool, startToolInteractionPointer]
+  );
 
   useEffect(() => {
     if (!selectedInteractiveTool || !myPlayer || !canInteract) {
@@ -874,13 +906,13 @@ export function BoardScene() {
     : null;
 
   // Long-press inspection waits briefly so normal taps do not spawn scene cards.
-  const queueInspection = (nextInspectionCard: SceneInspectionCardData) => {
+  const queueInspection = useCallback((nextInspectionCard: SceneInspectionCardData) => {
     clearInspectionTimer(inspectionTimerRef);
     inspectionTimerRef.current = window.setTimeout(() => {
       setInspectionCard(nextInspectionCard);
       inspectionTimerRef.current = null;
     }, INSPECTION_HOLD_DELAY_MS);
-  };
+  }, []);
 
   const canStartScenePointerInteraction = Boolean(
     canInteract &&
@@ -890,53 +922,53 @@ export function BoardScene() {
       !interactionSession.pointerActive
   );
 
-  const handlePiecePointerDown = (
-    player: PlayerSnapshot,
-    event: ThreeEvent<PointerEvent>
-  ) => {
-    if (canStartScenePointerInteraction) {
-      event.stopPropagation();
-      cancelInspection();
-      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
-        return;
+  const handlePiecePointerDown = useCallback(
+    (player: PlayerSnapshot, event: ThreeEvent<PointerEvent>) => {
+      if (canStartScenePointerInteraction) {
+        event.stopPropagation();
+        cancelInspection();
+        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          return;
+        }
       }
-    }
 
-    event.stopPropagation();
-    queueInspection(describePlayerInspection(player));
-  };
-
-  const handleTilePointerDown = (
-    tile: typeof displayedTiles[number],
-    event: ThreeEvent<PointerEvent>
-  ) => {
-    if (canStartScenePointerInteraction) {
       event.stopPropagation();
-      cancelInspection();
-      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
-        return;
+      queueInspection(describePlayerInspection(player));
+    },
+    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+  );
+
+  const handleTilePointerDown = useCallback(
+    (tile: TileDefinition, event: ThreeEvent<PointerEvent>) => {
+      if (canStartScenePointerInteraction) {
+        event.stopPropagation();
+        cancelInspection();
+        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          return;
+        }
       }
-    }
 
-    event.stopPropagation();
-    queueInspection(describeTileInspection(tile));
-  };
-
-  const handleSummonPointerDown = (
-    summon: SummonSnapshot,
-    event: ThreeEvent<PointerEvent>
-  ) => {
-    if (canStartScenePointerInteraction) {
       event.stopPropagation();
-      cancelInspection();
-      if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
-        return;
-      }
-    }
+      queueInspection(describeTileInspection(tile));
+    },
+    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+  );
 
-    event.stopPropagation();
-    queueInspection(describeSummonInspection(summon));
-  };
+  const handleSummonPointerDown = useCallback(
+    (summon: SummonSnapshot, event: ThreeEvent<PointerEvent>) => {
+      if (canStartScenePointerInteraction) {
+        event.stopPropagation();
+        cancelInspection();
+        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          return;
+        }
+      }
+
+      event.stopPropagation();
+      queueInspection(describeSummonInspection(summon));
+    },
+    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+  );
 
   return (
     <>
@@ -954,17 +986,19 @@ export function BoardScene() {
         <meshStandardMaterial color="#d7d8c6" />
       </mesh>
 
-      {displayedTiles.map((tile) => (
-        <BoardTileVisual
-          key={tile.key}
-          tile={tile}
-          boardWidth={snapshot.boardWidth}
-          boardHeight={snapshot.boardHeight}
-          onPointerDown={(event) => handleTilePointerDown(tile, event)}
-          selectionActive={scenePreview.selectionKeys.has(tile.key)}
-          selectionColor={scenePreview.previewColor}
-        />
-      ))}
+      <BoardStaticTileLayer
+        boardHeight={snapshot.boardHeight}
+        boardWidth={snapshot.boardWidth}
+        onTilePointerDown={handleTilePointerDown}
+        tiles={stableDisplayedTiles}
+      />
+      <BoardTileSelectionLayer
+        boardHeight={snapshot.boardHeight}
+        boardWidth={snapshot.boardWidth}
+        color={scenePreview.previewColor}
+        selectionKeys={scenePreview.selectionKeys}
+        tiles={stableDisplayedTiles}
+      />
       <ToolEffectPreview
         boardWidth={snapshot.boardWidth}
         boardHeight={snapshot.boardHeight}

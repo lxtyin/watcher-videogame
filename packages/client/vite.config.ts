@@ -9,7 +9,46 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return undefined;
+          }
+
+          if (
+            id.includes("/three/") ||
+            id.includes("/three-mesh-bvh/")
+          ) {
+            return "three-core";
+          }
+
+          if (
+            id.includes("@react-three") ||
+            id.includes("/three-stdlib/") ||
+            id.includes("/camera-controls/") ||
+            id.includes("/maath/") ||
+            id.includes("/meshline/") ||
+            id.includes("/suspend-react/") ||
+            id.includes("/troika-") ||
+            id.includes("/stats-gl/")
+          ) {
+            return "r3f-vendor";
+          }
+
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
+            return "react-vendor";
+          }
+
+          if (id.includes("/colyseus.js/")) {
+            return "colyseus-vendor";
+          }
+
+          return undefined;
+        }
+      }
+    }
   },
   server: {
     host: "0.0.0.0",

@@ -25,6 +25,16 @@ body {
     linear-gradient(180deg, #f3e7d4 0%, #e0d2b9 100%);
 }
 
+.route-loading-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  font-size: 1rem;
+  color: #4a5563;
+}
+
 button {
   border: none;
   border-radius: 999px;

@@ -1,12 +1,15 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
-import {
-  GoldenCaseRunnerApp,
-  HeavyGoldenCaseRunnerApp
-} from "./game/components/GoldenCaseRunnerApp";
-import MapEditorApp from "./map-editor/MapEditorApp";
 import "./styles.css";
+
+const App = lazy(() => import("./App"));
+const GoldenCaseRunnerApp = lazy(async () => ({
+  default: (await import("./game/components/GoldenCaseRunnerApp")).GoldenCaseRunnerApp
+}));
+const HeavyGoldenCaseRunnerApp = lazy(async () => ({
+  default: (await import("./game/components/GoldenCaseRunnerApp")).HeavyGoldenCaseRunnerApp
+}));
+const MapEditorApp = lazy(() => import("./map-editor/MapEditorApp"));
 
 const container = document.getElementById("root");
 
@@ -32,6 +35,8 @@ const RootComponent = isHeavyGoldenRunnerRoute
 
 createRoot(container).render(
   <StrictMode>
-    <RootComponent />
+    <Suspense fallback={<div className="route-loading-shell">页面加载中...</div>}>
+      <RootComponent />
+    </Suspense>
   </StrictMode>
 );

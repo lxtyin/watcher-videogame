@@ -1,0 +1,197 @@
+{
+  "browser": "chromium",
+  "caseId": null,
+  "consoleEntries": [
+    {
+      "text": "[.WebGL-0x504c0149dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "text": "[.WebGL-0x504c0149dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "text": "[.WebGL-0x504c0149dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "text": "[.WebGL-0x504c0149dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+      "type": "warning"
+    }
+  ],
+  "cpuThrottleRate": null,
+  "deviceName": "Pixel 5",
+  "mobile": true,
+  "route": "heavy_goldens",
+  "summary": {
+    "activeCaseId": "heavy-raceboard-turn-start-terrain-chain",
+    "completedCases": 3,
+    "frameTimeMs": {
+      "avg": 51.13,
+      "max": 316.6,
+      "p50": 50,
+      "p95": 66.7,
+      "p99": 66.8
+    },
+    "longFrames": {
+      "over16_7": 206,
+      "over33_3": 187,
+      "over50": 43
+    },
+    "mode": "heavy_goldens",
+    "presentation": {
+      "count": 5,
+      "maxOverrunRatio": 0.96,
+      "p95OverrunRatio": 0.96,
+      "stalledCount": 0
+    },
+    "renderer": {
+      "drawCallsMax": 132,
+      "drawCallsP95": 132,
+      "geometriesMax": 229,
+      "texturesMax": 6,
+      "trianglesMax": 25948,
+      "trianglesP95": 25948
+    },
+    "results": [
+      {
+        "caseId": "heavy-raceboard2-multi-step-tool-chain",
+        "frameCount": 45,
+        "frameTimeMs": {
+          "avg": 53.7,
+          "max": 316.6,
+          "p50": 50,
+          "p95": 66.7,
+          "p99": 66.7
+        },
+        "longFrames": {
+          "over16_7": 44,
+          "over33_3": 37,
+          "over50": 13
+        },
+        "presentation": {
+          "count": 2,
+          "maxOverrunRatio": 0.96,
+          "p95OverrunRatio": 0.94,
+          "stalledCount": 0
+        },
+        "renderer": {
+          "drawCallsMax": 132,
+          "drawCallsP95": 132,
+          "geometriesMax": 132,
+          "texturesMax": 3,
+          "trianglesMax": 25948,
+          "trianglesP95": 25948
+        },
+        "scene": {
+          "maxPlayerMotions": 1,
+          "maxPlayers": 2,
+          "maxProjectiles": 0,
+          "maxQueuedPresentations": 0,
+          "maxReactions": 0,
+          "maxSummons": 0,
+          "maxTiles": 228
+        },
+        "title": "Heavy: raceBoard2 multi-step tool chain",
+        "wallTimeMs": 2472.5
+      },
+      {
+        "caseId": "heavy-raceboard-rocket-cluster",
+        "frameCount": 29,
+        "frameTimeMs": {
+          "avg": 51.15,
+          "max": 100,
+          "p50": 50,
+          "p95": 50.1,
+          "p99": 66.7
+        },
+        "longFrames": {
+          "over16_7": 29,
+          "over33_3": 27,
+          "over50": 5
+        },
+        "presentation": {
+          "count": 1,
+          "maxOverrunRatio": 0.93,
+          "p95OverrunRatio": 0.93,
+          "stalledCount": 0
+        },
+        "renderer": {
+          "drawCallsMax": 131,
+          "drawCallsP95": 131,
+          "geometriesMax": 223,
+          "texturesMax": 6,
+          "trianglesMax": 25868,
+          "trianglesP95": 25868
+        },
+        "scene": {
+          "maxPlayerMotions": 3,
+          "maxPlayers": 4,
+          "maxProjectiles": 1,
+          "maxQueuedPresentations": 0,
+          "maxReactions": 1,
+          "maxSummons": 0,
+          "maxTiles": 228
+        },
+        "title": "Heavy: raceBoard rocket cluster",
+        "wallTimeMs": 1477.7
+      },
+      {
+        "caseId": "heavy-raceboard-turn-start-terrain-chain",
+        "frameCount": 47,
+        "frameTimeMs": {
+          "avg": 51.06,
+          "max": 100,
+          "p50": 50,
+          "p95": 66.6,
+          "p99": 66.8
+        },
+        "longFrames": {
+          "over16_7": 47,
+          "over33_3": 44,
+          "over50": 10
+        },
+        "presentation": {
+          "count": 2,
+          "maxOverrunRatio": 0.96,
+          "p95OverrunRatio": 0.95,
+          "stalledCount": 0
+        },
+        "renderer": {
+          "drawCallsMax": 101,
+          "drawCallsP95": 82,
+          "geometriesMax": 229,
+          "texturesMax": 6,
+          "trianglesMax": 20312,
+          "trianglesP95": 15590
+        },
+        "scene": {
+          "maxPlayerMotions": 1,
+          "maxPlayers": 1,
+          "maxProjectiles": 0,
+          "maxQueuedPresentations": 0,
+          "maxReactions": 1,
+          "maxSummons": 0,
+          "maxTiles": 200
+        },
+        "title": "Heavy: raceBoard turn-start terrain chain",
+        "wallTimeMs": 2353.7
+      }
+    ],
+    "route": "heavy_goldens",
+    "running": false,
+    "scene": {
+      "maxPlayerMotions": 3,
+      "maxPlayers": 4,
+      "maxProjectiles": 1,
+      "maxQueuedPresentations": 0,
+      "maxReactions": 1,
+      "maxSummons": 0,
+      "maxTiles": 228
+    },
+    "selectedCaseId": null,
+    "totalCases": 3
+  },
+  "url": "http://127.0.0.1:4173/heavy_goldens?profile=mobile",
+  "userAgent": "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Mobile Safari/537.36"
+}
