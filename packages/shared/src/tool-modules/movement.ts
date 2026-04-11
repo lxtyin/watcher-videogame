@@ -42,10 +42,11 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     movePoints: 4
   },
-  buttonValue: {
-    paramId: "movePoints",
-    unit: "point"
-  },
+  getTextDescription: ({ params }) => ({
+    title: "移动",
+    description: "沿选择方向前进，消耗本工具的移动点数。",
+    details: [`移动 ${params.movePoints ?? 0} 格`]
+  }),
   color: "#6abf69",
   rollable: false,
   debugGrantable: true,

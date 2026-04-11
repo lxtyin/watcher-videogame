@@ -20,6 +20,11 @@ export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],
+  getTextDescription: () => ({
+    title: "备弹",
+    description: "跳过本回合后续阶段，并在下回合行动阶段获得投弹。",
+    details: ["准备投弹"]
+  }),
   color: "#d86a42",
   rollable: false,
   debugGrantable: false,

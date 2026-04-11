@@ -18,6 +18,8 @@ import type {
   MovementDescriptor,
   MovementType,
   PlayerTagMap,
+  SkillId,
+  TextDescription,
   ToolLoadoutDefinition,
   TurnPhase,
   TurnToolSnapshot
@@ -121,6 +123,16 @@ export const MODIFIER_REGISTRY = defineModifierRegistry({
   [CHAIN_MODIFIER_DEFINITION.id]: CHAIN_MODIFIER_DEFINITION,
   [FARTHER_MODIFIER_DEFINITION.id]: FARTHER_MODIFIER_DEFINITION
 } as const);
+
+export function getSkillTextDescription(skillId: SkillId): TextDescription | null {
+  const skill = SKILL_REGISTRY[skillId];
+
+  if (!skill) {
+    return null;
+  }
+
+  return skill.getTextDescription();
+}
 
 function getCharacterModifiers(characterId: CharacterId): ModifierDefinition[] {
   return getCharacterDefinition(characterId).skillIds.flatMap((skillId) => {

@@ -11,8 +11,10 @@ import type {
   TurnPhase,
   TurnToolSnapshot
 } from "./types";
+import type { TextDescription } from "./content/schema";
 
 export interface SkillDefinition {
+  getTextDescription: () => TextDescription;
   id: SkillId;
   label: string;
   modifierIds: readonly ModifierId[];

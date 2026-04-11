@@ -217,8 +217,12 @@ function clearInspectionTimer(timerRef: { current: number | null }): void {
   }
 }
 
+interface BoardSceneProps {
+  terrainThumbnailUrls: Partial<Record<string, string>>;
+}
+
 // The scene mirrors authoritative state while handling only local aiming and previews.
-export function BoardScene() {
+export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const snapshot = useGameStore((state) => state.snapshot);
@@ -949,9 +953,15 @@ export function BoardScene() {
       }
 
       event.stopPropagation();
-      queueInspection(describeTileInspection(tile));
+      queueInspection(describeTileInspection(tile, terrainThumbnailUrls));
     },
-    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+    [
+      canStartScenePointerInteraction,
+      cancelInspection,
+      queueInspection,
+      startSelectedInteractionPointer,
+      terrainThumbnailUrls
+    ]
   );
 
   const handleSummonPointerDown = useCallback(

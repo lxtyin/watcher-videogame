@@ -51,6 +51,14 @@ export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
     targetRange: 1,
     pushDistance: 2
   },
+  getTextDescription: ({ params }) => ({
+    title: "投弹",
+    description: "先选择一格目标，再选择一个方向，将目标格上的玩家推开。",
+    details: [
+      `推动 ${params.pushDistance ?? 0} 格`,
+      `施放范围 ${params.targetRange ?? 0} 格`,
+    ]
+  }),
   color: "#d86a42",
   rollable: false,
   debugGrantable: true,

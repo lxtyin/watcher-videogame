@@ -210,3 +210,28 @@
   - `npm.cmd run typecheck --workspace @watcher/shared`
   - `npm.cmd run goldens`
   - `npm.cmd run typecheck`
+
+## 2026-04-11 信息展示收束
+
+- 新增统一展示文本入口：
+  - `getToolTextDescription(tool)`
+  - `getTerrainTextDescription(tile)`
+  - `getSkillTextDescription(skillId)`
+- 地形说明从 client 硬编码迁回 `packages/shared/src/terrain-modules/`：
+  - 每个地形模块现在提供 `label / accent / getTextDescription`
+  - `inspectables.ts` 只负责组装信息卡，不再维护地形规则文案
+- 工具信息卡改为读取 shared 工具自己的 `getTextDescription`：
+  - `HudSidebar` 当前工具详情改用 `getToolTextDescription`
+  - `SceneInteractionHud` 弧形工具卡不再使用 client 侧工具说明
+- 修正展示文本模型：
+  - `ToolContentDefinition.getTextDescription` 改为必填
+  - `SkillDefinition.getTextDescription` 改为必填
+  - 删除旧的 `buttonValue` / `TOOL_PARAMETER_LABELS` 自动参数展示体系
+  - 工具、技能、地形的展示文本都由各自模块手写
+- 地形 thumbnail 资源收束到正式棋盘资源目录：
+  - 新增 `packages/client/src/game/assets/board/TerrainThumbnail.tsx`
+  - 新增 `packages/client/src/game/assets/board/TerrainThumbnailCaptureDeck.tsx`
+  - 新增 `terrainThumbnailCatalog.ts`
+  - 地图编辑器和游戏内长按地形信息卡共用同一套 3D thumbnail
+- 验证：
+  - `npm.cmd run typecheck`

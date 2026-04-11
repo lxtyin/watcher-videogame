@@ -1,6 +1,5 @@
 import {
   TOOL_DIE_FACES as TOOL_DIE_FACE_REGISTRY,
-  TOOL_PARAMETER_LABELS,
   TOOL_REGISTRY
 } from "./content/tools";
 import {
@@ -10,6 +9,7 @@ import {
 } from "./toolInteraction";
 import type {
   RolledToolId,
+  TextDescription,
   ToolAvailability,
   ToolChoiceDefinition,
   ToolDefinition,
@@ -245,58 +245,19 @@ export function getToolDisabledMessage(
   return `${configuredHint} 当前限制：${availability.reason}。`;
 }
 
-function formatToolButtonValue(unit: "point" | "tile", value: number): string {
-  return unit === "point" ? `${value}` : `${value}`;
-}
-
-function formatToolParameterValue(
-  unit: "point" | "tile" | "count",
-  value: number
-): string {
-  if (unit === "point") {
-    return `${value} 点`;
-  }
-
-  if (unit === "tile") {
-    return `${value} 格`;
-  }
-
-  return `${value} 次`;
-}
-
-// Button labels derive from shared metadata so new parameterized tools do not need UI branches.
+// Button labels derive from each tool's own display text instead of a shared parameter formatter.
 export function describeToolButtonLabel(tool: TurnToolSnapshot): string {
-  const definition = TOOL_DEFINITIONS[tool.toolId];
-  const buttonValue = definition.buttonValue;
+  const textDescription = getToolTextDescription(tool);
 
-  if (buttonValue) {
-    return `${definition.label} ${formatToolButtonValue(buttonValue.unit, getToolParam(tool, buttonValue.paramId))}`;
-  }
-
-  return tool.charges > 1 ? `${definition.label} x${tool.charges}` : definition.label;
+  return tool.charges > 1 ? `${textDescription.title} x${tool.charges}` : textDescription.title;
 }
 
-// Ring details can reuse the same metadata while keeping units visible for short labels.
-export function describeToolButtonValue(tool: TurnToolSnapshot): string | null {
+export function getToolTextDescription(tool: TurnToolSnapshot): TextDescription {
   const definition = TOOL_DEFINITIONS[tool.toolId];
-  const buttonValue = definition.buttonValue;
 
-  if (!buttonValue) {
-    return null;
-  }
-
-  const value = getToolParam(tool, buttonValue.paramId);
-  return buttonValue.unit === "point" ? `${value} 点` : `${value} 格`;
-}
-
-// Tool details expose the current parameter payload in a UI-friendly order.
-export function describeToolParameters(tool: TurnToolSnapshot): string[] {
-  return Object.keys(TOOL_DEFINITIONS[tool.toolId].defaultParams).map((paramId) => {
-    const typedParamId = paramId as ToolParameterId;
-    const descriptor = TOOL_PARAMETER_LABELS[typedParamId];
-    const value = getToolParam(tool, typedParamId);
-
-    return `${descriptor.label} ${formatToolParameterValue(descriptor.unit, value)}`;
+  return definition.getTextDescription({
+    charges: tool.charges,
+    params: tool.params
   });
 }
 

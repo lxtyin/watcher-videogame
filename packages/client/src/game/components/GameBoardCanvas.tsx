@@ -1,7 +1,12 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MOUSE, TOUCH } from "three";
+import { TerrainThumbnailCaptureDeck } from "../assets/board/TerrainThumbnailCaptureDeck";
+import {
+  expandTerrainThumbnailEntriesForCapture,
+  TERRAIN_THUMBNAIL_ENTRIES
+} from "../assets/board/terrainThumbnailCatalog";
 import { BoardScene } from "./BoardScene";
 
 const DISABLED_MOUSE_BUTTON = -1 as MOUSE;
@@ -33,8 +38,30 @@ function RenderStatsProbe() {
 
 // The canvas owns camera behavior so board interactions can stay focused on gameplay input.
 export function GameBoardCanvas() {
+  const [terrainThumbnailUrls, setTerrainThumbnailUrls] = useState<Partial<Record<string, string>>>({});
+  const thumbnailEntries = useMemo(
+    () => expandTerrainThumbnailEntriesForCapture(TERRAIN_THUMBNAIL_ENTRIES),
+    []
+  );
+
   return (
     <div className="board-shell">
+      <TerrainThumbnailCaptureDeck
+        entries={thumbnailEntries}
+        thumbnailUrls={terrainThumbnailUrls}
+        onCapture={(symbol, url) => {
+          setTerrainThumbnailUrls((current) => {
+            if (current[symbol] === url) {
+              return current;
+            }
+
+            return {
+              ...current,
+              [symbol]: url
+            };
+          });
+        }}
+      />
       <Canvas camera={{ position: [11, 15.6, 10], fov: 34 }} shadows>
         <RenderStatsProbe />
         <OrbitControls
@@ -57,7 +84,7 @@ export function GameBoardCanvas() {
             TWO: TOUCH.DOLLY_ROTATE
           }}
         />
-        <BoardScene />
+        <BoardScene terrainThumbnailUrls={terrainThumbnailUrls} />
       </Canvas>
     </div>
   );

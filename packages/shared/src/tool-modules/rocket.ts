@@ -50,6 +50,16 @@ export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
     rocketBlastLeapDistance: 3,
     rocketSplashPushDistance: 1
   },
+  getTextDescription: ({ params }) => ({
+    title: "火箭",
+    description: "向所选方向发射火箭，命中后在落点爆炸并击飞周围玩家。",
+    details: [
+      `炸飞 ${params.rocketBlastLeapDistance ?? 0} 格, 推动 ${params.rocketSplashPushDistance ?? 0} 格`
+      // `射程 ${(params.projectileRange ?? 0) >= 999 ? "全场" : `${params.projectileRange ?? 0} 格`}`,
+      // `炸飞距离 ${params.rocketBlastLeapDistance ?? 0} 格`,
+      // `爆风推力 ${params.rocketSplashPushDistance ?? 0} 格`
+    ]
+  }),
   color: "#dc5f56",
   rollable: true,
   debugGrantable: true,

@@ -2147,6 +2147,20 @@ button:disabled {
     inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
+.scene-inspection-card__thumb .terrain-thumbnail {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.82), transparent 52%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--inspection-accent) 35%, white 65%),
+      color-mix(in srgb, var(--inspection-accent) 78%, #1b2333 22%)
+    );
+}
+
 .scene-inspection-card__token {
   font-size: 1.3rem;
   font-weight: 800;
@@ -2187,6 +2201,21 @@ button:disabled {
 .scene-inspection-card__description {
   line-height: 1.45;
   color: rgba(255, 247, 233, 0.92);
+}
+
+.scene-inspection-card__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  margin-top: 0.1rem;
+}
+
+.scene-inspection-card__details span {
+  padding: 0.18rem 0.48rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: rgba(255, 247, 233, 0.88);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes scene-action-button-insert {

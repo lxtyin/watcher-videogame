@@ -41,6 +41,13 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   ],
   defaultCharges: 1,
   defaultParams: {},
+  getTextDescription: () => ({
+    title: "制衡",
+    description: "压缩本回合移动，或把本回合移动转存到下回合，二选一。",
+    details: [
+      " ",
+    ]
+  }),
   color: "#8c6bda",
   rollable: false,
   debugGrantable: true,

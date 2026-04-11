@@ -39,6 +39,15 @@ export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
     projectileBounceCount: 1,
     projectilePushDistance: 1
   },
+  getTextDescription: ({ params }) => ({
+    title: "篮球",
+    description: "向所选方向投出篮球，命中的玩家会被击退。",
+    details: [
+      `击退 ${params.projectilePushDistance ?? 0} 格`,
+      `射程 ${(params.projectileRange ?? 0) >= 999 ? "全场" : `${params.projectileRange ?? 0} 格`}`,
+      `反弹次数 ${params.projectileBounceCount ?? 0} 次`,
+    ]
+  }),
   color: "#d9824c",
   rollable: true,
   debugGrantable: true,

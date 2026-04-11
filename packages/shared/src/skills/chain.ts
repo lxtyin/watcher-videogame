@@ -10,6 +10,11 @@ export const CHAIN_SKILL_DEFINITION: SkillDefinition = {
   id: CHAIN_SKILL_ID,
   label: "静止钩锁",
   summary: "若回合外没有被移动，下个行动阶段获得短钩锁。",
+  getTextDescription: () => ({
+    title: "静止钩锁",
+    description: "若回合外没有被移动，下个行动阶段获得短钩锁。",
+    details: ["回合外未被移动：下个行动阶段获得长度 3 的钩锁"]
+  }),
   modifierIds: [CHAIN_MODIFIER_ID]
 };
 

@@ -1,10 +1,10 @@
-import type { TerrainLibraryEntry } from "./terrainCatalog";
+import type { TerrainThumbnailEntry } from "./terrainThumbnailCatalog";
 
 export function TerrainThumbnail({
   entry,
   thumbnailUrl
 }: {
-  entry: TerrainLibraryEntry;
+  entry: TerrainThumbnailEntry;
   thumbnailUrl: string | null;
 }) {
   return (

@@ -7,6 +7,8 @@ import {
 } from "@watcher/shared";
 import { useEffect, useMemo, useState } from "react";
 import { UiIcon } from "../game/assets/ui/icons";
+import { TerrainThumbnailCaptureDeck } from "../game/assets/board/TerrainThumbnailCaptureDeck";
+import { TerrainThumbnail } from "../game/assets/board/TerrainThumbnail";
 import { getStoredPlayerProfile, useWatcherConnection } from "../game/network/useWatcherConnection";
 import { useGameStore } from "../game/state/useGameStore";
 import { formatMapEditorDocument, parseMapEditorDocument, type MapEditorDocumentLike } from "./layoutFormat";
@@ -20,8 +22,6 @@ import {
   rotateTerrainSymbolClockwise,
   TERRAIN_LIBRARY_ENTRIES
 } from "./terrainCatalog";
-import { TerrainThumbnailCaptureDeck } from "./TerrainThumbnailCaptureDeck";
-import { TerrainThumbnail } from "./TerrainThumbnail";
 
 function replaceLayoutSymbol(
   layout: string[],

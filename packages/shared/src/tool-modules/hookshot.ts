@@ -51,6 +51,11 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     hookLength: 4
   },
+  getTextDescription: ({ params }) => ({
+    title: "钩锁",
+    description: "沿所选方向发射钩锁，命中墙体时拉自己过去，命中玩家时把对方拖回来。",
+    details: [`距离 ${params.hookLength ?? 0} `]
+  }),
   color: "#6ca7d9",
   rollable: true,
   debugGrantable: true,

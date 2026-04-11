@@ -9,6 +9,11 @@ export const BLAZE_SKILL_DEFINITION: SkillDefinition = {
   id: BLAZE_SKILL_ID,
   label: "炸弹准备",
   summary: "回合开始可准备炸弹，下个行动阶段获得投弹。",
+  getTextDescription: () => ({
+    title: "炸弹准备",
+    description: "回合开始可准备炸弹，下个行动阶段获得投弹。",
+    details: ["回合开始：可使用备弹", "下个行动阶段：获得投弹"]
+  }),
   modifierIds: [BLAZE_MODIFIER_ID]
 };
 

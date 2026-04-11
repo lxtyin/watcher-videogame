@@ -43,10 +43,11 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     movePoints: 3
   },
-  buttonValue: {
-    paramId: "movePoints",
-    unit: "tile"
-  },
+  getTextDescription: ({ params }) => ({
+    title: "制动",
+    description: "先选方向，再在该方向上指定一格，立即沿该轴线移动过去。",
+    details: [`制动 ${params.movePoints ?? 0} 格`]
+  }),
   color: "#53a6b9",
   rollable: false,
   debugGrantable: true,

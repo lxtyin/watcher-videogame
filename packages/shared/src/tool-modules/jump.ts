@@ -38,6 +38,11 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     jumpDistance: 2
   },
+  getTextDescription: ({ params }) => ({
+    title: "跳跃",
+    description: "沿选择方向飞跃固定距离，忽略途中停留。",
+    details: [`飞跃 ${params.jumpDistance ?? 0} 格`]
+  }),
   color: "#85c772",
   rollable: true,
   debugGrantable: true,

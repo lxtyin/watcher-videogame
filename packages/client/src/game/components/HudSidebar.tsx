@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   TOOL_DEFINITIONS,
   describeToolButtonLabel,
-  describeToolParameters,
   getCharacterDefinition,
   getDebugGrantableToolIds,
   getNextCharacterId,
   getToolAvailability,
   getToolDisabledMessage,
+  getToolTextDescription,
   type ToolId,
   type TurnPhase,
   type TurnToolSnapshot
@@ -143,7 +143,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const activePhase = snapshot?.turnInfo.phase ?? null;
   const selectedTool = findSelectedTool(snapshot, sessionId, selectedToolInstanceId);
   const selectedToolDefinition = selectedTool ? TOOL_DEFINITIONS[selectedTool.toolId] : null;
-  const selectedToolParameters = selectedTool ? describeToolParameters(selectedTool) : [];
+  const selectedToolTextDescription = selectedTool ? getToolTextDescription(selectedTool) : null;
   const selectedToolAvailability =
     selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
   const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
@@ -491,8 +491,10 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             {selectedToolDefinition && selectedTool ? (
               <div className="tool-detail" style={{ "--tool-accent": selectedToolDefinition.color } as CSSProperties}>
                 <strong>{describeToolButtonLabel(selectedTool)}</strong>
-                <p>{selectedToolDefinition.description}</p>
-                {selectedToolParameters.length ? <p>{selectedToolParameters.join(" · ")}</p> : null}
+                <p>{selectedToolTextDescription?.description ?? selectedToolDefinition.description}</p>
+                {selectedToolTextDescription?.details.length ? (
+                  <p>{selectedToolTextDescription.details.join(" · ")}</p>
+                ) : null}
                 {!selectedToolAvailability?.usable ? <p>{getToolDisabledMessage(selectedTool, tools)}</p> : null}
               </div>
             ) : (

@@ -15,6 +15,11 @@ export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     dashBonus: 2
   },
+  getTextDescription: ({ params }) => ({
+    title: "冲刺",
+    description: "让本回合剩余的所有移动工具额外获得指定点数。",
+    details: [`移动增加 ${params.dashBonus ?? 0} 点`]
+  }),
   color: "#f0ad4e",
   rollable: true,
   debugGrantable: true,

@@ -28,6 +28,11 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     wallDurability: 2
   },
+  getTextDescription: ({ params }) => ({
+    title: "砌墙",
+    description: "在周围八格中选择一个空地，生成一面指定耐久的土墙。",
+    details: [`耐久 ${params.wallDurability ?? 0}`]
+  }),
   color: "#be7d4d",
   rollable: true,
   debugGrantable: true,

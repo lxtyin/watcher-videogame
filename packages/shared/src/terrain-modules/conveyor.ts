@@ -2,7 +2,21 @@ import { appendTerrainTrigger } from "./helpers";
 import type { TerrainModule } from "./types";
 import { isMovementType } from "../rules/displacement";
 
+const DIRECTION_LABELS = {
+  up: "朝上",
+  right: "朝右",
+  down: "朝下",
+  left: "朝左"
+} as const;
+
 export const CONVEYOR_TERRAIN_MODULE: TerrainModule = {
+  accent: "#6db0c6",
+  getTextDescription: (tile) => ({
+    title: "传送带",
+    description: "平移经过时生效。顺行会加速，逆行或侧行会被强制转向。",
+    details: [`传送方向 ${tile.direction ? DIRECTION_LABELS[tile.direction] : "未设置"}`]
+  }),
+  label: "传送带",
   onPassThrough: (context) => {
     if (
       !context.tile.direction ||

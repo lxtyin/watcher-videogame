@@ -1,5 +1,6 @@
 import type { Direction, GridPosition, MovementActor, MovementDescriptor, TileDefinition } from "../types";
 import type { ResolutionDraft } from "../rules/actionDraft";
+import type { TextDescription } from "../content/schema";
 
 export interface PassThroughTerrainState {
   direction: Direction | null;
@@ -26,9 +27,12 @@ export interface TerrainStopContext {
 }
 
 export interface TerrainModule {
+  accent: string;
   blocksGroundMovement?: boolean;
   blocksLeapTraversal?: boolean;
   blocksProjectile?: boolean;
+  getTextDescription: (tile: TileDefinition) => TextDescription;
+  label: string;
   onPassThrough?: (context: TerrainPassThroughContext) => void;
   onStop?: (context: TerrainStopContext) => void;
   type: TileDefinition["type"];

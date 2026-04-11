@@ -1,9 +1,9 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
-  describeToolButtonValue,
   getToolAvailability,
   getToolDisabledMessage,
+  getToolTextDescription,
   type ToolChoiceDefinition,
   type ToolId,
   type TurnPhase,
@@ -81,16 +81,8 @@ function getRingButtonStyle(index: number, total: number): CSSProperties {
 
 function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
   const availability = getToolAvailability(tool, tools);
-  const baseDetail = getActionUiConfig(tool.toolId).detail;
-  const buttonValue = describeToolButtonValue(tool);
-
-  if (buttonValue) {
-    return buttonValue;
-  }
-
-  if (tool.charges > 1) {
-    return `${tool.charges} 次`;
-  }
+  const toolTextDescription = getToolTextDescription(tool);
+  const baseDetail = toolTextDescription.details[0] ?? toolTextDescription.description;
 
   return availability.usable ? baseDetail : availability.reason ?? baseDetail;
 }
@@ -269,7 +261,7 @@ export function SceneActionRing({
       ? [
           {
             accent: getActionUiConfig("roll").accent,
-            detail: getActionUiConfig("roll").detail,
+            detail: getActionUiConfig("roll").detail ?? "开始投骰",
             disabled: false,
             id: "roll",
             label: "投骰",
@@ -284,7 +276,7 @@ export function SceneActionRing({
           ...tools.map(mapToolToAction),
           {
             accent: getActionUiConfig("end").accent,
-            detail: getActionUiConfig("end").detail,
+            detail: getActionUiConfig("end").detail ?? "结束回合",
             disabled: false,
             id: "end",
             label: "结束",
@@ -313,9 +305,9 @@ export function SceneActionRing({
         style={{ transform: `translate(${screenOffsetX}px, ${screenOffsetY}px)` }}
       >
         {showArc ? <div className="scene-action-ring__arc" /> : null}
-        <div className="scene-action-ring__caption">
+        {/* <div className="scene-action-ring__caption">
           {caption ?? getDefaultCaption(phase, selectedTool, tools)}
-        </div>
+        </div> */}
         {showArc
           ? actions.map((action, index) => (
               <button

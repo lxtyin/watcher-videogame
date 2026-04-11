@@ -10,6 +10,11 @@ export const VOLATY_SKILL_DEFINITION: SkillDefinition = {
   id: VOLATY_SKILL_ID,
   label: "飞跃开局",
   summary: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
+  getTextDescription: () => ({
+    title: "飞跃开局",
+    description: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
+    details: ["回合开始：可跳过工具骰", "投骰时：移动骰转化为跳跃工具"]
+  }),
   modifierIds: [VOLATY_MODIFIER_ID]
 };
 

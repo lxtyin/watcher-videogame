@@ -7,6 +7,11 @@ export const LATE_SKILL_DEFINITION: SkillDefinition = {
   id: LATE_SKILL_ID,
   label: "制动替换",
   summary: "将获得的移动改为等距离制动。",
+  getTextDescription: () => ({
+    title: "制动替换",
+    description: "将获得的移动改为等距离制动。",
+    details: ["获得移动时：替换为等距离制动"]
+  }),
   modifierIds: [LATE_MODIFIER_ID]
 };
 

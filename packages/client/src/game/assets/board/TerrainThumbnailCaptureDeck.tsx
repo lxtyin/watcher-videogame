@@ -1,13 +1,13 @@
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { BoardTileVisual } from "../game/assets/board/BoardTileVisual";
-import type { TerrainLibraryEntry } from "./terrainCatalog";
+import { BoardTileVisual } from "./BoardTileVisual";
+import type { TerrainThumbnailEntry } from "./terrainThumbnailCatalog";
 
 function ThumbnailCaptureScene({
   entry,
   onCaptured
 }: {
-  entry: TerrainLibraryEntry;
+  entry: TerrainThumbnailEntry;
   onCaptured: (url: string) => void;
 }) {
   const capturedRef = useRef(false);
@@ -54,7 +54,7 @@ export function TerrainThumbnailCaptureDeck({
   thumbnailUrls,
   onCapture
 }: {
-  entries: readonly TerrainLibraryEntry[];
+  entries: readonly TerrainThumbnailEntry[];
   thumbnailUrls: Partial<Record<string, string>>;
   onCapture: (symbol: string, url: string) => void;
 }) {

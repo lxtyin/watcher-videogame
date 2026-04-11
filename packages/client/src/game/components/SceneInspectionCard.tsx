@@ -1,6 +1,7 @@
 import { Html } from "@react-three/drei";
 import type { Direction } from "@watcher/shared";
 import type { CSSProperties } from "react";
+import { TerrainThumbnail } from "../assets/board/TerrainThumbnail";
 import type { SceneInspectionCardData } from "../content/inspectables";
 
 interface SceneInspectionCardProps {
@@ -28,8 +29,15 @@ export function SceneInspectionCard({ inspection }: SceneInspectionCardProps) {
           style={{ "--inspection-accent": inspection.accent } as CSSProperties}
         >
           <div className="scene-inspection-card__thumb">
-            <span className="scene-inspection-card__token">{inspection.thumbnailToken}</span>
-            {inspection.direction ? (
+            {inspection.terrainThumbnail ? (
+              <TerrainThumbnail
+                entry={inspection.terrainThumbnail.entry}
+                thumbnailUrl={inspection.terrainThumbnail.thumbnailUrl}
+              />
+            ) : (
+              <span className="scene-inspection-card__token">{inspection.thumbnailToken}</span>
+            )}
+            {!inspection.terrainThumbnail && inspection.direction ? (
               <span className="scene-inspection-card__direction">
                 {DIRECTION_TOKENS[inspection.direction]}
               </span>
@@ -42,6 +50,13 @@ export function SceneInspectionCard({ inspection }: SceneInspectionCardProps) {
               <p className="scene-inspection-card__subtitle">{inspection.subtitle}</p>
             ) : null}
             <p className="scene-inspection-card__description">{inspection.description}</p>
+            {inspection.details?.length ? (
+              <div className="scene-inspection-card__details">
+                {inspection.details.map((detail) => (
+                  <span key={detail}>{detail}</span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

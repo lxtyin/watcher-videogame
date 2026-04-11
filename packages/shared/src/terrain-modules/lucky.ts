@@ -22,6 +22,13 @@ function buildLuckyToolInstanceId(
 }
 
 export const LUCKY_TERRAIN_MODULE: TerrainModule = {
+  accent: "#d6bf70",
+  getTextDescription: () => ({
+    title: "幸运方块",
+    description: "停留时会奖励一个工具，并立刻切换为空幸运方块。",
+    details: []
+  }),
+  label: "幸运方块",
   onStop: (context) => {
     if (context.player.id !== context.draft.actorId) {
       return;

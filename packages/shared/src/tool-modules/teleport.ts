@@ -36,6 +36,11 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   interaction: createDragTileInteraction(),
   defaultCharges: 1,
   defaultParams: {},
+  getTextDescription: () => ({
+    title: "瞬移",
+    description: "选择全场任意一个可落脚地块，直接瞬移到目标位置。",
+    details: ["全场传送"]
+  }),
   color: "#7b8bff",
   rollable: false,
   debugGrantable: true,

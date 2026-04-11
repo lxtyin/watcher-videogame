@@ -36,9 +36,15 @@ export type ToolParameterId =
 
 export type ToolParameterValueMap = Partial<Record<ToolParameterId, number>>;
 
-export interface ToolButtonValueContentDefinition {
-  paramId: ToolParameterId;
-  unit: "point" | "tile";
+export interface TextDescription {
+  description: string;
+  details: readonly string[];
+  title: string;
+}
+
+export interface ToolTextDescriptionContext {
+  charges: number;
+  params: ToolParameterValueMap;
 }
 
 export interface ToolChoiceContentDefinition {
@@ -87,7 +93,6 @@ export interface MovementContentDefinition {
 
 export interface ToolContentDefinition {
   actorMovement?: MovementContentDefinition;
-  buttonValue?: ToolButtonValueContentDefinition;
   choices?: readonly ToolChoiceContentDefinition[];
   color: string;
   defaultCharges: number;
@@ -96,6 +101,7 @@ export interface ToolContentDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
+  getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;
   interaction: ToolInteractionDefinition;
   label: string;
   phases?: readonly TurnPhase[];

@@ -27,6 +27,11 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     targetRange: 2
   },
+  getTextDescription: ({ params }) => ({
+    title: "放置钱包",
+    description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。",
+    details: [` `]
+  }),
   color: "#8d7a3d",
   rollable: false,
   debugGrantable: false,

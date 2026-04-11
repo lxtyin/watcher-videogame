@@ -1,5 +1,6 @@
 import { toTileKey } from "./board";
-import type { GridPosition } from "./types";
+import type { TextDescription } from "./content/schema";
+import type { GridPosition, TileDefinition } from "./types";
 import type { ResolutionDraft } from "./rules/actionDraft";
 import { getTerrainModule } from "./terrain-modules";
 import type { PassThroughTerrainState } from "./terrain-modules/types";
@@ -11,7 +12,7 @@ export function resolvePassThroughTerrainEffect(
     movement: import("./types").MovementDescriptor;
     startMs: number;
     state: PassThroughTerrainState;
-    tile: import("./types").TileDefinition;
+    tile: TileDefinition;
   }
 ): void {
   const terrainDefinition = getTerrainModule(context.tile.type);
@@ -37,7 +38,7 @@ export function resolveStopTerrainEffect(
     player: import("./types").MovementActor;
     position: GridPosition;
     startMs: number;
-    tile: import("./types").TileDefinition;
+    tile: TileDefinition;
   }
 ): void {
   const terrainDefinition = getTerrainModule(context.tile.type);
@@ -59,4 +60,12 @@ export function resolveStopTerrainEffect(
 // Terrain events reuse normal tile keys so logs and visuals refer to the same cell id.
 export function getTerrainTileKey(position: GridPosition): string {
   return toTileKey(position);
+}
+
+export function getTerrainTextDescription(tile: TileDefinition): TextDescription {
+  return getTerrainModule(tile.type).getTextDescription(tile);
+}
+
+export function getTerrainAccent(tileType: TileDefinition["type"]): string {
+  return getTerrainModule(tileType).accent;
 }

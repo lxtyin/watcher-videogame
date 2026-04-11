@@ -9,6 +9,11 @@ export const FARTHER_SKILL_DEFINITION: SkillDefinition = {
   id: FARTHER_SKILL_ID,
   label: "制衡储存",
   summary: "行动阶段获得制衡，并返还储存的移动。",
+  getTextDescription: () => ({
+    title: "制衡储存",
+    description: "行动阶段获得制衡，并返还储存的移动。",
+    details: ["行动阶段开始：获得制衡", "若有储存移动：返还为移动工具"]
+  }),
   modifierIds: [FARTHER_MODIFIER_ID]
 };
 

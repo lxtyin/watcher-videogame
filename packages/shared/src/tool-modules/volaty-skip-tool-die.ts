@@ -20,6 +20,11 @@ export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],
+  getTextDescription: () => ({
+    title: "飞跃",
+    description: "跳过工具骰，只获得移动骰，并把本回合平移改成飞跃。",
+    details: ["进入飞跃模式"]
+  }),
   color: "#77b8ff",
   rollable: false,
   debugGrantable: false,

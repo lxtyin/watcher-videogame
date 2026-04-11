@@ -41,6 +41,11 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {
     projectileRange: 999
   },
+  getTextDescription: ({ params }) => ({
+    title: "狙击",
+    description: "向一个方向发射子弹，命中的第一格玩家获得等同于你当前总移动点数的束缚。",
+    details: [`射程 ${(params.projectileRange ?? 0) >= 999 ? "全场" : `${params.projectileRange ?? 0} 格`}`]
+  }),
   color: "#4f6ddf",
   rollable: false,
   debugGrantable: false,

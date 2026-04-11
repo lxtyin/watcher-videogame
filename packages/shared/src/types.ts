@@ -5,12 +5,13 @@
   MovementType as ContentMovementType,
   TileType as ContentTileType,
   ToolChoiceContentDefinition,
-  ToolButtonValueContentDefinition,
   ToolInteractionAnchorDefinition as ContentToolInteractionAnchorDefinition,
   ToolInteractionDefinition as ContentToolInteractionDefinition,
   ToolInteractionStageDefinition as ContentToolInteractionStageDefinition,
   ToolParameterId as ContentToolParameterId,
   ToolParameterValueMap as ContentToolParameterValueMap,
+  TextDescription as ContentTextDescription,
+  ToolTextDescriptionContext as ContentToolTextDescriptionContext,
   ToolSource as ContentToolSource,
   TurnPhase as ContentTurnPhase
 } from "./content/schema";
@@ -35,6 +36,8 @@ export type ToolSource = ContentToolSource;
 export type ToolInteractionAnchor = ContentToolInteractionAnchorDefinition;
 export type ToolInteractionStageDefinition = ContentToolInteractionStageDefinition;
 export type ToolInteractionDefinition = ContentToolInteractionDefinition;
+export type TextDescription = ContentTextDescription;
+export type ToolTextDescriptionContext = ContentToolTextDescriptionContext;
 export type PlayerTurnFlag = string;
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
@@ -91,8 +94,6 @@ export interface BoardDefinition {
   tiles: TileDefinition[];
   width: number;
 }
-
-export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinition {}
 
 export interface MovementDescriptor {
   disposition: ContentMovementDisposition;
@@ -178,7 +179,6 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 
 export interface ToolDefinition {
   actorMovement?: MovementContentDefinition;
-  buttonValue?: ToolButtonValueDefinition;
   choices?: readonly ToolChoiceDefinition[];
   color: string;
   debugGrantable: boolean;
@@ -187,6 +187,7 @@ export interface ToolDefinition {
   description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
+  getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;
   phases: readonly TurnPhase[];
   id: ToolId;
   interaction: ToolInteractionDefinition;
