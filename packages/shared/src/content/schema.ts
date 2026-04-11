@@ -41,11 +41,6 @@ export interface ToolButtonValueContentDefinition {
   unit: "point" | "tile";
 }
 
-export interface ToolConditionContentDefinition {
-  kind: "tool_present";
-  toolId: string;
-}
-
 export interface ToolChoiceContentDefinition {
   description: string;
   id: string;
@@ -95,7 +90,6 @@ export interface ToolContentDefinition {
   buttonValue?: ToolButtonValueContentDefinition;
   choices?: readonly ToolChoiceContentDefinition[];
   color: string;
-  conditions: ToolConditionContentDefinition[];
   defaultCharges: number;
   defaultParams: ToolParameterValueMap;
   debugGrantable: boolean;

@@ -8,6 +8,8 @@ import type {
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  MovementDescriptorInput,
+  MovementType,
   PreviewDescriptor,
   ToolActionContext,
   TurnToolSnapshot
@@ -19,8 +21,7 @@ import {
   createPresentation
 } from "../rules/actionPresentation";
 import {
-  createMovementDescriptor,
-  materializeMovementDescriptor
+  createMovementDescriptorInput
 } from "../rules/displacement";
 import {
   createPreviewDescriptor,
@@ -57,12 +58,17 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
   };
 }
 
-export function createToolMovementDescriptor(
+export interface ToolMovementPlan {
+  descriptor: MovementDescriptorInput;
+  type: MovementType;
+}
+
+export function createToolMovementPlan(
   context: ToolActionContext,
   definition: ToolContentDefinition,
   fallbackType: "drag" | "leap" | "teleport" | "translate",
   extraTags: string[] = []
-): MovementDescriptor {
+): ToolMovementPlan {
   const definitionMovement =
     definition.actorMovement ?? {
       type: fallbackType,
@@ -85,27 +91,27 @@ export function createToolMovementDescriptor(
         )
       : definitionMovement.type;
 
-  return materializeMovementDescriptor(
-    {
-      ...definitionMovement,
-      type
-    },
-    {
+  return {
+    descriptor: createMovementDescriptorInput(definitionMovement.disposition, {
       tags: [`tool:${context.activeTool.toolId}`, ...extraTags],
       timing: "in_turn"
-    }
-  );
+    }),
+    type
+  };
 }
 
-export function createPassiveToolMovementDescriptor(
+export function createPassiveToolMovementPlan(
   toolId: ToolActionContext["activeTool"]["toolId"],
   type: "drag" | "leap" | "translate",
   extraTags: string[] = []
-): MovementDescriptor {
-  return createMovementDescriptor(type, "passive", {
-    tags: [`tool:${toolId}`, ...extraTags],
-    timing: "out_of_turn"
-  });
+): ToolMovementPlan {
+  return {
+    descriptor: createMovementDescriptorInput("passive", {
+      tags: [`tool:${toolId}`, ...extraTags],
+      timing: "out_of_turn"
+    }),
+    type
+  };
 }
 
 export function createActorMotionPresentation(

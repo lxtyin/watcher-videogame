@@ -14,11 +14,14 @@ import {
 } from "../rules/actionResolution";
 import { createPresentation } from "../rules/actionPresentation";
 import { createResolvedPlayerMovement } from "../rules/displacement";
-import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
-import { collectDirectionSelectionTiles, createPreviewDescriptor } from "../rules/previewDescriptor";
+import {
+  resolveDragDisplacement,
+  resolveLeapDisplacement,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementDescriptor,
+  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -35,7 +38,6 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "没有可用的移动点数时不能使用移动。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     movePoints: 4
@@ -56,8 +58,8 @@ function resolveMovementTool(
 ): void {
   const direction = requireDirection(context);
   const movePoints = getToolParamValue(context.activeTool, "movePoints", 4);
-  const movement = createToolMovementDescriptor(context, MOVEMENT_TOOL_DEFINITION, "translate");
-  
+  const movement = createToolMovementPlan(context, MOVEMENT_TOOL_DEFINITION, "translate");
+
   if (!direction) {
     setDraftBlocked(draft, "Movement needs a direction", {
       preview: createToolPreview(context, { valid: false }),
@@ -75,13 +77,30 @@ function resolveMovementTool(
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
 
-  const resolution = resolveLinearDisplacement(draft, {
-    direction,
-    movePoints,
-    movement,
-    player: toMovementSubject(context.actor),
-    startMs: 0
-  });
+  const resolution =
+    movement.type === "leap"
+      ? resolveLeapDisplacement(draft, {
+          direction,
+          maxDistance: movePoints,
+          movement: movement.descriptor,
+          player: toMovementSubject(context.actor),
+          startMs: 0
+        })
+      : movement.type === "drag"
+        ? resolveDragDisplacement(draft, {
+            direction,
+            movePoints,
+            movement: movement.descriptor,
+            player: toMovementSubject(context.actor),
+            startMs: 0
+          })
+        : resolveLinearDisplacement(draft, {
+            direction,
+            movePoints,
+            movement: movement.descriptor,
+            player: toMovementSubject(context.actor),
+            startMs: 0
+          });
 
   if (!resolution.path.length) {
     setDraftToolInventory(draft, context.tools);
@@ -102,7 +121,7 @@ function resolveMovementTool(
       context.actor.id,
       context.actor.position,
       resolution.path,
-      movement
+      resolution.movement
     ),
     path: resolution.path,
     preview: createToolPreview(context, {

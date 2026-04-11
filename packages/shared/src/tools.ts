@@ -12,7 +12,6 @@ import type {
   RolledToolId,
   ToolAvailability,
   ToolChoiceDefinition,
-  ToolCondition,
   ToolDefinition,
   ToolInteractionDefinition,
   ToolDieFaceDefinition,
@@ -36,11 +35,7 @@ function materializeToolDefinitions(): Record<ToolId, ToolDefinition> {
             ? (definition.choices?.map((choice: ToolChoiceDefinition) => ({
                 ...choice
               })) as readonly ToolChoiceDefinition[] | undefined)
-            : undefined,
-        conditions: definition.conditions.map((condition) => ({
-          ...condition,
-          toolId: condition.toolId as ToolId
-        }))
+            : undefined
       }
     ])
   ) as unknown as Record<ToolId, ToolDefinition>;
@@ -194,31 +189,6 @@ export function consumeToolInstance(
   });
 }
 
-// Tool conditions return a reusable availability object instead of scattering checks.
-function satisfiesCondition(
-  condition: ToolCondition,
-  currentTool: TurnToolSnapshot,
-  tools: TurnToolSnapshot[]
-): ToolAvailability {
-  switch (condition.kind) {
-    case "tool_present": {
-      const hasMatchingTool = tools.some(
-        (candidate) =>
-          candidate.instanceId !== currentTool.instanceId &&
-          candidate.toolId === condition.toolId &&
-          (condition.toolId !== "movement" || getToolParam(candidate, "movePoints") > 0)
-      );
-
-      return hasMatchingTool
-        ? { usable: true, reason: null }
-        : {
-            usable: false,
-            reason: `需要保留一个可用的${TOOL_DEFINITIONS[condition.toolId].label}`
-          };
-    }
-  }
-}
-
 // Availability checks centralize all runtime use requirements for tool instances.
 export function getToolAvailability(
   tool: TurnToolSnapshot,
@@ -243,14 +213,6 @@ export function getToolAvailability(
       usable: false,
       reason: "没有可用的投弹位移距离"
     };
-  }
-
-  for (const condition of TOOL_DEFINITIONS[tool.toolId].conditions) {
-    const result = satisfiesCondition(condition, tool, tools);
-
-    if (!result.usable) {
-      return result;
-    }
   }
 
   return {

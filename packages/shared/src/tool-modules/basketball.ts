@@ -16,7 +16,7 @@ import {
   setDraftToolInventory
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
-import { createMovementDescriptor } from "../rules/displacement";
+import { createMovementDescriptorInput } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
@@ -33,7 +33,6 @@ export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用篮球。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999,
@@ -54,7 +53,7 @@ function resolveBasketballTool(
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const bounceCount = getToolParamValue(context.activeTool, "projectileBounceCount", 1);
   const pushDistance = getToolParamValue(context.activeTool, "projectilePushDistance", 1);
-  const pushedMovement = createMovementDescriptor("translate", "passive", {
+  const pushedMovement = createMovementDescriptorInput("passive", {
     tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
     timing: "out_of_turn"
   });
@@ -80,17 +79,17 @@ function resolveBasketballTool(
   setDraftToolInventory(draft, consumeActiveTool(context));
 
   if (trace.collision.kind === "player") {
-    for (const [index, hitPlayer] of trace.collision.players.entries()) {
+    for (const hitPlayer of trace.collision.players) {
       const presentationMark = markDraftPresentation(draft);
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         maxSteps: pushDistance,
-      movePoints: pushDistance,
-      movement: pushedMovement,
-      player: toMovementSubject(hitPlayer),
-      startMs: impactStartMs,
-      trackAffectedPlayerReason: "basketball"
-    });
+        movePoints: pushDistance,
+        movement: pushedMovement,
+        player: toMovementSubject(hitPlayer),
+        startMs: impactStartMs,
+        trackAffectedPlayerReason: "basketball"
+      });
 
       if (!pushResolution.path.length) {
         continue;

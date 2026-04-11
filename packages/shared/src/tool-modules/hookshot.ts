@@ -8,7 +8,6 @@ import {
   HOOKSHOT_PULL_DELAY_MS
 } from "../rules/actionPresentation";
 import {
-  appendDraftPresentationEvents,
   consumeDraftPresentationFrom,
   markDraftPresentation,
   setDraftActionPresentation,
@@ -18,19 +17,18 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
-import { resolveLinearDisplacement } from "../rules/movementSystem";
+import { resolveDragDisplacement } from "../rules/movementSystem";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
   findPlayersAtPosition,
   getOppositeDirection,
-  isProjectileBlockingTileType,
   isSolidTileType,
   stepPosition
 } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  createPassiveToolMovementDescriptor,
-  createToolMovementDescriptor,
+  createPassiveToolMovementPlan,
+  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -49,7 +47,6 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用钩锁。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     hookLength: 4
@@ -68,13 +65,13 @@ function resolveHookshotTool(
 ): void {
   const direction = requireDirection(context);
   const hookLength = getToolParamValue(context.activeTool, "hookLength", 3);
-  const actorMovement = createToolMovementDescriptor(
+  const actorMovement = createToolMovementPlan(
     context,
     HOOKSHOT_TOOL_DEFINITION,
     "drag",
     ["hookshot:self"]
   );
-  const pulledMovement = createPassiveToolMovementDescriptor(
+  const pulledMovement = createPassiveToolMovementPlan(
     context.activeTool.toolId,
     "drag",
     ["hookshot:pull"]
@@ -125,11 +122,11 @@ function resolveHookshotTool(
       );
       const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
       const presentationMark = markDraftPresentation(draft);
-      const actorResolution = resolveLinearDisplacement(draft, {
+      const actorResolution = resolveDragDisplacement(draft, {
         direction,
         maxSteps: pullDistance,
         movePoints: pullDistance,
-        movement: actorMovement,
+        movement: actorMovement.descriptor,
         player: toMovementSubject(context.actor),
         startMs: pullStartMs
       });
@@ -203,7 +200,7 @@ function resolveHookshotTool(
           context.actor.id,
           context.actor.position,
           actorResolution.path,
-          actorMovement
+          actorResolution.movement
         ),
         path: actorResolution.path,
         preview: createToolPreview(context, {
@@ -259,11 +256,11 @@ function resolveHookshotTool(
       }
 
       const presentationMark = markDraftPresentation(draft);
-      const pullResolution = resolveLinearDisplacement(draft, {
+      const pullResolution = resolveDragDisplacement(draft, {
         direction: getOppositeDirection(direction),
         maxSteps: pullDistance,
         movePoints: pullDistance,
-        movement: pulledMovement,
+        movement: pulledMovement.descriptor,
         player: toMovementSubject(hitPlayer),
         startMs: pullStartMs,
         trackAffectedPlayerReason: "hookshot"

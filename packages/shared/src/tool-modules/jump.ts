@@ -15,10 +15,9 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement } from "../rules/movementSystem";
-import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementDescriptor,
+  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -35,7 +34,6 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用跳跃。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     jumpDistance: 2
@@ -52,7 +50,7 @@ function resolveJumpTool(
 ): void {
   const direction = requireDirection(context);
   const jumpDistance = getToolParamValue(context.activeTool, "jumpDistance", 2);
-  const movement = createToolMovementDescriptor(context, JUMP_TOOL_DEFINITION, "leap");
+  const movement = createToolMovementPlan(context, JUMP_TOOL_DEFINITION, "leap");
   const presentationMark = markDraftPresentation(draft);
   const resolution = direction
     ? (() => {
@@ -60,7 +58,7 @@ function resolveJumpTool(
         return resolveLeapDisplacement(draft, {
           direction,
           maxDistance: jumpDistance,
-          movement,
+          movement: movement.descriptor,
           player: toMovementSubject(context.actor),
           startMs: 0
         });
@@ -93,7 +91,7 @@ function resolveJumpTool(
       context.actor.id,
       context.actor.position,
       resolution.path,
-      movement
+      resolution.movement
     ),
     path: resolution.path,
     preview: createToolPreview(context, {

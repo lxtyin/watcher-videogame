@@ -39,7 +39,6 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
       description: "本回合失去全部移动，下回合额外获得本回合的移动。"
     }
   ],
-  conditions: [{ kind: "tool_present", toolId: "movement" }],
   defaultCharges: 1,
   defaultParams: {},
   color: "#8c6bda",

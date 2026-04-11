@@ -6,8 +6,10 @@
 
 
 下一步优化信息展示：
- - 工具栏图标重做
- - 鼠标按住地形预览时，同样使用ThumbNail预览（）
+ - 鼠标按住地形预览时，同样使用3D ThumbNail预览而非2D图标（和MapEditor中用一套东西）
+ - 所有地形、工具、技能的描述信息都应该放在terrain-modules、tool-modules和skills（都放在shared层）
+ - 地形、工具、技能都提供一个getTextDescription函数，用来给前端提供要展示的信息；这是为了更容易配置给前端展示的描述内容和数值；
+ - 
 
 
 
@@ -24,10 +26,11 @@
 AI建议TODO：
  - 消灭 JSON 字符串隧道。要么上更细的 Colyseus schema 子结构，要么至少做一层 shared codec，统一 serialize/deserialize 和版本控制。
 
+AI建议优化：
 
 限制渲染成本：当前 GameBoardCanvas.tsx 还是默认 DPR，而且 BoardScene.tsx 开着 2048 阴影。手机上建议加 dpr 上限，并给移动端/低配档关闭或降低阴影。
-拆静态层和动态层：现在 simulationTimeMs 每跳一帧，BoardScene.tsx 都会带着整张棋盘一起重渲染。棋盘 tile、静态装饰、动态玩家/投射物/特效最好分层，静态层尽量不跟着逐帧更新。
-做实例化或共享几何：当前 BoardTileVisual.tsx 里每格都有自己的 box/material，地图一大 draw call 就上去了。地板、墙、预览圈这类重复物体适合做 instancing 或至少共享 geometry/material。
+✅拆静态层和动态层：现在 simulationTimeMs 每跳一帧，BoardScene.tsx 都会带着整张棋盘一起重渲染。棋盘 tile、静态装饰、动态玩家/投射物/特效最好分层，静态层尽量不跟着逐帧更新。
+✅做实例化或共享几何：当前 BoardTileVisual.tsx 里每格都有自己的 box/material，地图一大 draw call 就上去了。地板、墙、预览圈这类重复物体适合做 instancing 或至少共享 geometry/material。
 降低特效密度：像 RocketExplosionEffectAsset.tsx 现在会按 tiles 一格一格画爆炸覆盖层。低端设备可以做“轻量特效档”，减少 tile plane、分段数和透明叠层。
 减少逐帧全量克隆：当前 playbackEngine.ts 每帧都会重建 displayed tiles / players / summons。后面可以改成“静态 snapshot + pending transition delta”，避免每帧全量 clone。
 预计算世界坐标：tile/world position 现在在多处重复算，地图大时会有额外 CPU 开销，适合按 board 维度缓存。

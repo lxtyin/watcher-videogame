@@ -17,7 +17,6 @@ export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法进入飞跃模式。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],

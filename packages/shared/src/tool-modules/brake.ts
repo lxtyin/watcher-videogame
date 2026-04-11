@@ -14,12 +14,15 @@ import {
   requireTileSelection
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
-import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
-import { collectAxisSelectionTiles } from "../rules/previewDescriptor";
+import {
+  resolveDragDisplacement,
+  resolveLeapDisplacement,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementDescriptor,
+  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -36,7 +39,6 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用制动。",
   source: "turn",
   interaction: createDragAxisTileInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     movePoints: 3
@@ -58,7 +60,7 @@ function resolveBrakeTool(
   const maxRange = getToolParamValue(context.activeTool, "movePoints", 3);
   const targetPosition = requireTileSelection(context);
   const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
-  const movement = createToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");
+  const movement = createToolMovementPlan(context, BRAKE_TOOL_DEFINITION, "translate");
 
   if (!axisTarget) {
     setDraftBlocked(draft, "Brake needs a target tile", {
@@ -86,18 +88,27 @@ function resolveBrakeTool(
       ? resolveLeapDisplacement(draft, {
           direction: axisTarget.direction,
           maxDistance: requestedDistance,
-          movement,
+          movement: movement.descriptor,
           player: toMovementSubject(context.actor),
           startMs: 0
         })
-      : resolveLinearDisplacement(draft, {
-          direction: axisTarget.direction,
-          maxSteps: requestedDistance,
-          movePoints: requestedDistance,
-          movement,
-          player: toMovementSubject(context.actor),
-          startMs: 0
-        });
+      : movement.type === "drag"
+        ? resolveDragDisplacement(draft, {
+            direction: axisTarget.direction,
+            maxSteps: requestedDistance,
+            movePoints: requestedDistance,
+            movement: movement.descriptor,
+            player: toMovementSubject(context.actor),
+            startMs: 0
+          })
+        : resolveLinearDisplacement(draft, {
+            direction: axisTarget.direction,
+            maxSteps: requestedDistance,
+            movePoints: requestedDistance,
+            movement: movement.descriptor,
+            player: toMovementSubject(context.actor),
+            startMs: 0
+          });
 
   if (!resolution.path.length) {
     setDraftToolInventory(draft, context.tools);
@@ -122,7 +133,7 @@ function resolveBrakeTool(
       context.actor.id,
       context.actor.position,
       resolution.path,
-      movement
+      resolution.movement
     ),
     path: resolution.path,
     preview: createToolPreview(context, {

@@ -19,7 +19,7 @@ import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
-import { createMovementDescriptor } from "../rules/displacement";
+import { createMovementDescriptor, createMovementDescriptorInput } from "../rules/displacement";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
@@ -37,7 +37,6 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前还不能发射这次狙击。",
   source: "character_skill",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999
@@ -70,10 +69,13 @@ function resolveAwmShootTool(
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
   const bondageStacks = getTotalMovementPoints(context.tools);
-  const bondageMovement = createMovementDescriptor("translate", "passive", {
-    tags: [`tool:${context.activeTool.toolId}`, "awm:bondage"],
-    timing: "out_of_turn"
-  });
+  const bondageMovement = createMovementDescriptor(
+    "translate",
+    createMovementDescriptorInput("passive", {
+      tags: [`tool:${context.activeTool.toolId}`, "awm:bondage"],
+      timing: "out_of_turn"
+    })
+  );
   const affectedPlayers: AffectedPlayerMove[] =
     trace.collision.kind === "player" && bondageStacks > 0
       ? trace.collision.players.map((hitPlayer) =>

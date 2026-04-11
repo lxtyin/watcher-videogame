@@ -8,10 +8,9 @@ import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpe
 export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "冲刺",
   description: "让本回合剩余的所有移动工具额外获得指定点数。",
-  disabledHint: "需要保留一个可用的移动时才能使用。",
+  disabledHint: "当前不能使用冲刺。",
   source: "turn",
   interaction: INSTANT_TOOL_INTERACTION,
-  conditions: [{ kind: "tool_present", toolId: "movement" }],
   defaultCharges: 1,
   defaultParams: {
     dashBonus: 2

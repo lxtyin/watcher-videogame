@@ -94,7 +94,15 @@ export interface BoardDefinition {
 
 export interface ToolButtonValueDefinition extends ToolButtonValueContentDefinition {}
 
-export interface MovementDescriptor extends MovementContentDefinition {
+export interface MovementDescriptor {
+  disposition: ContentMovementDisposition;
+  tags: string[];
+  timing: MovementTiming;
+  type: ContentMovementType;
+}
+
+export interface MovementDescriptorInput {
+  disposition: ContentMovementDisposition;
   tags: string[];
   timing: MovementTiming;
 }
@@ -155,11 +163,6 @@ export interface TurnToolSnapshot {
   toolId: ToolId;
 }
 
-export interface ToolCondition {
-  kind: "tool_present";
-  toolId: ToolId;
-}
-
 export interface ToolChoiceDefinition extends ToolChoiceContentDefinition {}
 
 export interface ToolLoadoutDefinition {
@@ -178,7 +181,6 @@ export interface ToolDefinition {
   buttonValue?: ToolButtonValueDefinition;
   choices?: readonly ToolChoiceDefinition[];
   color: string;
-  conditions: ToolCondition[];
   debugGrantable: boolean;
   defaultCharges: number;
   defaultParams: ToolParameterValueMap;

@@ -426,6 +426,64 @@ export const GOLDEN_MOVEMENT_CASES = [
         }
     }),
     defineGoldenCase({
+        id: "leap-landing-on-pit-respawns",
+        title: "Leap landing on a pit respawns",
+        description: "Leap should fly over intermediate cells, but the landing tile should trigger contact terrain as translate movement.",
+        scene: {
+            layout: [
+                "######",
+                "#..o.#",
+                "#....#",
+                "######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    spawnPosition: { x: 1, y: 2 },
+                    tools: [
+                        {
+                            toolId: "jump",
+                            params: {
+                                jumpDistance: 2
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "jump",
+                direction: "right",
+                label: "Jump onto the pit"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "######",
+                "#..o.#",
+                "#....#",
+                "######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 2 },
+                    toolCount: 0
+                }
+            },
+            eventTypes: ["player_respawned", "tool_used"]
+        }
+    }),
+    defineGoldenCase({
         id: "build-wall-blocked-by-player-and-summon",
         title: "Build Wall requires an unoccupied floor tile",
         description: "Build Wall should stay blocked when the target tile contains a player or a summon.",

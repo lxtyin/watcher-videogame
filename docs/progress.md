@@ -191,3 +191,22 @@
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run build --workspace @watcher/client`
   - 使用 Playwright 打开 `/?screen=create` 做浏览器烟测，确认全屏 3D canvas、按钮切换、拖动切换、SVG icon mask 和切图 blur 正常
+
+## 2026-04-11 shared 位移与工具条件清理
+
+- 移除 `ToolCondition` 系统：
+  - `ToolContentDefinition` 与 `ToolDefinition` 不再包含 `conditions`
+  - `tools.ts` 不再执行统一条件循环
+  - `Dash` 与 `Balance` 不再依赖 `tool_present` 条件
+- 清理 `MovementDescriptor` 边界：
+  - 新增 `MovementDescriptorInput`，只承载主动/被动、时机与标签
+  - `resolveLinearDisplacement`、`resolveDragDisplacement`、`resolveLeapDisplacement`、`resolveTeleportDisplacement` 负责写入最终移动类型
+  - 工具侧改为通过 `ToolMovementPlan` 选择 resolver，并使用 resolver 返回的 `movement` 写入动作结果
+- 修正飞跃落点触发：
+  - `resolveLeapDisplacement` 的中间格仍按飞跃处理
+  - 最后一格按 `translate` 触发 terrain / summon，因此跳跃落在 pit 上会正常触发重生
+  - 新增 golden case `leap-landing-on-pit-respawns`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run goldens`
+  - `npm.cmd run typecheck`

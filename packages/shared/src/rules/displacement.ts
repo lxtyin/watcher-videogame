@@ -1,6 +1,7 @@
 ﻿import type {
   GridPosition,
   MovementDescriptor,
+  MovementDescriptorInput,
   MovementDisposition,
   MovementTiming,
   MovementType,
@@ -13,17 +14,27 @@ export interface MovementDescriptorOptions {
   timing?: MovementTiming;
 }
 
-// Runtime movement descriptors extend content metadata with timing and free-form tags.
-export function createMovementDescriptor(
-  type: MovementType,
+// Runtime descriptor inputs carry shared metadata; concrete resolvers attach the movement type.
+export function createMovementDescriptorInput(
   disposition: MovementDisposition,
   options: MovementDescriptorOptions = {}
-): MovementDescriptor {
+): MovementDescriptorInput {
   return {
-    type,
     disposition,
     timing: options.timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
     tags: [...(options.tags ?? [])]
+  };
+}
+
+export function createMovementDescriptor(
+  type: MovementType,
+  input: MovementDescriptorInput
+): MovementDescriptor {
+  return {
+    type,
+    disposition: input.disposition,
+    timing: input.timing,
+    tags: [...input.tags]
   };
 }
 
@@ -32,7 +43,10 @@ export function materializeMovementDescriptor(
   definition: MovementContentDefinition,
   options: MovementDescriptorOptions = {}
 ): MovementDescriptor {
-  return createMovementDescriptor(definition.type, definition.disposition, options);
+  return createMovementDescriptor(
+    definition.type,
+    createMovementDescriptorInput(definition.disposition, options)
+  );
 }
 
 // Resolved movement records track who moved, how they moved, and which cells were traversed.

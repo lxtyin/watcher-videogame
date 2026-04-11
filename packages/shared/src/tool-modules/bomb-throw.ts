@@ -1,11 +1,8 @@
 import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createSequentialInteraction } from "../toolInteraction";
+import { createPresentation } from "../rules/actionPresentation";
 import {
-  createPresentation,
-} from "../rules/actionPresentation";
-import {
-  appendDraftPresentationEvents,
   consumeDraftPresentationFrom,
   markDraftPresentation,
   setDraftActionPresentation,
@@ -18,7 +15,7 @@ import {
   requireDirection,
   requireTileSelection
 } from "../rules/actionResolution";
-import { createMovementDescriptor } from "../rules/displacement";
+import { createMovementDescriptorInput } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { findPlayersAtPosition } from "../rules/spatial";
@@ -49,7 +46,6 @@ export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
       kind: "drag-direction-release"
     }
   ]),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     targetRange: 1,
@@ -69,7 +65,7 @@ function resolveBombThrowTool(
   const direction = requireDirection(context);
   const targetRange = getToolParamValue(context.activeTool, "targetRange", 1);
   const pushDistance = getToolParamValue(context.activeTool, "pushDistance", 2);
-  const pushMovement = createMovementDescriptor("translate", "passive", {
+  const pushMovement = createMovementDescriptorInput("passive", {
     tags: [`tool:${context.activeTool.toolId}`, "bomb:push"],
     timing: "out_of_turn"
   });
@@ -127,10 +123,9 @@ function resolveBombThrowTool(
   }
 
   const motionEvents: ActionPresentationEvent[] = [];
-  const nestedEvents: ActionPresentationEvent[] = [];
   setDraftToolInventory(draft, consumeActiveTool(context));
 
-  for (const [index, targetPlayer] of targetPlayers.entries()) {
+  for (const targetPlayer of targetPlayers) {
     const presentationMark = markDraftPresentation(draft);
     const pushResolution = resolveLinearDisplacement(draft, {
       direction,

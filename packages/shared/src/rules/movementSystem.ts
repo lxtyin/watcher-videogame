@@ -5,6 +5,8 @@ import type {
   ModifierId,
   MovementActor,
   MovementDescriptor,
+  MovementDescriptorInput,
+  MovementType,
   PlayerTagMap,
   ResolvedActorState
 } from "../types";
@@ -25,6 +27,7 @@ import {
   createPlayerMotionEvent,
   getMotionStepDurationMs
 } from "./actionPresentation";
+import { createMovementDescriptor } from "./displacement";
 import {
   createTileMutation,
   getTileAfterMutations,
@@ -44,7 +47,7 @@ interface MovementSubject {
 }
 
 interface MovementRuntimeOptions {
-  movement: MovementDescriptor;
+  movement: MovementDescriptorInput;
   player: MovementSubject;
   startMs?: number;
   trackAffectedPlayerReason?: string;
@@ -68,6 +71,7 @@ interface TeleportMovementOptions extends MovementRuntimeOptions {
 export interface MovementSystemResolution {
   actor: ResolvedActorState;
   endMs: number;
+  movement: MovementDescriptor;
   motionEndMs: number | null;
   motionStartMs: number | null;
   path: GridPosition[];
@@ -294,6 +298,7 @@ function buildResolution(
       turnFlags: [...state.player.turnFlags]
     },
     endMs: timing.endMs,
+    movement,
     motionEndMs: timing.motionEndMs,
     motionStartMs: timing.motionStartMs,
     path: path.map(clonePosition),
@@ -302,17 +307,19 @@ function buildResolution(
 }
 
 // Grounded displacement powers translate and drag style movement with immediate board triggers.
-export function resolveLinearDisplacement(
+function resolveSteppedDisplacement(
   draft: ResolutionDraft,
-  options: LinearMovementOptions
+  options: LinearMovementOptions,
+  movementType: Extract<MovementType, "drag" | "translate">
 ): MovementSystemResolution {
+  const movement = createMovementDescriptor(movementType, options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, options.movePoints);
   const startMs = options.startMs ?? 0;
   const startPosition = clonePosition(options.player.position);
   const path: GridPosition[] = [];
   const maxSteps = options.maxSteps ?? Number.POSITIVE_INFINITY;
-  const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(options.movement));
+  const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(movement));
   let stepsTaken = 0;
   let stopReason = "Movement ended";
 
@@ -362,7 +369,7 @@ export function resolveLinearDisplacement(
     runPassThroughTriggers(
       draft,
       state,
-      options.movement,
+      movement,
       startMs + stepsTaken * stepDurationMs
     );
   }
@@ -372,18 +379,18 @@ export function resolveLinearDisplacement(
     state.player.id,
     startPosition,
     path,
-    options.movement,
+    movement,
     startMs
   );
 
   if (path.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, options.movement, timing.motionEndMs ?? startMs);
+    runStopTriggers(draft, state, movement, timing.motionEndMs ?? startMs);
   }
 
   return buildResolution(
     draft,
     state,
-    options.movement,
+    movement,
     path,
     stopReason,
     options.trackAffectedPlayerReason,
@@ -402,17 +409,33 @@ export function resolveLinearDisplacement(
   );
 }
 
-// Leap displacement resolves a landing path, then fires pass-through and stop triggers with leap metadata.
+export function resolveLinearDisplacement(
+  draft: ResolutionDraft,
+  options: LinearMovementOptions
+): MovementSystemResolution {
+  return resolveSteppedDisplacement(draft, options, "translate");
+}
+
+export function resolveDragDisplacement(
+  draft: ResolutionDraft,
+  options: LinearMovementOptions
+): MovementSystemResolution {
+  return resolveSteppedDisplacement(draft, options, "drag");
+}
+
+// Leap displacement flies over intermediate cells, then resolves landing triggers as normal translate contact.
 export function resolveLeapDisplacement(
   draft: ResolutionDraft,
   options: LeapMovementOptions
 ): MovementSystemResolution {
+  const movement = createMovementDescriptor("leap", options.movement);
+  const landingTriggerMovement = createMovementDescriptor("translate", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, null);
   const startMs = options.startMs ?? 0;
   const startPosition = clonePosition(options.player.position);
   const traversedPath: GridPosition[] = [];
-  const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(options.movement));
+  const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(movement));
   const leap = resolveLeapLanding(
     draft.board,
     options.player.position,
@@ -425,7 +448,7 @@ export function resolveLeapDisplacement(
     return buildResolution(
       draft,
       state,
-      options.movement,
+      movement,
       leap.path,
       "No landing tile",
       options.trackAffectedPlayerReason,
@@ -438,13 +461,13 @@ export function resolveLeapDisplacement(
     );
   }
 
-  for (const position of leap.path) {
+  for (const [index, position] of leap.path.entries()) {
     state.player.position = position;
     traversedPath.push(clonePosition(position));
     runPassThroughTriggers(
       draft,
       state,
-      options.movement,
+      index === leap.path.length - 1 ? landingTriggerMovement : movement,
       startMs + traversedPath.length * stepDurationMs
     );
 
@@ -458,18 +481,18 @@ export function resolveLeapDisplacement(
     state.player.id,
     startPosition,
     traversedPath,
-    options.movement,
+    movement,
     startMs
   );
 
   if (traversedPath.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, options.movement, timing.motionEndMs ?? startMs);
+    runStopTriggers(draft, state, landingTriggerMovement, timing.motionEndMs ?? startMs);
   }
 
   return buildResolution(
     draft,
     state,
-    options.movement,
+    movement,
     traversedPath,
     "Movement ended",
     options.trackAffectedPlayerReason,
@@ -493,6 +516,7 @@ export function resolveTeleportDisplacement(
   draft: ResolutionDraft,
   options: TeleportMovementOptions
 ): MovementSystemResolution {
+  const movement = createMovementDescriptor("teleport", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, null, null);
   const startMs = options.startMs ?? 0;
@@ -502,7 +526,7 @@ export function resolveTeleportDisplacement(
     return buildResolution(
       draft,
       state,
-      options.movement,
+      movement,
       [],
       "Teleport target is not landable",
       options.trackAffectedPlayerReason,
@@ -518,16 +542,16 @@ export function resolveTeleportDisplacement(
   state.player.position = clonePosition(options.targetPosition);
   const path = [clonePosition(options.targetPosition)];
 
-  runPassThroughTriggers(draft, state, options.movement, startMs);
+  runPassThroughTriggers(draft, state, movement, startMs);
 
   if (state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, options.movement, startMs);
+    runStopTriggers(draft, state, movement, startMs);
   }
 
   return buildResolution(
     draft,
     state,
-    options.movement,
+    movement,
     path,
     "Movement ended",
     options.trackAffectedPlayerReason,

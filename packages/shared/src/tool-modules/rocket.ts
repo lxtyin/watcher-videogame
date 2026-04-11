@@ -16,7 +16,7 @@ import {
   type ResolutionDraft
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
-import { createMovementDescriptor } from "../rules/displacement";
+import { createMovementDescriptorInput } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
 // import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
@@ -44,7 +44,6 @@ export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用火箭。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999,
@@ -77,10 +76,9 @@ export interface RocketCoreResult {
 
 function createPassiveRocketMovement(
   toolTagBase: string,
-  variant: "blast" | "splash",
-  type: "leap" | "translate"
+  variant: "blast" | "splash"
 ) {
-  return createMovementDescriptor(type, "passive", {
+  return createMovementDescriptorInput("passive", {
     tags: [toolTagBase, `rocket:${variant}`],
     timing: "out_of_turn"
   });
@@ -90,8 +88,8 @@ export function resolveRocketCore(
   draft: ResolutionDraft,
   spec: RocketCoreSpec
 ): RocketCoreResult {
-  const blastMovement = createPassiveRocketMovement(spec.tagBase, "blast", "leap");
-  const splashMovement = createPassiveRocketMovement(spec.tagBase, "splash", "translate");
+  const blastMovement = createPassiveRocketMovement(spec.tagBase, "blast");
+  const splashMovement = createPassiveRocketMovement(spec.tagBase, "splash");
   const trace = traceProjectileFromPosition(
     {
       board: draft.board,
@@ -140,7 +138,7 @@ export function resolveRocketCore(
       ? trace.collision.players
       : findPlayersAtPosition(livePlayers, explosionPosition, []);
 
-  centerPlayers.forEach((hitPlayer, index) => {
+  centerPlayers.forEach((hitPlayer) => {
     const leapResolution = resolveLeapDisplacement(draft, {
       direction: centerLeapDirection,
       maxDistance: spec.blastLeapDistance,

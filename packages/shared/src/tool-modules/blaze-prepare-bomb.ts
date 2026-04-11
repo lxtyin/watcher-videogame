@@ -17,7 +17,6 @@ export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法进行备弹。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],

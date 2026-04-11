@@ -18,7 +18,7 @@ import { resolveTeleportDisplacement } from "../rules/movementSystem";
 import { collectBoardSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementDescriptor,
+  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   toMovementSubject
@@ -34,7 +34,6 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前还不能瞬移到这个位置。",
   source: "turn",
   interaction: createDragTileInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {},
   color: "#7b8bff",
@@ -48,7 +47,7 @@ function resolveTeleportTool(
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
   const targetPosition = requireTileSelection(context);
-  const movement = createToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "teleport");
+  const movement = createToolMovementPlan(context, TELEPORT_TOOL_DEFINITION, "teleport");
 
   if (!targetPosition) {
     setDraftBlocked(draft, "Teleport needs a target tile", {
@@ -62,7 +61,7 @@ function resolveTeleportTool(
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
   const resolution = resolveTeleportDisplacement(draft, {
-    movement,
+    movement: movement.descriptor,
     player: toMovementSubject(context.actor),
     startMs: 0,
     targetPosition
@@ -89,7 +88,7 @@ function resolveTeleportTool(
       context.actor.id,
       context.actor.position,
       resolution.path,
-      movement
+      resolution.movement
     ),
     path: resolution.path,
     preview: createToolPreview(context, {

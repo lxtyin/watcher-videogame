@@ -23,7 +23,6 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法在这个位置放置钱包。",
   source: "character_skill",
   interaction: createDragTileInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     targetRange: 2

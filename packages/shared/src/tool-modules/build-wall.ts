@@ -24,7 +24,6 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "这个位置不能砌墙。",
   source: "turn",
   interaction: createDragTileInteraction(),
-  conditions: [],
   defaultCharges: 1,
   defaultParams: {
     wallDurability: 2
