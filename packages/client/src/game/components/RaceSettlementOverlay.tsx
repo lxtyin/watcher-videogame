@@ -1,5 +1,6 @@
 import { buildRaceStandings, type GameSnapshot } from "@watcher/shared";
 import { useMemo } from "react";
+import { UiIcon } from "../assets/ui/icons";
 import { PetThumbnail } from "./PetThumbnail";
 
 export function RaceSettlementOverlay({
@@ -61,10 +62,12 @@ export function RaceSettlementOverlay({
 
         <div className="settlement-actions">
           <button type="button" onClick={onBackToRoom}>
-            回到房间
+            <UiIcon name="return" />
+            <span>回到房间</span>
           </button>
           <button type="button" onClick={onBackToHome}>
-            回到主页
+            <UiIcon name="home" />
+            <span>回到主页</span>
           </button>
         </div>
       </section>

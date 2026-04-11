@@ -28,7 +28,7 @@ export function HookshotLinkReactionAsset({
   const glowOpacity = 0.28 + (1 - progress) * 0.18;
 
   return (
-    <group position={[midX, 0.44, midZ]} rotation={[0, rotationY, 0]} scale={[tension, tension, 1]}>
+    <group position={[midX, 0.0, midZ]} rotation={[0, rotationY, 0]} scale={[tension, tension, 1]}>
       <mesh position={[0, 0.01, 0]}>
         <boxGeometry args={[0.06, 0.03, length]} />
         <meshBasicMaterial color="#87b7e2" toneMapped={false} transparent opacity={glowOpacity} />

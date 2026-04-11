@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { UiIcon } from "../assets/ui/icons";
 
 interface JoinRoomInput {
   playerName: string;
@@ -54,7 +55,8 @@ export function RoomEntryScreen({
             onClick={onBackHome}
             disabled={busy}
           >
-            返回主页
+            <UiIcon name="return" />
+            <span>返回主页</span>
           </button>
         </div>
 

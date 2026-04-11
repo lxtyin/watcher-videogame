@@ -18,7 +18,7 @@ import {
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptor } from "../rules/displacement";
 import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
-import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
+// import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
   CARDINAL_DIRECTIONS,
   collectExplosionPreviewTiles,
@@ -207,12 +207,12 @@ function resolveRocketTool(
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const blastLeapDistance = getToolParamValue(context.activeTool, "rocketBlastLeapDistance", 3);
   const splashPushDistance = getToolParamValue(context.activeTool, "rocketSplashPushDistance", 1);
-  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
     setDraftBlocked(draft, "Rocket needs a direction", {
       preview: createToolPreview(context, {
-        selectionTiles,
+        // selectionTiles,
         valid: false
       })
     });
@@ -241,7 +241,7 @@ function resolveRocketTool(
       path: trace.path,
       preview: createToolPreview(context, {
         actorPath: trace.path,
-        selectionTiles,
+        // selectionTiles,
         valid: false
       })
     });
@@ -267,7 +267,7 @@ function resolveRocketTool(
       actorPath: trace.path,
       affectedPlayers: draft.affectedPlayers,
       effectTiles: rocketResolution.effectTiles,
-      selectionTiles,
+      // selectionTiles,
       valid: true
     })
   });

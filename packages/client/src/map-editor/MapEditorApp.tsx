@@ -6,6 +6,7 @@ import {
   type GridPosition
 } from "@watcher/shared";
 import { useEffect, useMemo, useState } from "react";
+import { UiIcon } from "../game/assets/ui/icons";
 import { getStoredPlayerProfile, useWatcherConnection } from "../game/network/useWatcherConnection";
 import { useGameStore } from "../game/state/useGameStore";
 import { formatMapEditorDocument, parseMapEditorDocument, type MapEditorDocumentLike } from "./layoutFormat";
@@ -334,7 +335,8 @@ export function MapEditorApp() {
           </p>
           <div className="map-editor-button-row">
             <button type="button" className="ghost-button" onClick={navigateToHome}>
-              返回首页
+              <UiIcon name="return" />
+              <span>返回首页</span>
             </button>
             <button
               type="button"

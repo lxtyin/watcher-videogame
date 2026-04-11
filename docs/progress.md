@@ -165,3 +165,29 @@
 - Remaining follow-up:
   - `three-core` is still a large chunk (~696 kB minified); next options are trimming Three usage, route-isolating editor-only assets, or investigating whether some helpers can load lazily inside the gameplay route
   - Shadows are still on by default; a low-end/mobile quality tier is still worth doing
+
+## 2026-04-11 界面优化
+
+- 创建房间页改为全屏 3D 地图预览：
+  - 新增 `CreateRoomMapPreview`，复用实际棋盘地块渲染层 `BoardStaticTileLayer`
+  - 移除页面中的二维 `MapThumbnail` 展示入口
+  - 地图名称、描述、模式标签、切图按钮和创建按钮改为 3D 画面上的 overlay
+  - 预览镜头会围绕棋盘缓慢旋转
+- 房间内左边栏顶部优化：
+  - 左栏收起入口改为贴边 `<` / `>` 按钮
+  - 返回主页改为 SVG 图标按钮
+  - 房间号放大展示，并增加复制按钮
+- 创建房间页二次视觉调整：
+  - 3D 背景改回浅色棋盘，与其他页面色调一致
+  - 地图名称、介绍和模式改为上方居中轴对称布局
+  - 底部改为“上一张 / 创建房间 / 下一张”的三按钮布局
+  - 切换按钮和左右拖动都会触发地图切换，背景带横移与模糊翻页过渡
+- SVG 图标资源整理：
+  - 新增 `packages/client/src/game/assets/ui/icons/`
+  - 将返回、主页、复制、创建房间、加入房间、左右切换图标收束为 `UiIcon`
+  - create-room 左右切换按钮改为垂直居中的大号 SVG ghost 按钮
+  - create-room、room-entry、map-editor、race settlement 与房间侧栏返回/主页入口改为引用 `UiIcon`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - 使用 Playwright 打开 `/?screen=create` 做浏览器烟测，确认全屏 3D canvas、按钮切换、拖动切换、SVG icon mask 和切图 blur 正常

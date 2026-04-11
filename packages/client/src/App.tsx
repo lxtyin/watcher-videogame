@@ -217,7 +217,7 @@ export default function App() {
         aria-label={sidebarCollapsed ? "展开左侧栏" : "收起左侧栏"}
         onClick={() => setSidebarCollapsed((current) => !current)}
       >
-        {sidebarCollapsed ? "展开左栏" : "收起左栏"}
+        {sidebarCollapsed ? ">" : "<"}
       </button>
 
       <div className="app-sidebar-slot">

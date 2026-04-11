@@ -17,6 +17,7 @@ import {
   isInstantInteractionTool,
   isPointerDrivenInteractionTool
 } from "../interaction/toolInteraction";
+import { UiIcon } from "../assets/ui/icons";
 import { findSelectedTool } from "../state/toolSelection";
 import { useGameStore } from "../state/useGameStore";
 import { PetThumbnail } from "./PetThumbnail";
@@ -130,6 +131,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useToolPayload = useGameStore((state) => state.useToolPayload);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
+  const [copiedRoomCode, setCopiedRoomCode] = useState(false);
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
   const activePlayer = snapshot?.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ?? null;
@@ -208,18 +210,52 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     );
   }
 
+  const copyRoomCode = async () => {
+    if (!navigator.clipboard?.writeText) {
+      showToolNotice("当前浏览器无法复制房间号。");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(snapshot.roomCode);
+      setCopiedRoomCode(true);
+      window.setTimeout(() => setCopiedRoomCode(false), 1400);
+    } catch {
+      showToolNotice("当前浏览器无法复制房间号。");
+    }
+  };
+
   return (
     <aside className="hud-panel">
       <div className="brand-block room-brand-block">
         <div>
           <p className="eyebrow">Watcher Room</p>
           <h1>{snapshot.mapLabel}</h1>
-          <p className="lead">
-            房间号 {snapshot.roomCode} · {describeModeLabel(snapshot.mode)}
-          </p>
+          <div className="room-code-block">
+            <span className="room-code-label">房间号</span>
+            <div className="room-code-row">
+              <strong>{snapshot.roomCode}</strong>
+              <button
+                type="button"
+                className="room-code-copy-button"
+                aria-label="复制房间号"
+                onClick={() => void copyRoomCode()}
+              >
+                <UiIcon name="copy" />
+                <span>{copiedRoomCode ? "已复制" : "复制"}</span>
+              </button>
+            </div>
+            <p className="lead">{describeModeLabel(snapshot.mode)}</p>
+          </div>
         </div>
-        <button type="button" className="ghost-button" onClick={onLeaveRoom}>
-          返回主页
+        <button
+          type="button"
+          className="room-home-button"
+          aria-label="返回主页"
+          title="返回主页"
+          onClick={onLeaveRoom}
+        >
+          <UiIcon name="home" />
         </button>
       </div>
 
@@ -381,11 +417,12 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               >
                 结束回合
               </button>
-              {snapshot.roomPhase === "settlement" ? (
-                <button type="button" className="ghost-button" onClick={() => returnToRoom()}>
-                  返回房间
-                </button>
-              ) : null}
+                {snapshot.roomPhase === "settlement" ? (
+                  <button type="button" className="ghost-button" onClick={() => returnToRoom()}>
+                    <UiIcon name="return" />
+                    <span>返回房间</span>
+                  </button>
+                ) : null}
             </div>
             {snapshot.allowDebugTools ? (
               <>

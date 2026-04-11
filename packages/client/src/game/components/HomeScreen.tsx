@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { UiIcon } from "../assets/ui/icons";
 import { PlayerProfileCard } from "./PlayerProfileCard";
 
 interface JoinRoomInput {
@@ -16,53 +17,6 @@ interface HomeScreenProps {
   onPlayerNameChange: (playerName: string) => void;
   petId: string;
   playerName: string;
-}
-
-function CreateRoomIcon() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <path
-        d="M12 28 32 12l20 16v22a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M24 54V34h16v20M32 21v14M25 28h14"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function JoinRoomIcon() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <rect
-        x="10"
-        y="16"
-        width="30"
-        height="32"
-        rx="8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        d="M37 32h17M47 22l10 10-10 10"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 // The landing page focuses on identity setup first, then a single create or join action.
@@ -103,7 +57,7 @@ export function HomeScreen({
             disabled={busy}
           >
             <span className="landing-action-icon">
-              <CreateRoomIcon />
+              <UiIcon name="create-room" />
             </span>
             <strong>创建房间</strong>
           </button>
@@ -120,7 +74,7 @@ export function HomeScreen({
             disabled={busy}
           >
             <span className="landing-action-icon">
-              <JoinRoomIcon />
+              <UiIcon name="join-room" />
             </span>
             <strong>加入房间</strong>
           </button>
