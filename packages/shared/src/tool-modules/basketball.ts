@@ -24,6 +24,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -33,6 +34,7 @@ export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用篮球。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999,

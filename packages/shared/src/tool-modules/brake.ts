@@ -26,6 +26,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isMovePointToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -39,6 +40,7 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用制动。",
   source: "turn",
   interaction: createDragAxisTileInteraction(),
+  isAvailable: isMovePointToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     movePoints: 3

@@ -1,7 +1,8 @@
 import {
   findToolInstance,
-  getToolAvailability,
+  getToolDefinition,
   type GameSnapshot,
+  type ToolUsabilityResult,
   type TurnToolSnapshot
 } from "@watcher/shared";
 
@@ -10,7 +11,7 @@ type SelectedToolInstanceId = string | null;
 type SnapshotPlayer = GameSnapshot["players"][number];
 
 export interface SelectedToolState {
-  availability: ReturnType<typeof getToolAvailability>;
+  availability: ToolUsabilityResult;
   player: SnapshotPlayer;
   tool: TurnToolSnapshot;
 }
@@ -52,7 +53,10 @@ export function getSelectedToolState(
   }
 
   return {
-    availability: getToolAvailability(tool, player.tools),
+    availability: getToolDefinition(tool.toolId).isAvailable({
+      tool,
+      tools: player.tools
+    }),
     player,
     tool
   };

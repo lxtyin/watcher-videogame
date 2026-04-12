@@ -15,7 +15,12 @@ import {
 import { isLandablePosition } from "../rules/spatial";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
+import {
+  createToolPreview,
+  createUsedSummary,
+  getToolParamValue,
+  isChargedToolAvailable
+} from "./helpers";
 
 export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "放置钱包",
@@ -23,6 +28,7 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法在这个位置放置钱包。",
   source: "character_skill",
   interaction: createDragTileInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     targetRange: 2

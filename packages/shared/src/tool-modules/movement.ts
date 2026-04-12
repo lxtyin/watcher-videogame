@@ -25,6 +25,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isMovePointToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -38,6 +39,7 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "没有可用的移动点数时不能使用移动。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isMovePointToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     movePoints: 4

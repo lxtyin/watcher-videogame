@@ -33,6 +33,7 @@ import {
   createUsedSummary,
   getToolParamValue,
   getTile,
+  isChargedToolAvailable,
   isWithinBoard,
   toMovementSubject
 } from "./helpers";
@@ -47,6 +48,7 @@ export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用钩锁。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     hookLength: 4

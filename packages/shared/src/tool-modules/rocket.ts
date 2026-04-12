@@ -32,6 +32,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -44,6 +45,7 @@ export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用火箭。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999,

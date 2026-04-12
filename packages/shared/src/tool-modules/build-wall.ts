@@ -16,7 +16,12 @@ import {
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
+import {
+  createToolPreview,
+  createUsedSummary,
+  getToolParamValue,
+  isChargedToolAvailable
+} from "./helpers";
 
 export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "砌墙",
@@ -24,6 +29,7 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "这个位置不能砌墙。",
   source: "turn",
   interaction: createDragTileInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     wallDurability: 2

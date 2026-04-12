@@ -9,7 +9,7 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary } from "./helpers";
+import { createToolPreview, createUsedSummary, isChargedToolAvailable } from "./helpers";
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "飞跃",
@@ -17,6 +17,7 @@ export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法进入飞跃模式。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],

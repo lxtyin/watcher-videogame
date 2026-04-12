@@ -1,4 +1,4 @@
-import { getToolAvailability, getToolDefinition } from "./tools";
+import { getToolDefinition } from "./tools";
 import type { ActionResolution, ToolActionContext } from "./types";
 import { attachStateTransitionPresentation } from "./rules/actionResolution";
 import {
@@ -17,7 +17,11 @@ export {
 
 // Tool resolution is shared by the room and preview layer so both follow one ruleset.
 export function resolveToolAction(context: ToolActionContext): ActionResolution {
-  const availability = getToolAvailability(context.activeTool, context.tools);
+  const toolDefinition = getToolDefinition(context.activeTool.toolId);
+  const availability = toolDefinition.isAvailable({
+    tool: context.activeTool,
+    tools: context.tools
+  });
 
   if (!availability.usable) {
     const blockedDraft = createToolActionDraft(context);
@@ -25,7 +29,6 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
     return finalizeToolActionDraft(blockedDraft);
   }
 
-  const toolDefinition = getToolDefinition(context.activeTool.toolId);
   const draft = createToolActionDraft(context);
   TOOL_EXECUTORS[context.activeTool.toolId](draft, context);
   const executedResolution = finalizeToolActionDraft(draft);

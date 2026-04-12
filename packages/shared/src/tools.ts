@@ -10,7 +10,6 @@ import {
 import type {
   RolledToolId,
   TextDescription,
-  ToolAvailability,
   ToolChoiceDefinition,
   ToolDefinition,
   ToolInteractionDefinition,
@@ -189,44 +188,15 @@ export function consumeToolInstance(
   });
 }
 
-// Availability checks centralize all runtime use requirements for tool instances.
-export function getToolAvailability(
-  tool: TurnToolSnapshot,
-  tools: TurnToolSnapshot[]
-): ToolAvailability {
-  if (tool.charges < 1) {
-    return {
-      usable: false,
-      reason: "没有剩余次数"
-    };
-  }
-
-  if ((tool.toolId === "movement" || tool.toolId === "brake") && getToolParam(tool, "movePoints") < 1) {
-    return {
-      usable: false,
-      reason: "没有剩余点数"
-    };
-  }
-
-  if (tool.toolId === "bombThrow" && getToolParam(tool, "pushDistance") < 1) {
-    return {
-      usable: false,
-      reason: "没有可用的投弹位移距离"
-    };
-  }
-
-  return {
-    usable: true,
-    reason: null
-  };
-}
-
 // Disabled messages combine tool-specific guidance with the current blocking reason.
 export function getToolDisabledMessage(
   tool: TurnToolSnapshot,
   tools: TurnToolSnapshot[]
 ): string | null {
-  const availability = getToolAvailability(tool, tools);
+  const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+    tool,
+    tools
+  });
 
   if (availability.usable) {
     return null;

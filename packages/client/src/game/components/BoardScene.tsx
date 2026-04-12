@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Color, Plane, Raycaster, Vector2, Vector3 } from "three";
 import {
   findToolInstance,
-  getToolAvailability,
+  getToolDefinition,
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
@@ -265,7 +265,10 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     selectedTool &&
     !isInstantInteractionTool(selectedTool.toolId) &&
     canInteract &&
-    getToolAvailability(selectedTool, myPlayer?.tools ?? []).usable
+    getToolDefinition(selectedTool.toolId).isAvailable({
+      tool: selectedTool,
+      tools: myPlayer?.tools ?? []
+    }).usable
       ? selectedTool
       : null;
   const directionState =

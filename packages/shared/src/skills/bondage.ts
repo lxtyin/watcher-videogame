@@ -20,16 +20,13 @@ export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
         return null;
       }
 
-      if (tool.toolId === "movement" || tool.toolId === "brake") {
+      if (typeof tool.params.movePoints === "number") {
         return {
           tool: {
             ...tool,
             params: {
               ...tool.params,
-              movePoints: reduceToolValue(
-                typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0,
-                bondageStacks
-              )
+              movePoints: reduceToolValue(tool.params.movePoints, bondageStacks)
             }
           }
         };

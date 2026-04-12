@@ -28,6 +28,7 @@ import {
   createUsedSummary,
   getToolParamValue,
   getTotalMovementPoints,
+  isChargedToolAvailable,
   toTaggedPlayerPatch
 } from "./helpers";
 
@@ -37,6 +38,7 @@ export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前还不能发射这次狙击。",
   source: "character_skill",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     projectileRange: 999

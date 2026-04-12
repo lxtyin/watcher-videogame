@@ -9,7 +9,7 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary } from "./helpers";
+import { createToolPreview, createUsedSummary, isChargedToolAvailable } from "./helpers";
 
 export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   label: "备弹",
@@ -17,6 +17,7 @@ export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前无法进行备弹。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],

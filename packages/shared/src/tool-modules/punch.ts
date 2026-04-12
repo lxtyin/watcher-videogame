@@ -20,6 +20,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -34,6 +35,7 @@ export const PUNCH_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用拳击。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     projectileRange: PUNCH_DEFAULT_RANGE,

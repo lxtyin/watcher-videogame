@@ -3,7 +3,12 @@ import { INSTANT_TOOL_INTERACTION } from "../toolInteraction";
 import { setDraftApplied, setDraftToolInventory } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary, getToolParamValue } from "./helpers";
+import {
+  createToolPreview,
+  createUsedSummary,
+  getToolParamValue,
+  isChargedToolAvailable
+} from "./helpers";
 
 export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "冲刺",
@@ -11,6 +16,7 @@ export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用冲刺。",
   source: "turn",
   interaction: INSTANT_TOOL_INTERACTION,
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     dashBonus: 2
@@ -32,14 +38,15 @@ function resolveDashTool(
 ): void {
   const dashBonus = getToolParamValue(context.activeTool, "dashBonus", 2);
   const nextTools = consumeActiveTool(context).map((tool) =>
-    tool.toolId === "movement" || tool.toolId === "brake"
+    typeof tool.params.movePoints === "number"
       ? {
           ...tool,
           params: {
             ...tool.params,
-            movePoints: (typeof tool.params.movePoints === "number" ? tool.params.movePoints : 0) + dashBonus
+            movePoints: tool.params.movePoints + dashBonus
           }
-      } : tool
+        }
+      : tool
   );
 
   setDraftToolInventory(draft, nextTools);

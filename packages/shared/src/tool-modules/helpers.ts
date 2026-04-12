@@ -1,6 +1,10 @@
 import { isWithinBoard, getTile } from "../board";
 import { resolveToolMovementType } from "../skills";
-import type { ToolContentDefinition } from "../content/schema";
+import type {
+  ToolContentDefinition,
+  ToolUsabilityContext,
+  ToolUsabilityResult
+} from "../content/schema";
 import type {
   ActionPresentation,
   ActionPresentationEvent,
@@ -36,9 +40,41 @@ export function createUsedSummary(label: string): string {
   return `Used ${label}.`;
 }
 
+export function createToolAvailableResult(): ToolUsabilityResult {
+  return {
+    usable: true,
+    reason: null
+  };
+}
+
+export function createToolUnavailableResult(reason: string): ToolUsabilityResult {
+  return {
+    usable: false,
+    reason
+  };
+}
+
+export function isChargedToolAvailable(context: ToolUsabilityContext): ToolUsabilityResult {
+  return context.tool.charges < 1
+    ? createToolUnavailableResult("没有剩余次数")
+    : createToolAvailableResult();
+}
+
+export function isMovePointToolAvailable(context: ToolUsabilityContext): ToolUsabilityResult {
+  const chargeAvailability = isChargedToolAvailable(context);
+
+  if (!chargeAvailability.usable) {
+    return chargeAvailability;
+  }
+
+  return getToolParamValue(context.tool, "movePoints") < 1
+    ? createToolUnavailableResult("没有剩余点数")
+    : createToolAvailableResult();
+}
+
 export function getToolParamValue(
-  tool: TurnToolSnapshot,
-  paramId: keyof TurnToolSnapshot["params"],
+  tool: Pick<TurnToolSnapshot, "params">,
+  paramId: string,
   fallback = 0
 ): number {
   const value = tool.params[paramId];
@@ -221,9 +257,9 @@ export function toTaggedPlayerPatch(
   };
 }
 
-export function getTotalMovementPoints(tools: TurnToolSnapshot[]): number {
+export function getTotalMovementPoints(tools: readonly Pick<TurnToolSnapshot, "params">[]): number {
   return tools.reduce((total, tool) => {
-    if (tool.toolId !== "movement") {
+    if (typeof tool.params.movePoints !== "number") {
       return total;
     }
 
@@ -237,10 +273,8 @@ export function adjustMovementTools(tools: TurnToolSnapshot[], delta: number): T
   }
 
   if (delta > 0) {
-    const firstMovementIndex = tools.findIndex((tool) => tool.toolId === "movement");
-
-    return tools.map((tool, index) =>
-      tool.toolId === "movement" && index === firstMovementIndex
+    return tools.map((tool) =>
+      typeof tool.params.movePoints === "number"
         ? {
             ...tool,
             params: {
@@ -255,7 +289,7 @@ export function adjustMovementTools(tools: TurnToolSnapshot[], delta: number): T
   let remainingReduction = Math.abs(delta);
 
   return tools.map((tool) => {
-    if (tool.toolId !== "movement" || remainingReduction < 1) {
+    if (typeof tool.params.movePoints !== "number" || remainingReduction < 1) {
       return tool;
     }
 
@@ -275,7 +309,7 @@ export function adjustMovementTools(tools: TurnToolSnapshot[], delta: number): T
 
 export function clearMovementTools(tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
   return tools.map((tool) =>
-    tool.toolId === "movement"
+    typeof tool.params.movePoints === "number"
       ? {
           ...tool,
           params: {

@@ -28,9 +28,6 @@ export interface TerrainStopContext {
 
 export interface TerrainModule {
   accent: string;
-  blocksGroundMovement?: boolean;
-  blocksLeapTraversal?: boolean;
-  blocksProjectile?: boolean;
   getTextDescription: (tile: TileDefinition) => TextDescription;
   label: string;
   onPassThrough?: (context: TerrainPassThroughContext) => void;

@@ -21,6 +21,7 @@ import {
   createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -34,6 +35,7 @@ export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前还不能瞬移到这个位置。",
   source: "turn",
   interaction: createDragTileInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {},
   getTextDescription: () => ({

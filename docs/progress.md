@@ -59,7 +59,7 @@
 - 重组 shared 地形框架：
   - 新增 `packages/shared/src/terrain-modules/`
   - 地形改为“一种地形一个文件”
-  - 抽出 `terrain-modules/traversal.ts` 统一管理地面移动、飞跃穿越与投射物阻挡规则
+  - 地形触发逻辑进入模块；地面移动、飞跃穿越与投射物阻挡规则保留在底层 `movementSystem.ts` 与 `spatial.ts`
 - 扩展并重定义地形：
   - 新增 `poison`，停留触发并把玩家送回出生点
   - 旧 `pit` 改为经过触发并把玩家送回出生点
@@ -254,3 +254,31 @@
   - `npm.cmd run typecheck`
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-12 工具 SVG 图标资源
+
+- 新增 `packages/client/src/game/assets/ui/tools/` 下的简约工具 SVG 图标：
+  - `jump.svg`
+  - `hookshot.svg`
+  - `basketball.svg`
+  - `rocket.svg`
+  - `build-wall.svg`
+  - `punch.svg`
+- 图标统一使用 `viewBox="0 0 256 256"` 与 `currentColor`，便于后续由 CSS 或图标组件统一着色。
+- 验证：
+  - 使用 PowerShell XML 解析检查 6 个 SVG 文件均可正常解析。
+
+## 2026-04-12 Tool 可用性与参数分层
+
+- 工具可用性从全局特判迁入 `ToolContentDefinition.isAvailable`：
+  - 调用方直接读取对应工具定义的 `isAvailable`
+  - 移动点、投弹、制衡等可用性规则由对应工具模块自己裁决
+- 工具参数拆为通用参数与工具私有参数：
+  - 保留通用 `movePoints`
+  - 其它工具私有参数由工具模块内部约定命名
+- 移动点相关 helper 改为直接读取和修改 `params.movePoints`：
+  - 不再特判 `movement` 或 `brake`
+  - 后续其它工具只要带 `movePoints` 参数即可参与加减、清空与束缚扣减
+- 清理地形阻挡文档：
+  - 阻挡与落点语义明确由 `movementSystem.ts` 与 `spatial.ts` 维护
+  - 移除旧地形穿越文档入口

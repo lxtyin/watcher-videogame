@@ -8,8 +8,11 @@
   ToolInteractionAnchorDefinition as ContentToolInteractionAnchorDefinition,
   ToolInteractionDefinition as ContentToolInteractionDefinition,
   ToolInteractionStageDefinition as ContentToolInteractionStageDefinition,
+  ToolCommonParameterId as ContentToolCommonParameterId,
+  ToolContentDefinition as ContentToolContentDefinition,
   ToolParameterId as ContentToolParameterId,
   ToolParameterValueMap as ContentToolParameterValueMap,
+  ToolUsabilityResult as ContentToolUsabilityResult,
   TextDescription as ContentTextDescription,
   ToolTextDescriptionContext as ContentToolTextDescriptionContext,
   ToolSource as ContentToolSource,
@@ -39,8 +42,10 @@ export type ToolInteractionDefinition = ContentToolInteractionDefinition;
 export type TextDescription = ContentTextDescription;
 export type ToolTextDescriptionContext = ContentToolTextDescriptionContext;
 export type PlayerTurnFlag = string;
+export type ToolCommonParameterId = ContentToolCommonParameterId;
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
+export type ToolUsabilityResult = ContentToolUsabilityResult;
 export type PlayerTagValue = boolean | number | string;
 export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
 
@@ -190,6 +195,7 @@ export interface ToolDefinition {
   getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;
   phases: readonly TurnPhase[];
   id: ToolId;
+  isAvailable: ContentToolContentDefinition["isAvailable"];
   interaction: ToolInteractionDefinition;
   label: string;
   rollable: boolean;
@@ -342,11 +348,6 @@ export interface ResolvedActorState {
   position: GridPosition;
   tags: PlayerTagMap;
   turnFlags: PlayerTurnFlag[];
-}
-
-export interface ToolAvailability {
-  reason: string | null;
-  usable: boolean;
 }
 
 export type TriggeredTerrainEffect =

@@ -21,6 +21,7 @@ import {
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -34,6 +35,7 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "当前不能使用跳跃。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
+  isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
   defaultParams: {
     jumpDistance: 2

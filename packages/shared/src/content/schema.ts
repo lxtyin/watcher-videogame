@@ -20,21 +20,13 @@ export type ToolSource = "turn" | "character_skill";
 export type MovementType = "translate" | "leap" | "drag" | "teleport";
 export type MovementDisposition = "active" | "passive";
 
-export type ToolParameterId =
-  | "movePoints"
-  | "jumpDistance"
-  | "hookLength"
-  | "dashBonus"
-  | "projectileRange"
-  | "projectileBounceCount"
-  | "projectilePushDistance"
-  | "wallDurability"
-  | "targetRange"
-  | "rocketBlastLeapDistance"
-  | "rocketSplashPushDistance"
-  | "pushDistance";
+export type ToolCommonParameterId = "movePoints";
+export type ToolParameterId = ToolCommonParameterId | (string & {});
 
-export type ToolParameterValueMap = Partial<Record<ToolParameterId, number>>;
+export interface ToolParameterValueMap {
+  movePoints?: number;
+  [parameterId: string]: number | undefined;
+}
 
 export interface TextDescription {
   description: string;
@@ -45,6 +37,26 @@ export interface TextDescription {
 export interface ToolTextDescriptionContext {
   charges: number;
   params: ToolParameterValueMap;
+}
+
+export interface ToolUsabilityContext {
+  tool: {
+    charges: number;
+    params: ToolParameterValueMap;
+    source: ToolSource;
+    toolId: string;
+  };
+  tools: readonly {
+    charges: number;
+    params: ToolParameterValueMap;
+    source: ToolSource;
+    toolId: string;
+  }[];
+}
+
+export interface ToolUsabilityResult {
+  reason: string | null;
+  usable: boolean;
 }
 
 export interface ToolChoiceContentDefinition {
@@ -103,6 +115,7 @@ export interface ToolContentDefinition {
   endsTurnOnUse: boolean;
   getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;
   interaction: ToolInteractionDefinition;
+  isAvailable: (context: ToolUsabilityContext) => ToolUsabilityResult;
   label: string;
   phases?: readonly TurnPhase[];
   rollable: boolean;

@@ -23,7 +23,9 @@ import type { ToolModule } from "./types";
 import {
   createToolPreview,
   createUsedSummary,
+  createToolUnavailableResult,
   getToolParamValue,
+  isChargedToolAvailable,
   toMovementSubject
 } from "./helpers";
 
@@ -46,6 +48,17 @@ export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
       kind: "drag-direction-release"
     }
   ]),
+  isAvailable: (context) => {
+    const chargeAvailability = isChargedToolAvailable(context);
+
+    if (!chargeAvailability.usable) {
+      return chargeAvailability;
+    }
+
+    return getToolParamValue(context.tool, "pushDistance") < 1
+      ? createToolUnavailableResult("没有可用的投弹位移距离")
+      : chargeAvailability;
+  },
   defaultCharges: 1,
   defaultParams: {
     targetRange: 1,

@@ -17,8 +17,10 @@ import {
   adjustMovementTools,
   clearMovementTools,
   createToolPreview,
+  createToolUnavailableResult,
   createUsedSummary,
-  getTotalMovementPoints
+  getTotalMovementPoints,
+  isChargedToolAvailable
 } from "./helpers";
 
 export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
@@ -27,6 +29,17 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   disabledHint: "需要保留一个有剩余点数的移动时才能使用。",
   source: "turn",
   interaction: createModalChoiceInteraction(),
+  isAvailable: (context) => {
+    const chargeAvailability = isChargedToolAvailable(context);
+
+    if (!chargeAvailability.usable) {
+      return chargeAvailability;
+    }
+
+    return getTotalMovementPoints(context.tools) < 1
+      ? createToolUnavailableResult("没有可储存的移动点数")
+      : chargeAvailability;
+  },
   choices: [
     {
       id: "trim_and_bank",

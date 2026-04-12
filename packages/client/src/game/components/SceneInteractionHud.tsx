@@ -1,7 +1,6 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
-  getToolAvailability,
   getToolDisabledMessage,
   getToolTextDescription,
   type ToolChoiceDefinition,
@@ -80,7 +79,10 @@ function getRingButtonStyle(index: number, total: number): CSSProperties {
 }
 
 function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
-  const availability = getToolAvailability(tool, tools);
+  const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+    tool,
+    tools
+  });
   const toolTextDescription = getToolTextDescription(tool);
   const baseDetail = toolTextDescription.details[0] ?? toolTextDescription.description;
 
@@ -104,7 +106,10 @@ function getDefaultCaption(
     return "从弧环里选择一个工具";
   }
 
-  const availability = getToolAvailability(selectedTool, tools);
+  const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
+    tool: selectedTool,
+    tools
+  });
   const label = TOOL_DEFINITIONS[selectedTool.toolId].label;
 
   if (!availability.usable) {
@@ -202,7 +207,10 @@ export function SceneActionRing({
   );
 
   const mapToolToAction = (tool: TurnToolSnapshot, index: number): FloatingActionItem => {
-    const availability = getToolAvailability(tool, tools);
+    const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+      tool,
+      tools
+    });
     const definition = TOOL_DEFINITIONS[tool.toolId];
     const pointerDriven = isPointerDrivenInteractionTool(tool.toolId);
     const choiceDriven = isChoiceInteractionTool(tool.toolId);

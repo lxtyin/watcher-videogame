@@ -5,7 +5,6 @@ import {
   getCharacterDefinition,
   getDebugGrantableToolIds,
   getNextCharacterId,
-  getToolAvailability,
   getToolDisabledMessage,
   getToolTextDescription,
   type ToolId,
@@ -89,7 +88,10 @@ function describeInteractionHint(
     return localTools.length ? "从工具列表中选择一个工具。" : "当前没有可用工具，可以结束回合。";
   }
 
-  const availability = getToolAvailability(selectedTool, localTools);
+  const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
+    tool: selectedTool,
+    tools: localTools
+  });
   const label = TOOL_DEFINITIONS[selectedTool.toolId].label;
 
   if (!availability.usable) {
@@ -144,8 +146,13 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const selectedTool = findSelectedTool(snapshot, sessionId, selectedToolInstanceId);
   const selectedToolDefinition = selectedTool ? TOOL_DEFINITIONS[selectedTool.toolId] : null;
   const selectedToolTextDescription = selectedTool ? getToolTextDescription(selectedTool) : null;
-  const selectedToolAvailability =
-    selectedTool && me ? getToolAvailability(selectedTool, me.tools) : null;
+  const selectedToolUsability =
+    selectedTool && me
+      ? TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
+          tool: selectedTool,
+          tools: me.tools
+        })
+      : null;
   const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
   const nextCharacterId = me ? getNextCharacterId(me.characterId) : "late";
   const nextRoleDefinition = getCharacterDefinition(nextCharacterId);
@@ -155,7 +162,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     selectedTool &&
       selectedToolDefinition &&
       isInstantInteractionTool(selectedTool.toolId) &&
-      selectedToolAvailability?.usable
+      selectedToolUsability?.usable
   );
   const interactionHint = describeInteractionHint(
     snapshot?.roomPhase,
@@ -180,7 +187,10 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   }, [clearToolNotice, toolNotice]);
 
   const handleToolClick = (tool: TurnToolSnapshot) => {
-    const availability = getToolAvailability(tool, tools);
+    const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+      tool,
+      tools
+    });
 
     setSelectedToolInstanceId(tool.instanceId);
 
@@ -463,7 +473,10 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             {tools.length ? (
               <div className="tool-grid">
                 {tools.map((tool, index) => {
-                  const availability = getToolAvailability(tool, tools);
+                  const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+                    tool,
+                    tools
+                  });
 
                   return (
                     <button
@@ -495,7 +508,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 {selectedToolTextDescription?.details.length ? (
                   <p>{selectedToolTextDescription.details.join(" · ")}</p>
                 ) : null}
-                {!selectedToolAvailability?.usable ? <p>{getToolDisabledMessage(selectedTool, tools)}</p> : null}
+                {!selectedToolUsability?.usable ? <p>{getToolDisabledMessage(selectedTool, tools)}</p> : null}
               </div>
             ) : (
               <div className="tool-detail">
