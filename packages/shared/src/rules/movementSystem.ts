@@ -55,7 +55,6 @@ interface MovementRuntimeOptions {
 
 interface LinearMovementOptions extends MovementRuntimeOptions {
   direction: Direction;
-  maxSteps?: number;
   movePoints: number;
 }
 
@@ -318,12 +317,11 @@ function resolveSteppedDisplacement(
   const startMs = options.startMs ?? 0;
   const startPosition = clonePosition(options.player.position);
   const path: GridPosition[] = [];
-  const maxSteps = options.maxSteps ?? Number.POSITIVE_INFINITY;
   const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(movement));
   let stepsTaken = 0;
   let stopReason = "Movement ended";
 
-  while ((state.remainingMovePoints ?? 0) > 0 && stepsTaken < maxSteps && state.shouldContinueMovement) {
+  while ((state.remainingMovePoints ?? 0) > 0 && state.shouldContinueMovement) {
     const direction = state.direction;
 
     if (!direction) {

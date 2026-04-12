@@ -39,7 +39,6 @@ review时重点关注：
  - 清理文档中tools.ts以及其他的不准确内容；
 
 
-    - maxSteps
     - client端的height
 
 

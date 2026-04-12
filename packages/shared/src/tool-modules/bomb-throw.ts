@@ -150,7 +150,6 @@ function resolveBombThrowTool(
     const presentationMark = markDraftPresentation(draft);
     const pushResolution = resolveLinearDisplacement(draft, {
       direction,
-      maxSteps: pushDistance,
       movePoints: pushDistance,
       movement: pushMovement,
       player: toMovementSubject(targetPlayer),

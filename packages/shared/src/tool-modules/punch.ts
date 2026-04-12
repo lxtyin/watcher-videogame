@@ -118,7 +118,6 @@ function resolvePunchTool(
       const presentationMark = markDraftPresentation(draft);
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
-        maxSteps: pushDistance,
         movePoints: pushDistance,
         movement: pushedOtherMovement,
         player: toMovementSubject(hitPlayer),
@@ -147,7 +146,6 @@ function resolvePunchTool(
     const presentationMark = markDraftPresentation(draft);
     const pushResolution = resolveLinearDisplacement(draft, {
       direction: getOppositeDirection(trace.collision.direction),
-      maxSteps: pushDistance,
       movePoints: pushDistance,
       movement: pushedSelfMovement,
       player: toMovementSubject(context.actor),

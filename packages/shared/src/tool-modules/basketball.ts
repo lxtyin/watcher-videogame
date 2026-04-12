@@ -94,7 +94,6 @@ function resolveBasketballTool(
       const presentationMark = markDraftPresentation(draft);
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
-        maxSteps: pushDistance,
         movePoints: pushDistance,
         movement: pushedMovement,
         player: toMovementSubject(hitPlayer),

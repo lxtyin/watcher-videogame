@@ -131,7 +131,6 @@ function resolveHookshotTool(
       const presentationMark = markDraftPresentation(draft);
       const actorResolution = resolveDragDisplacement(draft, {
         direction,
-        maxSteps: pullDistance,
         movePoints: pullDistance,
         movement: actorMovement.descriptor,
         player: toMovementSubject(context.actor),
@@ -265,7 +264,6 @@ function resolveHookshotTool(
       const presentationMark = markDraftPresentation(draft);
       const pullResolution = resolveDragDisplacement(draft, {
         direction: getOppositeDirection(direction),
-        maxSteps: pullDistance,
         movePoints: pullDistance,
         movement: pulledMovement.descriptor,
         player: toMovementSubject(hitPlayer),

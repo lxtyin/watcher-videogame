@@ -98,7 +98,6 @@ function resolveBrakeTool(
       : movement.type === "drag"
         ? resolveDragDisplacement(draft, {
             direction: axisTarget.direction,
-            maxSteps: requestedDistance,
             movePoints: requestedDistance,
             movement: movement.descriptor,
             player: toMovementSubject(context.actor),
@@ -106,7 +105,6 @@ function resolveBrakeTool(
           })
         : resolveLinearDisplacement(draft, {
             direction: axisTarget.direction,
-            maxSteps: requestedDistance,
             movePoints: requestedDistance,
             movement: movement.descriptor,
             player: toMovementSubject(context.actor),

@@ -176,7 +176,6 @@ export function resolveRocketCore(
     for (const splashPlayer of splashPlayers) {
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: splashDirection,
-        maxSteps: spec.splashPushDistance,
         movePoints: spec.splashPushDistance,
         movement: splashMovement,
         player: toMovementSubject(splashPlayer),
