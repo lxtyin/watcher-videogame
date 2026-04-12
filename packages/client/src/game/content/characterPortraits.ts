@@ -1,0 +1,24 @@
+import type { CharacterId } from "@watcher/shared";
+import awmPortraitUrl from "../assets/characters/portraits/awm.jpg";
+import blazePortraitUrl from "../assets/characters/portraits/blaze.jpg";
+import chainPortraitUrl from "../assets/characters/portraits/chain.jpg";
+import ehhPortraitUrl from "../assets/characters/portraits/ehh.jpg";
+import fartherPortraitUrl from "../assets/characters/portraits/farther.jpg";
+import latePortraitUrl from "../assets/characters/portraits/late.jpg";
+import leaderPortraitUrl from "../assets/characters/portraits/leader.jpg";
+import volatyPortraitUrl from "../assets/characters/portraits/volaty.jpg";
+
+const CHARACTER_PORTRAIT_URLS: Record<string, string> = {
+  awm: awmPortraitUrl,
+  blaze: blazePortraitUrl,
+  chain: chainPortraitUrl,
+  ehh: ehhPortraitUrl,
+  farther: fartherPortraitUrl,
+  late: latePortraitUrl,
+  leader: leaderPortraitUrl,
+  volaty: volatyPortraitUrl
+};
+
+export function getCharacterPortraitUrl(portraitId: CharacterId | string): string | null {
+  return CHARACTER_PORTRAIT_URLS[portraitId] ?? null;
+}

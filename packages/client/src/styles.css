@@ -619,12 +619,156 @@ button:disabled {
 }
 
 .character-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
+  position: relative;
+  display: grid;
+  aspect-ratio: 4 / 5;
+  min-height: 34rem;
+  overflow: hidden;
+  padding: 0;
+  isolation: isolate;
+  border-radius: 8px;
+  border: 1px solid rgba(17, 24, 22, 0.34);
+  background:
+    linear-gradient(135deg, rgba(27, 71, 62, 0.82), rgba(26, 25, 22, 0.96)),
+    #151714;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 18px 42px rgba(11, 17, 15, 0.24);
 }
 
-.character-card__header,
+.character-card::before,
+.character-card::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.character-card::before {
+  z-index: 1;
+  border: 3px solid rgba(244, 249, 241, 0.78);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(12, 18, 16, 0.56);
+}
+
+.character-card::after {
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(9, 13, 12, 0) 28%, rgba(9, 13, 12, 0.42) 55%, rgba(8, 10, 9, 0.96) 100%),
+    linear-gradient(90deg, rgba(31, 123, 102, 0.2), rgba(182, 50, 72, 0.12));
+}
+
+.character-card__portrait,
+.character-card__portrait-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.character-card__portrait {
+  object-fit: cover;
+  object-position: center top;
+}
+
+.character-card__portrait-fallback {
+  background:
+    linear-gradient(135deg, rgba(42, 126, 103, 0.8), rgba(27, 29, 25, 0.96)),
+    #151714;
+}
+
+.character-card__copy {
+  position: relative;
+  z-index: 3;
+  align-self: end;
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 11.25rem;
+  padding: 1.05rem;
+  color: #f7fbf4;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.72);
+}
+
+.character-card__eyebrow {
+  margin: 0;
+  color: #88d7bd;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.character-card__name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.character-card__name-row strong {
+  min-width: 0;
+  font-size: 1.6rem;
+  line-height: 1.05;
+  word-break: keep-all;
+}
+
+.character-card__name-row span {
+  color: #d7e7de;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.character-card__summary,
+.character-card__flavor {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.character-card__summary {
+  padding: 0.62rem 0.7rem;
+  border-left: 3px solid #88d7bd;
+  border-radius: 6px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.character-card__flavor {
+  font-style: italic;
+  display: -webkit-box;
+  overflow: hidden;
+  color: #f2f7ef;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.character-switch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.character-switch-row select,
+.character-switch-row button {
+  min-height: 2.85rem;
+  border-radius: 8px;
+}
+
+.character-switch-row button {
+  white-space: nowrap;
+}
+
+.lobby-character-switch-row {
+  width: 100%;
+}
+
+.lobby-character-switch-row button {
+  min-width: 7.5rem;
+}
+
 .role-skill-header {
   display: flex;
   align-items: center;
@@ -632,7 +776,6 @@ button:disabled {
   gap: 0.8rem;
 }
 
-.character-card__header strong,
 .role-skill-header span {
   color: #2a3542;
 }
@@ -656,12 +799,6 @@ button:disabled {
 
 .ghost-button .ui-icon {
   --ui-icon-size: 1.05rem;
-}
-
-.character-summary {
-  margin: 0;
-  color: #3f4b57;
-  line-height: 1.5;
 }
 
 .character-passive-list {
@@ -1574,6 +1711,14 @@ button:disabled {
 
   .scene-panel {
     height: calc(100dvh - 1.6rem);
+  }
+
+  .character-switch-row {
+    grid-template-columns: 1fr;
+  }
+
+  .character-switch-row button {
+    width: 100%;
   }
 }
 

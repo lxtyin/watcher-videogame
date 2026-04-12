@@ -8,42 +8,66 @@ function defineCharacterRegistry<const Registry extends Record<string, Character
 
 export const CHARACTER_REGISTRY = defineCharacterRegistry({
   late: {
+    flavorText: "迟来的艺术。",
     label: "Late",
+    nativeName: "罗素",
+    portraitId: "late",
     summary: "将获得的移动改为等距离制动。",
     skillIds: ["late:brake-movement"]
   },
   ehh: {
+    flavorText: "鹅~",
     label: "Ehh",
+    nativeName: "鹅哈哈",
+    portraitId: "ehh",
     summary: "每个行动阶段额外获得一个篮球。",
     skillIds: ["ehh:extra-basketball"]
   },
   leader: {
+    flavorText: "可别再弄丢了",
     label: "Leader",
+    nativeName: "领导",
+    portraitId: "leader",
     summary: "每个行动阶段获得一个放置钱包。",
     skillIds: ["leader:deploy-wallet"]
   },
   blaze: {
+    flavorText: "可不要离我太近。",
     label: "Blaze",
+    nativeName: "布拉泽",
+    portraitId: "blaze",
     summary: "回合开始可准备炸弹，并在下个行动阶段获得投弹。",
     skillIds: ["blaze:prepare-bomb"]
   },
   volaty: {
+    flavorText: "致我们最初的梦想。",
     label: "Volaty",
+    nativeName: "芙兰迪",
+    portraitId: "volaty",
     summary: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
     skillIds: ["volaty:leap-roll"]
   },
   chain: {
+    flavorText: "我不会有所隐瞒。",
     label: "Chain",
+    nativeName: "常",
+    portraitId: "chain",
     summary: "若回合外没有被移动，下个行动阶段获得短钩锁。",
     skillIds: ["chain:hook-if-still"]
   },
   farther: {
+    flavorText: "还能再快一些。",
     label: "Farther",
+    nativeName: "法真",
+    portraitId: "farther",
     summary: "每个行动阶段获得制衡，并可把移动储存到下回合。",
     skillIds: ["farther:balance-bank"]
   },
   awm: {
+    flavorText: "到此一游",
     label: "AWM",
+    nativeName: "AWM",
+    portraitId: "awm",
     summary: "行动阶段开始时获得一发狙击，命中的玩家会获得束缚。",
     skillIds: ["awm:grant-shot"]
   }

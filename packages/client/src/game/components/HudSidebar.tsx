@@ -3,10 +3,12 @@ import {
   TOOL_DEFINITIONS,
   describeToolButtonLabel,
   getCharacterDefinition,
+  getCharacterIds,
   getDebugGrantableToolIds,
   getNextCharacterId,
   getToolDisabledMessage,
   getToolTextDescription,
+  type CharacterId,
   type ToolId,
   type TurnPhase,
   type TurnToolSnapshot
@@ -17,6 +19,7 @@ import {
   isPointerDrivenInteractionTool
 } from "../interaction/toolInteraction";
 import { UiIcon } from "../assets/ui/icons";
+import { getCharacterPortraitUrl } from "../content/characterPortraits";
 import { findSelectedTool } from "../state/toolSelection";
 import { useGameStore } from "../state/useGameStore";
 import { PetThumbnail } from "./PetThumbnail";
@@ -42,6 +45,7 @@ const TURN_PHASE_LABELS = {
 } as const;
 
 const DEBUG_TOOL_OPTIONS = getDebugGrantableToolIds();
+const CHARACTER_OPTIONS = getCharacterIds();
 
 function describeModeLabel(mode: "free" | "race" | undefined): string {
   return mode === "race" ? "竞速模式" : "自由模式";
@@ -79,9 +83,7 @@ function describeInteractionHint(
   }
 
   if (phase === "turn-start") {
-    return localTools.length
-      ? "你可以先使用回合开始阶段工具，或者直接投骰。"
-      : "点击投骰开始本回合。";
+    return "轮到你的回合了!";
   }
 
   if (!selectedTool) {
@@ -113,6 +115,12 @@ function getBlockedToolMessage(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]
   return getToolDisabledMessage(tool, tools) ?? `${TOOL_DEFINITIONS[tool.toolId].label} 当前不可用。`;
 }
 
+function getCharacterOptionLabel(characterId: CharacterId): string {
+  const character = getCharacterDefinition(characterId);
+
+  return `${character.nativeName} / ${character.label}`;
+}
+
 export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
@@ -133,6 +141,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useToolPayload = useGameStore((state) => state.useToolPayload);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
+  const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(CHARACTER_OPTIONS[0] ?? "late");
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
@@ -155,7 +164,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       : null;
   const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
   const nextCharacterId = me ? getNextCharacterId(me.characterId) : "late";
-  const nextRoleDefinition = getCharacterDefinition(nextCharacterId);
+  const rolePortraitUrl = roleDefinition ? getCharacterPortraitUrl(roleDefinition.portraitId) : null;
   const tools = useMemo(() => me?.tools ?? [], [me]);
   const otherPlayers = snapshot?.players.filter((player) => player.id !== sessionId) ?? [];
   const instantToolReady = Boolean(
@@ -171,6 +180,10 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     selectedTool,
     tools
   );
+
+  useEffect(() => {
+    setSelectedCharacterId(nextCharacterId);
+  }, [nextCharacterId]);
 
   useEffect(() => {
     if (!toolNotice) {
@@ -305,7 +318,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                         <strong>{player.name}</strong>
                         {snapshot.hostPlayerId === player.id ? <span className="mini-pill">房主</span> : null}
                       </div>
-                      <p className="hint-copy">{characterDefinition.label}</p>
+                      <p className="hint-copy">{`${characterDefinition.nativeName} / ${characterDefinition.label}`}</p>
                       <div className="lobby-player-flags">
                         <span className={`mini-pill ${player.isConnected ? "" : "offline"}`}>
                           {player.isConnected ? "在线" : "离线保留中"}
@@ -320,14 +333,28 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                         <button type="button" data-testid="lobby-ready-button" onClick={() => setReady(!player.isReady)}>
                           {player.isReady ? "取消准备" : "准备"}
                         </button>
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          data-testid="switch-character-button"
-                          onClick={() => setCharacter(nextCharacterId)}
-                        >
-                          切换到 {nextRoleDefinition.label}
-                        </button>
+                        <div className="character-switch-row lobby-character-switch-row">
+                          <select
+                            value={selectedCharacterId}
+                            onChange={(event) => setSelectedCharacterId(event.target.value as CharacterId)}
+                            data-testid="lobby-character-select"
+                          >
+                            {CHARACTER_OPTIONS.map((characterId) => (
+                              <option key={characterId} value={characterId}>
+                                {getCharacterOptionLabel(characterId)}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="ghost-button"
+                            data-testid="switch-character-button"
+                            onClick={() => setCharacter(selectedCharacterId)}
+                            disabled={selectedCharacterId === player.characterId}
+                          >
+                            切换角色
+                          </button>
+                        </div>
                       </div>
                     ) : isHost ? (
                       <div className="lobby-player-actions">
@@ -370,7 +397,51 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           </section>
         </>
       ) : (
-        <>
+          <>
+            
+          <section className="character-card">
+            {rolePortraitUrl ? (
+              <img
+                className="character-card__portrait"
+                src={rolePortraitUrl}
+                alt={`${roleDefinition?.nativeName ?? "角色"}立绘`}
+              />
+            ) : (
+              <div className="character-card__portrait-fallback" />
+            )}
+            <div className="character-card__copy">
+              {/* <p className="character-card__eyebrow">角色</p> */}
+              <div className="character-card__name-row">
+                <strong>{roleDefinition?.nativeName ?? "--"}</strong>
+                <span> / {roleDefinition?.label ?? "--"}</span>
+              </div>
+              <p className="character-card__summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
+              <p className="character-card__flavor">“{roleDefinition?.flavorText ?? "到此一游"}”</p>
+            </div>
+          </section>
+          <div className="character-switch-row character-switch-row--detached">
+            <select
+              value={selectedCharacterId}
+              onChange={(event) => setSelectedCharacterId(event.target.value as CharacterId)}
+              disabled={!me}
+              data-testid="character-select"
+            >
+              {CHARACTER_OPTIONS.map((characterId) => (
+                <option key={characterId} value={characterId}>
+                  {getCharacterOptionLabel(characterId)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              data-testid="switch-character-button"
+              onClick={() => setCharacter(selectedCharacterId)}
+              disabled={!isMyTurn || activePhase !== "turn-start" || !me || selectedCharacterId === me.characterId}
+            >
+              切换角色
+            </button>
+          </div>
+
           <section className="info-grid">
             <div className="info-card">
               <p className="info-label">玩家</p>
@@ -390,23 +461,6 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             </div>
           </section>
 
-          <section className="character-card">
-            <div className="character-card__header">
-              <div>
-                <p className="section-title">角色</p>
-                <strong>{roleDefinition?.label ?? "--"}</strong>
-              </div>
-              <button
-                type="button"
-                data-testid="switch-character-button"
-                onClick={() => setCharacter(nextCharacterId)}
-                disabled={!isMyTurn || activePhase !== "turn-start" || !me}
-              >
-                切换到 {nextRoleDefinition.label}
-              </button>
-            </div>
-            <p className="character-summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
-          </section>
 
           <section className="controls-card">
             <p className="section-title">回合控制</p>

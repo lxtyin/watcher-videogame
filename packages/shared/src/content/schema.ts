@@ -134,7 +134,10 @@ export interface ToolDieFaceContentDefinition extends ToolLoadoutContentDefiniti
 }
 
 export interface CharacterContentDefinition {
+  flavorText: string;
   label: string;
+  nativeName: string;
+  portraitId: string;
   skillIds: readonly string[];
   summary: string;
 }

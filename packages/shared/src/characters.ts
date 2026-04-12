@@ -2,8 +2,11 @@ import { CHARACTER_REGISTRY } from "./content/characters";
 import type { CharacterId } from "./types";
 
 export interface CharacterDefinition {
+  flavorText: string;
   id: CharacterId;
   label: string;
+  nativeName: string;
+  portraitId: string;
   skillIds: readonly string[];
   summary: string;
 }
@@ -14,7 +17,10 @@ function materializeCharacterDefinitions(): Record<CharacterId, CharacterDefinit
       characterId,
       {
         id: characterId as CharacterId,
+        flavorText: definition.flavorText,
         label: definition.label,
+        nativeName: definition.nativeName,
+        portraitId: definition.portraitId,
         summary: definition.summary,
         skillIds: [...definition.skillIds]
       }
