@@ -12,6 +12,7 @@ import { DEPLOY_WALLET_TOOL_MODULE } from "./deploy-wallet";
 import { HOOKSHOT_TOOL_MODULE } from "./hookshot";
 import { JUMP_TOOL_MODULE } from "./jump";
 import { MOVEMENT_TOOL_MODULE } from "./movement";
+import { PUNCH_TOOL_MODULE } from "./punch";
 import { ROCKET_TOOL_MODULE } from "./rocket";
 import { TELEPORT_TOOL_MODULE } from "./teleport";
 import type { ToolModule } from "./types";
@@ -30,6 +31,7 @@ export const TOOL_MODULES = defineToolModules([
   BUILD_WALL_TOOL_MODULE,
   BASKETBALL_TOOL_MODULE,
   ROCKET_TOOL_MODULE,
+  PUNCH_TOOL_MODULE,
   TELEPORT_TOOL_MODULE,
   DEPLOY_WALLET_TOOL_MODULE,
   BOMB_THROW_TOOL_MODULE,
@@ -47,7 +49,15 @@ export const TOOL_EXECUTOR_REGISTRY = Object.fromEntries(
   TOOL_MODULES.map((module) => [module.id, module.execute] as const)
 ) as unknown as Record<(typeof TOOL_MODULES)[number]["id"], ToolExecutor>;
 
-export const TOOL_DIE_FACES = TOOL_MODULES.flatMap((module) =>
+
+export const TOOL_DIE_FACES = [
+  JUMP_TOOL_MODULE,
+  HOOKSHOT_TOOL_MODULE,
+  BASKETBALL_TOOL_MODULE,
+  BUILD_WALL_TOOL_MODULE,
+  ROCKET_TOOL_MODULE,
+  PUNCH_TOOL_MODULE
+].flatMap((module) =>
   module.dieFace
     ? [
         {

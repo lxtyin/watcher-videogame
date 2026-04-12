@@ -324,6 +324,7 @@ function resolveSteppedDisplacement(
   let stopReason = "Movement ended";
 
   while ((state.remainingMovePoints ?? 0) > 0 && stepsTaken < maxSteps && state.shouldContinueMovement) {
+    console.log("Remaining move points", state.remainingMovePoints);
     const direction = state.direction;
 
     if (!direction) {
@@ -372,6 +373,7 @@ function resolveSteppedDisplacement(
       movement,
       startMs + stepsTaken * stepDurationMs
     );
+    console.log("Remaining move points after", state.remainingMovePoints);
   }
 
   const timing = appendMovementMotionEvent(

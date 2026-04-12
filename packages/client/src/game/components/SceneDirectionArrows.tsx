@@ -6,6 +6,7 @@ import { BasketballDirectionAsset } from "../assets/tools/basketball/BasketballD
 import { HookshotDirectionAsset } from "../assets/tools/hookshot/HookshotDirectionAsset";
 import { JumpDirectionAsset } from "../assets/tools/jump/JumpDirectionAsset";
 import { MovementDirectionAsset } from "../assets/tools/movement/MovementDirectionAsset";
+import { PunchDirectionAsset } from "../assets/tools/punch/PunchDirectionAsset";
 import { RocketDirectionAsset } from "../assets/tools/rocket/RocketDirectionAsset";
 import { SpecialDirectionAsset } from "../assets/tools/shared/SpecialDirectionAsset";
 import type { DirectionAssetProps } from "../assets/tools/shared/toolAssetTypes";
@@ -47,6 +48,7 @@ const TOOL_DIRECTION_ASSETS: Partial<Record<ToolId, DirectionAssetComponent>> = 
   jump: JumpDirectionAsset,
   hookshot: HookshotDirectionAsset,
   basketball: BasketballDirectionAsset,
+  punch: PunchDirectionAsset,
   rocket: RocketDirectionAsset
 };
 

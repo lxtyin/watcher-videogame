@@ -235,3 +235,22 @@
   - 地图编辑器和游戏内长按地形信息卡共用同一套 3D thumbnail
 - 验证：
   - `npm.cmd run typecheck`
+
+## 2026-04-11 拳击工具表现接入
+
+- 接入用户新增的 `punch` 工具：
+  - shared 侧保持通过 `resolveLinearDisplacement` 处理击退与反推
+  - 命中玩家与命中墙壁分别产出 `punch_player_hit` / `punch_wall_hit` 语义 effect
+  - punch 加入工具骰面末尾，避免扰动既有 deterministic seed 预期
+- 新增 client 拳击资源：
+  - `PunchDirectionAsset`
+  - `PunchPlayerHitEffectAsset`
+  - `PunchWallHitEffectAsset`
+- 新增 golden case：
+  - `punch-hits-player-and-pushes-three`
+  - `punch-hits-wall-and-recoils-self`
+- 验证：
+  - `npm.cmd run goldens`
+  - `npm.cmd run typecheck`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`

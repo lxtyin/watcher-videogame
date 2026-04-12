@@ -3,6 +3,8 @@ import type { PresentationEffectType } from "@watcher/shared";
 import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
 import { EarthWallBreakEffectAsset } from "../board/EarthWallBreakEffectAsset";
 import { LuckyClaimEffectAsset } from "../board/LuckyClaimEffectAsset";
+import { PunchPlayerHitEffectAsset } from "../tools/punch/PunchPlayerHitEffectAsset";
+import { PunchWallHitEffectAsset } from "../tools/punch/PunchWallHitEffectAsset";
 import { RocketExplosionEffectAsset } from "../tools/rocket/RocketExplosionEffectAsset";
 
 interface EffectAssetProps {
@@ -18,6 +20,8 @@ type EffectAssetComponent = ComponentType<EffectAssetProps>;
 const EFFECT_ASSETS: Record<PresentationEffectType, EffectAssetComponent> = {
   earth_wall_break: EarthWallBreakEffectAsset,
   lucky_claim: LuckyClaimEffectAsset,
+  punch_player_hit: PunchPlayerHitEffectAsset,
+  punch_wall_hit: PunchWallHitEffectAsset,
   rocket_explosion: RocketExplosionEffectAsset
 };
 

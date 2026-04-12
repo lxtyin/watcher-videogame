@@ -18,6 +18,10 @@ export const CONVEYOR_TERRAIN_MODULE: TerrainModule = {
   }),
   label: "传送带",
   onPassThrough: (context) => {
+    console.log("Conveyor onPassThrough", {
+      state: context.state,
+      movement: context.movement
+    });
     if (
       !context.tile.direction ||
       !context.state.direction ||
@@ -26,6 +30,10 @@ export const CONVEYOR_TERRAIN_MODULE: TerrainModule = {
     ) {
       return;
     }
+    console.log("Conveyor onPassThrough go", {
+      state: context.state,
+      movement: context.movement
+    });
 
     if (context.state.direction === context.tile.direction) {
       context.state.remainingMovePoints += 2;

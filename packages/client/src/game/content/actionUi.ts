@@ -50,6 +50,10 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     token: "箭",
     accent: TOOL_DEFINITIONS.rocket.color
   },
+  punch: {
+    token: "拳",
+    accent: TOOL_DEFINITIONS.punch.color
+  },
   teleport: {
     token: "瞬",
     accent: TOOL_DEFINITIONS.teleport.color

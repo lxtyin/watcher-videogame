@@ -15,6 +15,14 @@ export const EFFECT_REGISTRY = defineEffectRegistry({
     label: "幸运方块消散",
     description: "幸运方块被领取时的上升与消散表现。"
   },
+  punch_player_hit: {
+    label: "拳击命中玩家",
+    description: "拳击命中玩家时的冲击表现。"
+  },
+  punch_wall_hit: {
+    label: "拳击命中墙壁",
+    description: "拳击命中墙壁时的反震表现。"
+  },
   rocket_explosion: {
     label: "火箭爆炸",
     description: "火箭命中后的范围爆炸表现。"
