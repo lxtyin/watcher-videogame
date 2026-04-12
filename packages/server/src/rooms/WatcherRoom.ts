@@ -249,6 +249,7 @@ export class WatcherRoom extends Room<WatcherState> {
   private resetTurnState(turnNumber: number): void {
     this.state.turnInfo.currentPlayerId = "";
     this.state.turnInfo.phase = "turn-start";
+    this.state.turnInfo.lastRolledMoveDieValue = 0;
     this.state.turnInfo.moveRoll = 0;
     this.state.turnInfo.lastRolledToolId = "";
     this.state.turnInfo.toolDieSeed = this.runtimeState.toolDieSeed;

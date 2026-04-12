@@ -300,3 +300,42 @@
   - 在立绘下半部叠加中文名、英文名、技能描述与角色台词
   - 使用深色叠加背景保证文字可读
 - 将切换角色入口改为与调试工具领取一致的下拉框 + 按钮形式，并放在角色卡下方。
+
+## 2026-04-12 投骰动画第一版
+
+- 新增 shared 投骰结果字段：
+  - `turnInfo.lastRolledMoveDieValue` 保存点数骰原始结果
+  - `turnInfo.moveRoll` 继续表示 modifier 处理后的移动工具点数
+- client 收到投骰后的 snapshot 时会先创建本地骰子动画并暂存 snapshot：
+  - 动画期间仍显示投骰前状态
+  - 动画结束后再应用 snapshot，工具栏与后续 presentation 才开始更新
+- 新增骰子动画计划：
+  - 点数骰始终按 shared 的原始点数骰结果展示
+  - 工具骰按最终 `lastRolledToolId` 展示；如 Volaty 取消工具骰则不展示工具骰
+  - 落点、旋转圈数、最终 yaw 由事件 id 派生的伪随机数决定
+- 暂定骰面：
+  - 点数骰：`1 / 2 / 3 / 4 / 5 / 6`
+  - 工具骰：当前 `getRollableToolIds()` 顺序，即 `jump / hookshot / basketball / buildWall / rocket / punch`
+- 验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `npm.cmd run goldens`
+  - Playwright 创建房间投骰流程：普通投骰显示点数骰 + 工具骰，工具发放延后到骰子消失后；Volaty 先使用“飞跃”后只显示点数骰。
+
+## 2026-04-12 投骰动画物理姿态调整
+
+- 按“骰子模型原点在正方体中心、边长 1m”调整动画高度：
+  - 渲染时按当前局部旋转计算正方体在世界 y 轴上的半高
+  - 骰子中心高度始终为平台高度 + 当前半高 + 非负弹跳/下落高度，避免旋转穿过平台
+- 调整旋转结构：
+  - 外层只保留随机 y 轴 yaw
+  - 内层负责把结果面以 90 度倍数转到上方，最终不保留任意 x/z 倾斜
+  - 下落阶段也使用同一段 spin 进度持续旋转，落下与滚动更连贯
+- 面序修改位置：
+  - `packages/client/src/game/state/diceRollAnimation.ts` 中的 `POINT_DIE_FACE_ORDER`
+  - `packages/client/src/game/state/diceRollAnimation.ts` 中的 `TOOL_DIE_FACE_ORDER`
+  - 如果模型本体坐标方向也要重排，则同步调整对应的 `POINT_DIE_FACE_TOP_ORIENTATIONS` 或 `TOOL_DIE_FACE_TOP_ORIENTATIONS`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - Playwright 手动时间推进截图：`0ms / 600ms / 1200ms / 2400ms / 3000ms / 3450ms`

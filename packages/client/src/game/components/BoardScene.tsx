@@ -13,6 +13,7 @@ import {
   type TurnToolSnapshot
 } from "@watcher/shared";
 import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
+import { DiceRollOverlay } from "../assets/dice/DiceRollOverlay";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
 import { LinkReactionVisual } from "../assets/presentation/LinkReactionVisual";
@@ -235,6 +236,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
   const useToolPayload = useGameStore((state) => state.useToolPayload);
   const simulationTimeMs = useGameStore((state) => state.simulationTimeMs);
   const activeActionPresentation = useGameStore((state) => state.activeActionPresentation);
+  const diceRollAnimation = useGameStore((state) => state.diceRollAnimation);
   const activeActionPresentationStartedAtMs = useGameStore(
     (state) => state.activeActionPresentationStartedAtMs
   );
@@ -256,7 +258,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
   const dragIntersection = useMemo(() => new Vector3(), []);
 
   const myPlayer = snapshot?.players.find((player) => player.id === sessionId) ?? null;
-  const isPresentationBusy = Boolean(activeActionPresentation || actionPresentationQueue.length);
+  const isPresentationBusy = Boolean(diceRollAnimation || activeActionPresentation || actionPresentationQueue.length);
   const isMyTurn = Boolean(snapshot && sessionId && snapshot.turnInfo.currentPlayerId === sessionId);
   const canInteract = isMyTurn && !isPresentationBusy;
   const selectedTool =
@@ -849,6 +851,17 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
         activeReactionCount: playbackState.reactions.length,
         queuedPresentationCount: actionPresentationQueue.length
       },
+      diceRollAnimation: diceRollAnimation
+        ? {
+            dice: diceRollAnimation.dice.map((die) => ({
+              kind: die.kind,
+              label: die.label,
+              resultLabel: die.resultLabel
+            })),
+            elapsedMs: simulationTimeMs - diceRollAnimation.startedAtMs,
+            durationMs: diceRollAnimation.durationMs
+          }
+        : null,
       scene: {
         boardHeight: snapshot.boardHeight,
         boardWidth: snapshot.boardWidth,
@@ -865,6 +878,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     cellEntrySerialByPlayer,
     actionPresentationQueue.length,
     activeActionPresentation,
+    diceRollAnimation,
     displayedPlayers,
     displayedPlayerPositions,
     displayedSummons,
@@ -1228,6 +1242,15 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
           radius={ring.radius}
         />
       ))}
+
+      {diceRollAnimation ? (
+        <DiceRollOverlay
+          animation={diceRollAnimation}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
+          simulationTimeMs={simulationTimeMs}
+        />
+      ) : null}
 
       <SceneInspectionCard inspection={inspectionCard} />
 

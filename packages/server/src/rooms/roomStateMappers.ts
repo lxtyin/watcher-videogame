@@ -162,6 +162,7 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
       currentPlayerId: state.turnInfo.currentPlayerId,
       phase: state.turnInfo.phase as GameSnapshot["turnInfo"]["phase"],
       turnNumber: state.turnInfo.turnNumber,
+      lastRolledMoveDieValue: state.turnInfo.lastRolledMoveDieValue,
       moveRoll: state.turnInfo.moveRoll,
       lastRolledToolId:
         state.turnInfo.lastRolledToolId === ""

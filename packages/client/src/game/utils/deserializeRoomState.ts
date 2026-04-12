@@ -81,6 +81,7 @@ interface RoomTurnInfo {
   currentPlayerId: string;
   phase: TurnPhase;
   turnNumber: number;
+  lastRolledMoveDieValue: number;
   moveRoll: number;
   lastRolledToolId: RolledToolId | "";
   toolDieSeed: number;
@@ -222,6 +223,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       currentPlayerId: roomState.turnInfo.currentPlayerId,
       phase: roomState.turnInfo.phase,
       turnNumber: roomState.turnInfo.turnNumber,
+      lastRolledMoveDieValue: roomState.turnInfo.lastRolledMoveDieValue,
       moveRoll: roomState.turnInfo.moveRoll,
       lastRolledToolId:
         roomState.turnInfo.lastRolledToolId === ""

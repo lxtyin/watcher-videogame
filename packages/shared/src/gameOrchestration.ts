@@ -105,6 +105,7 @@ function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
     currentPlayerId: turnInfo.currentPlayerId,
     phase: turnInfo.phase,
     turnNumber: turnInfo.turnNumber,
+    lastRolledMoveDieValue: turnInfo.lastRolledMoveDieValue,
     moveRoll: turnInfo.moveRoll,
     lastRolledToolId: turnInfo.lastRolledToolId,
     toolDieSeed: turnInfo.toolDieSeed
@@ -518,6 +519,7 @@ function enterSettlementState(state: MutableGameOrchestrationState): void {
   state.snapshot.roomPhase = "settlement";
   state.snapshot.turnInfo.currentPlayerId = "";
   state.snapshot.turnInfo.phase = "turn-start";
+  state.snapshot.turnInfo.lastRolledMoveDieValue = 0;
   state.snapshot.turnInfo.moveRoll = 0;
   state.snapshot.turnInfo.lastRolledToolId = null;
   state.snapshot.settlementState = "complete";
@@ -868,6 +870,7 @@ function enterActionPhaseWithRoll(
   );
 
   state.snapshot.turnInfo.phase = "turn-action";
+  state.snapshot.turnInfo.lastRolledMoveDieValue = moveRoll;
   state.snapshot.turnInfo.moveRoll = diceRollModifiers.movementRoll;
   state.snapshot.turnInfo.lastRolledToolId =
     (diceRollModifiers.rolledTool?.toolId as TurnInfoSnapshot["lastRolledToolId"]) ?? null;
@@ -1026,6 +1029,7 @@ function beginTurnFor(
   clearPlayerTurnResources(player);
   state.snapshot.turnInfo.currentPlayerId = playerId;
   state.snapshot.turnInfo.phase = "turn-start";
+  state.snapshot.turnInfo.lastRolledMoveDieValue = 0;
   state.snapshot.turnInfo.moveRoll = 0;
   state.snapshot.turnInfo.lastRolledToolId = null;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
@@ -1533,6 +1537,7 @@ export function createGameOrchestrationStateFromScene(
       turnInfo: {
         currentPlayerId: sceneDefinition.turn?.currentPlayerId ?? firstPlayerId,
         phase: sceneDefinition.turn?.phase ?? "turn-action",
+        lastRolledMoveDieValue: sceneDefinition.turn?.lastRolledMoveDieValue ?? 0,
         moveRoll: sceneDefinition.turn?.moveRoll ?? 0,
         lastRolledToolId: sceneDefinition.turn?.lastRolledToolId ?? null,
         toolDieSeed:

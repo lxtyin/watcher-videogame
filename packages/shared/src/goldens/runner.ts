@@ -39,6 +39,7 @@ function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
     currentPlayerId: turnInfo.currentPlayerId,
     phase: turnInfo.phase,
     turnNumber: turnInfo.turnNumber,
+    lastRolledMoveDieValue: turnInfo.lastRolledMoveDieValue,
     moveRoll: turnInfo.moveRoll,
     lastRolledToolId: turnInfo.lastRolledToolId,
     toolDieSeed: turnInfo.toolDieSeed

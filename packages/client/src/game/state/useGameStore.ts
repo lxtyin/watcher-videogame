@@ -19,6 +19,10 @@ import {
   sendStartGame,
   sendToolPayloadIfUsable
 } from "./roomCommands";
+import {
+  createDiceRollAnimation,
+  type DiceRollAnimation
+} from "./diceRollAnimation";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 export type SelectedToolInstanceId = string | null;
@@ -42,6 +46,8 @@ interface GameStore {
   lastQueuedPresentationSequence: number;
   simulationTimeMs: number;
   manualTimeControl: boolean;
+  diceRollAnimation: DiceRollAnimation | null;
+  pendingDiceRollSnapshot: GameSnapshot | null;
   selectedToolInstanceId: SelectedToolInstanceId;
   setConnectionStatus: (status: ConnectionStatus) => void;
   setLastError: (message: string | null) => void;
@@ -85,9 +91,9 @@ function advancePresentationClock(state: Pick<
 
 function isPresentationBusy(state: Pick<
   GameStore,
-  "actionPresentationQueue" | "activeActionPresentation"
+  "actionPresentationQueue" | "activeActionPresentation" | "diceRollAnimation"
 >): boolean {
-  return Boolean(state.activeActionPresentation || state.actionPresentationQueue.length);
+  return Boolean(state.diceRollAnimation || state.activeActionPresentation || state.actionPresentationQueue.length);
 }
 
 function applyIncomingSnapshot(
@@ -146,6 +152,123 @@ function applyIncomingSnapshot(
   };
 }
 
+function applyIncomingSnapshotWithDiceRollGate(
+  state: Pick<
+    GameStore,
+    | "snapshot"
+    | "actionPresentationQueue"
+    | "activeActionPresentation"
+    | "activeActionPresentationStartedAtMs"
+    | "lastQueuedPresentationSequence"
+    | "simulationTimeMs"
+    | "diceRollAnimation"
+    | "pendingDiceRollSnapshot"
+  >,
+  snapshot: GameSnapshot
+): Pick<
+  GameStore,
+  | "snapshot"
+  | "actionPresentationQueue"
+  | "activeActionPresentation"
+  | "activeActionPresentationStartedAtMs"
+  | "lastQueuedPresentationSequence"
+  | "diceRollAnimation"
+  | "pendingDiceRollSnapshot"
+> {
+  if (state.diceRollAnimation) {
+    return {
+      snapshot: state.snapshot,
+      actionPresentationQueue: state.actionPresentationQueue,
+      activeActionPresentation: state.activeActionPresentation,
+      activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+      lastQueuedPresentationSequence: state.lastQueuedPresentationSequence,
+      diceRollAnimation: state.diceRollAnimation,
+      pendingDiceRollSnapshot: snapshot
+    };
+  }
+
+  const diceRollAnimation = state.snapshot
+    ? createDiceRollAnimation(state.snapshot, snapshot, state.simulationTimeMs)
+    : null;
+
+  if (diceRollAnimation) {
+    return {
+      snapshot: state.snapshot,
+      actionPresentationQueue: state.actionPresentationQueue,
+      activeActionPresentation: state.activeActionPresentation,
+      activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+      lastQueuedPresentationSequence: state.lastQueuedPresentationSequence,
+      diceRollAnimation,
+      pendingDiceRollSnapshot: snapshot
+    };
+  }
+
+  return {
+    ...applyIncomingSnapshot(state, snapshot),
+    diceRollAnimation: null,
+    pendingDiceRollSnapshot: null
+  };
+}
+
+function advanceTimedState(
+  state: Pick<
+    GameStore,
+    | "snapshot"
+    | "actionPresentationQueue"
+    | "activeActionPresentation"
+    | "activeActionPresentationStartedAtMs"
+    | "lastQueuedPresentationSequence"
+    | "simulationTimeMs"
+    | "diceRollAnimation"
+    | "pendingDiceRollSnapshot"
+  >,
+  simulationTimeMs: number
+): Pick<
+  GameStore,
+  | "snapshot"
+  | "actionPresentationQueue"
+  | "activeActionPresentation"
+  | "activeActionPresentationStartedAtMs"
+  | "lastQueuedPresentationSequence"
+  | "simulationTimeMs"
+  | "diceRollAnimation"
+  | "pendingDiceRollSnapshot"
+> {
+  if (
+    state.diceRollAnimation &&
+    state.pendingDiceRollSnapshot &&
+    simulationTimeMs - state.diceRollAnimation.startedAtMs >= state.diceRollAnimation.durationMs
+  ) {
+    const nextState = {
+      ...state,
+      simulationTimeMs,
+      diceRollAnimation: null,
+      pendingDiceRollSnapshot: null
+    };
+
+    return {
+      simulationTimeMs,
+      diceRollAnimation: null,
+      pendingDiceRollSnapshot: null,
+      ...applyIncomingSnapshot(nextState, state.pendingDiceRollSnapshot)
+    };
+  }
+
+  return {
+    simulationTimeMs,
+    diceRollAnimation: state.diceRollAnimation,
+    pendingDiceRollSnapshot: state.pendingDiceRollSnapshot,
+    snapshot: state.snapshot,
+    lastQueuedPresentationSequence: state.lastQueuedPresentationSequence,
+    ...advancePresentationClock({
+      actionPresentationQueue: state.actionPresentationQueue,
+      activeActionPresentation: state.activeActionPresentation,
+      activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
+      simulationTimeMs
+    })
+  };
+}
+
 // The store owns shared session state, while focused helpers handle playback and room-command policy.
 export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: "idle",
@@ -161,6 +284,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastQueuedPresentationSequence: 0,
   simulationTimeMs: 0,
   manualTimeControl: false,
+  diceRollAnimation: null,
+  pendingDiceRollSnapshot: null,
   selectedToolInstanceId: null,
   setConnectionStatus: (connectionStatus) => {
     set({ connectionStatus });
@@ -193,6 +318,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       toolNotice: null,
       simulationTimeMs: 0,
       manualTimeControl: false,
+      diceRollAnimation: null,
+      pendingDiceRollSnapshot: null,
       selectedToolInstanceId: null,
       connectionStatus: "disconnected"
     });
@@ -212,6 +339,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastQueuedPresentationSequence: snapshot.latestPresentation?.sequence ?? 0,
       simulationTimeMs: 0,
       manualTimeControl: false,
+      diceRollAnimation: null,
+      pendingDiceRollSnapshot: null,
       selectedToolInstanceId: null
     });
   },
@@ -228,16 +357,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       toolNotice: null,
       simulationTimeMs: 0,
       manualTimeControl: false,
+      diceRollAnimation: null,
+      pendingDiceRollSnapshot: null,
       selectedToolInstanceId: null,
       connectionStatus: "idle",
       lastError: null
     });
   },
   setSnapshot: (snapshot) => {
-    set((state) => applyIncomingSnapshot(state, snapshot));
+    set((state) => applyIncomingSnapshotWithDiceRollGate(state, snapshot));
   },
   setLocalSnapshot: (snapshot) => {
-    set((state) => applyIncomingSnapshot(state, snapshot));
+    set((state) => applyIncomingSnapshotWithDiceRollGate(state, snapshot));
   },
   setSelectedToolInstanceId: (selectedToolInstanceId) => {
     set({ selectedToolInstanceId });
@@ -318,14 +449,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const simulationTimeMs = state.simulationTimeMs + ms;
 
       return {
-        simulationTimeMs,
         manualTimeControl: true,
-        ...advancePresentationClock({
-          actionPresentationQueue: state.actionPresentationQueue,
-          activeActionPresentation: state.activeActionPresentation,
-          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
-          simulationTimeMs
-        })
+        ...advanceTimedState(state, simulationTimeMs)
       };
     });
   },
@@ -338,15 +463,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       const simulationTimeMs = state.simulationTimeMs + ms;
 
-      return {
-        simulationTimeMs,
-        ...advancePresentationClock({
-          actionPresentationQueue: state.actionPresentationQueue,
-          activeActionPresentation: state.activeActionPresentation,
-          activeActionPresentationStartedAtMs: state.activeActionPresentationStartedAtMs,
-          simulationTimeMs
-        })
-      };
+      return advanceTimedState(state, simulationTimeMs);
     });
   }
 }));

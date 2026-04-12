@@ -57,6 +57,18 @@ export function useAutomationBridge(): void {
               activeProjectileCount: 0,
               activeReactionCount: 0
             },
+        diceRollAnimation: state.diceRollAnimation
+          ? {
+              dice: state.diceRollAnimation.dice.map((die) => ({
+                kind: die.kind,
+                label: die.label,
+                resultLabel: die.resultLabel
+              })),
+              elapsedMs: state.simulationTimeMs - state.diceRollAnimation.startedAtMs,
+              durationMs: state.diceRollAnimation.durationMs,
+              pendingSnapshot: Boolean(state.pendingDiceRollSnapshot)
+            }
+          : null,
         snapshot: state.snapshot
       };
 

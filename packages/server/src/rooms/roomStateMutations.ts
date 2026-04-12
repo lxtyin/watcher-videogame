@@ -243,6 +243,7 @@ export function applyGameSnapshotToState(
   state.turnInfo.currentPlayerId = snapshot.turnInfo.currentPlayerId;
   state.turnInfo.phase = snapshot.turnInfo.phase;
   state.turnInfo.turnNumber = snapshot.turnInfo.turnNumber;
+  state.turnInfo.lastRolledMoveDieValue = snapshot.turnInfo.lastRolledMoveDieValue;
   state.turnInfo.moveRoll = snapshot.turnInfo.moveRoll;
   state.turnInfo.lastRolledToolId = snapshot.turnInfo.lastRolledToolId ?? "";
   state.turnInfo.toolDieSeed = snapshot.turnInfo.toolDieSeed;

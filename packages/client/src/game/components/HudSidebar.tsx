@@ -125,6 +125,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const snapshot = useGameStore((state) => state.snapshot);
   const sessionId = useGameStore((state) => state.sessionId);
   const connectionStatus = useGameStore((state) => state.connectionStatus);
+  const diceRollAnimation = useGameStore((state) => state.diceRollAnimation);
   const lastError = useGameStore((state) => state.lastError);
   const selectedToolInstanceId = useGameStore((state) => state.selectedToolInstanceId);
   const toolNotice = useGameStore((state) => state.toolNotice);
@@ -180,6 +181,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     selectedTool,
     tools
   );
+  const isDiceRollPresentationBusy = Boolean(diceRollAnimation);
 
   useEffect(() => {
     setSelectedCharacterId(nextCharacterId);
@@ -469,7 +471,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 type="button"
                 data-testid="roll-dice-button"
                 onClick={() => rollDice()}
-                disabled={!isMyTurn || activePhase !== "turn-start"}
+                disabled={!isMyTurn || activePhase !== "turn-start" || isDiceRollPresentationBusy}
               >
                 投骰
               </button>

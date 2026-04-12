@@ -46,6 +46,15 @@ interface WatcherSceneDebugState {
     activeReactionCount: number;
     queuedPresentationCount: number;
   };
+  diceRollAnimation: {
+    dice: {
+      kind: "point" | "tool";
+      label: string;
+      resultLabel: string;
+    }[];
+    durationMs: number;
+    elapsedMs: number;
+  } | null;
   scene: {
     boardHeight: number;
     boardWidth: number;

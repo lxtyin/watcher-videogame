@@ -141,6 +141,7 @@ export interface SummonSnapshot {
 
 export interface TurnInfoSnapshot {
   currentPlayerId: string;
+  lastRolledMoveDieValue: number;
   lastRolledToolId: RolledToolId | null;
   moveRoll: number;
   phase: TurnPhase;

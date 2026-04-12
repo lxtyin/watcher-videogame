@@ -60,6 +60,7 @@ export class TurnInfoState extends Schema {
   @type("string") currentPlayerId = "";
   @type("string") phase = "turn-start";
   @type("number") turnNumber = 1;
+  @type("number") lastRolledMoveDieValue = 0;
   @type("number") moveRoll = 0;
   @type("string") lastRolledToolId: RolledToolId | "" = "";
   @type("number") toolDieSeed = 1;
