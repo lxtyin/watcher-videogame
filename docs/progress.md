@@ -353,3 +353,53 @@
   - 用 `Set-Content -Encoding utf8` 替代 PowerShell `echo > .env`
 - 验证：
   - `npm.cmd run typecheck --workspace @watcher/client`
+
+## 2026-04-13 视角管理重做
+
+- 新增代码开关 `CAMERA_CONTROL_MODE_BY_CODE`：
+  - 默认使用新的 `follow` 视角
+  - 切回 `orbit` 可恢复旧的 `OrbitControls` 路径
+- 新视角采用 fixed rig + follow camera：
+  - 固定朝向，不再自由旋转
+  - 默认距离比旧镜头更近
+  - 当前行动玩家超过 dead zone / camera window 后才推动视角中心
+  - 镜头移动使用 damping，形成先快后慢的 soft follow
+- 单指输入统一到 `BoardScene` 仲裁：
+  - 工具指针优先，工具开始时会取消相机候选拖拽
+  - canvas 外的工具 UI 不触发相机拖拽
+  - 单指拖动超过阈值后进入 pan，松手后快速 recenter 到当前行动玩家
+  - 静止长按才显示地形说明，拖拽会取消检查卡
+- 双指输入：
+  - 支持 pinch zoom
+  - pinch 开始时取消当前指针工具草稿，避免工具拖拽和缩放同时生效
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
+  - 自定义 Playwright 交互检查：拖拽 pan、松手 recenter、拖拽取消检查卡、长按地形说明、程序化双指 pinch zoom
+
+## 2026-04-13 视角与投骰微调
+
+- PC 端 follow camera 支持滚轮 zoom。
+- 平移视角改为屏幕增量映射，避免用当前镜头地面投影反复反馈造成抖动。
+- 松开拖拽后只把当前行动玩家带回 dead zone / camera window 内，不再强制居中。
+- 指针工具选中或使用中时，移动端 touch drag 不启动相机 pan。
+- 投骰动画落点改为围绕当前行动玩家的世界坐标附近随机，双骰只在该锚点附近分 lane。
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
+  - 自定义 Playwright 交互检查：平移稳定性、滚轮 zoom、双指 pinch、指针工具触摸拖动不 pan、骰子落点锚在当前玩家附近
+
+## 2026-04-13 屏幕空间 camera window
+
+- follow camera 的 camera window 从世界坐标偏移改为屏幕空间窗口：
+  - 使用玩家与当前相机目标的 NDC 投影判断是否出界
+  - 只在玩家投影超出屏幕窗口时，把相机目标平移到窗口边缘
+  - 视角越远时，同样的屏幕窗口自然覆盖更大的世界范围
+- 初始化 follow camera 时先把相机放到当前目标，再从下一帧开始计算屏幕窗口，避免首帧旧矩阵造成错误偏移。
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
+  - 自定义 Playwright 交互检查：拖拽后玩家回到屏幕窗口边界内，zoom out 后仍按屏幕窗口约束

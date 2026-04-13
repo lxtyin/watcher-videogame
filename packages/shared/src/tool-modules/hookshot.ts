@@ -83,12 +83,12 @@ function resolveHookshotTool(
     "drag",
     ["hookshot:pull"]
   );
-  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
     setDraftBlocked(draft, "Hookshot needs a direction", {
       preview: createToolPreview(context, {
-        selectionTiles,
+        // selectionTiles,
         valid: false
       })
     });
@@ -115,7 +115,7 @@ function resolveHookshotTool(
           preview: createToolPreview(context, {
             actorPath: rayPath,
             effectTiles: rayPath,
-            selectionTiles,
+            // selectionTiles,
             valid: false
           })
         });
@@ -144,7 +144,7 @@ function resolveHookshotTool(
           preview: createToolPreview(context, {
             actorPath: rayPath,
             effectTiles: rayPath,
-            selectionTiles,
+            // selectionTiles,
             valid: false
           })
         });
@@ -214,7 +214,7 @@ function resolveHookshotTool(
           actorTarget: draft.actor.position,
           affectedPlayers: draft.affectedPlayers,
           effectTiles: rayPath,
-          selectionTiles,
+          // selectionTiles,
           valid: true
         })
       });
@@ -311,7 +311,7 @@ function resolveHookshotTool(
         preview: createToolPreview(context, {
           actorPath: rayPath,
           effectTiles: rayPath,
-          selectionTiles,
+          // selectionTiles,
           valid: false
         })
       });
@@ -327,7 +327,7 @@ function resolveHookshotTool(
       preview: createToolPreview(context, {
         affectedPlayers: draft.affectedPlayers,
         effectTiles: rayPath,
-        selectionTiles,
+        // selectionTiles,
         valid: true
       })
     });
@@ -339,7 +339,7 @@ function resolveHookshotTool(
     preview: createToolPreview(context, {
       actorPath: rayPath,
       effectTiles: rayPath,
-      selectionTiles,
+      // selectionTiles,
       valid: false
     })
   });

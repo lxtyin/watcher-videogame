@@ -1,6 +1,6 @@
-import { useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Color, Plane, Raycaster, Vector2, Vector3 } from "three";
+import { Color, Plane, Raycaster, Vector2, Vector3, type Camera, type PerspectiveCamera } from "three";
 import {
   findToolInstance,
   getToolDefinition,
@@ -58,6 +58,7 @@ import { PetPiece } from "./PetPiece";
 import { BoardStaticTileLayer, BoardTileSelectionLayer } from "./BoardStaticTileLayer";
 import {
   buildActionPreview,
+  toGridPositionFromWorld,
   toWorldPosition
 } from "../utils/boardMath";
 
@@ -71,11 +72,39 @@ interface PlayerStackLayout {
   index: number;
 }
 
+type CameraControlMode = "follow" | "orbit";
+type FollowCameraState = "follow" | "manual-pan" | "recentering";
+
+interface CameraPanSession {
+  lastClientX: number;
+  lastClientY: number;
+  originClientX: number;
+  originClientY: number;
+  pointerId: number;
+  started: boolean;
+}
+
+interface CameraPinchSession {
+  lastDistancePx: number;
+}
+
 const INSPECTION_HOLD_DELAY_MS = 320;
 const PLAYER_STACK_STEP_Y = 0.88;
 const PLAYER_BASE_Y = -0.28;
 const STACK_REPOSITION_MS = 260;
 const STACK_ENTRY_LIFT_EPSILON = 0.12;
+const FOLLOW_CAMERA_DEFAULT_DISTANCE = 14;
+const FOLLOW_CAMERA_MIN_DISTANCE = 9.5;
+const FOLLOW_CAMERA_MAX_DISTANCE = 22;
+const FOLLOW_CAMERA_WINDOW_NDC_X = 0.34;
+const FOLLOW_CAMERA_WINDOW_NDC_Y = 0.22;
+const FOLLOW_CAMERA_DAMPING = 6.8;
+const FOLLOW_CAMERA_RECENTER_DAMPING = 13;
+const FOLLOW_CAMERA_ZOOM_DAMPING = 10;
+const FOLLOW_CAMERA_PAN_THRESHOLD_PX = 8;
+const FOLLOW_CAMERA_PINCH_ZOOM_UNITS_PER_PIXEL = 0.025;
+const FOLLOW_CAMERA_WHEEL_ZOOM_UNITS_PER_PIXEL = 0.012;
+const FOLLOW_CAMERA_OFFSET_DIRECTION = new Vector3(11, 15.6, 10).normalize();
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
   right: -Math.PI / 2,
@@ -218,12 +247,32 @@ function clearInspectionTimer(timerRef: { current: number | null }): void {
   }
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getDampedAlpha(damping: number, deltaSeconds: number): number {
+  return 1 - Math.exp(-damping * Math.min(deltaSeconds, 0.1));
+}
+
+function getPointerDistancePx(
+  first: { clientX: number; clientY: number },
+  second: { clientX: number; clientY: number }
+): number {
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+function isPerspectiveCamera(camera: Camera): camera is PerspectiveCamera {
+  return (camera as PerspectiveCamera & { isPerspectiveCamera?: boolean }).isPerspectiveCamera === true;
+}
+
 interface BoardSceneProps {
+  cameraControlMode: CameraControlMode;
   terrainThumbnailUrls: Partial<Record<string, string>>;
 }
 
 // The scene mirrors authoritative state while handling only local aiming and previews.
-export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
+export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSceneProps) {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const snapshot = useGameStore((state) => state.snapshot);
@@ -256,6 +305,25 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
   const dragRaycaster = useMemo(() => new Raycaster(), []);
   const dragPointer = useMemo(() => new Vector2(), []);
   const dragIntersection = useMemo(() => new Vector3(), []);
+  const cameraTargetRef = useRef(new Vector3());
+  const cameraDesiredTargetRef = useRef(new Vector3());
+  const cameraFocusTargetRef = useRef(new Vector3());
+  const cameraPositionRef = useRef(new Vector3());
+  const cameraPanRightRef = useRef(new Vector3());
+  const cameraPanUpRef = useRef(new Vector3());
+  const cameraScreenTargetProjectionRef = useRef(new Vector3());
+  const cameraScreenFocusProjectionRef = useRef(new Vector3());
+  const cameraInitializedRef = useRef(false);
+  const cameraDistanceRef = useRef(FOLLOW_CAMERA_DEFAULT_DISTANCE);
+  const cameraDesiredDistanceRef = useRef(FOLLOW_CAMERA_DEFAULT_DISTANCE);
+  const followCameraStateRef = useRef<FollowCameraState>("follow");
+  const cameraPanSessionRef = useRef<CameraPanSession | null>(null);
+  const cameraTouchPointersRef = useRef(new Map<number, { clientX: number; clientY: number }>());
+  const cameraPinchSessionRef = useRef<CameraPinchSession | null>(null);
+  const queueTerrainInspectionFromGroundRef = useRef<
+    (ground: { x: number; z: number } | null) => void
+  >(() => {});
+  const suppressCameraPanForToolRef = useRef(false);
 
   const myPlayer = snapshot?.players.find((player) => player.id === sessionId) ?? null;
   const isPresentationBusy = Boolean(diceRollAnimation || activeActionPresentation || actionPresentationQueue.length);
@@ -413,10 +481,28 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
 
     return nextFacingById;
   }, [snapshot]);
+  const currentPlayer =
+    snapshot
+      ? displayedPlayers.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
+        snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
+        null
+      : null;
+  const currentPlayerDisplayedPosition = currentPlayer
+    ? displayedPlayerPositions[currentPlayer.id] ?? currentPlayer.position
+    : null;
 
   useEffect(() => {
     interactionSessionRef.current = interactionSession;
   }, [interactionSession]);
+
+  useEffect(() => {
+    suppressCameraPanForToolRef.current = Boolean(
+      canInteract &&
+        myPlayer &&
+        interactionSession &&
+        isPointerStageActive(interactionSession)
+    );
+  }, [canInteract, interactionSession, myPlayer]);
 
   useLayoutEffect(() => {
     if (!snapshot) {
@@ -539,6 +625,20 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     };
   }, [gl]);
 
+  const cancelInspection = useCallback(() => {
+    clearInspectionTimer(inspectionTimerRef);
+    setInspectionCard(null);
+  }, []);
+
+  // Long-press inspection waits briefly so normal taps do not spawn scene cards.
+  const queueInspection = useCallback((nextInspectionCard: SceneInspectionCardData) => {
+    clearInspectionTimer(inspectionTimerRef);
+    inspectionTimerRef.current = window.setTimeout(() => {
+      setInspectionCard(nextInspectionCard);
+      inspectionTimerRef.current = null;
+    }, INSPECTION_HOLD_DELAY_MS);
+  }, []);
+
   useEffect(() => {
     const clearInspection = () => {
       cancelInspection();
@@ -554,12 +654,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
       window.removeEventListener("contextmenu", clearInspection);
       clearInspectionTimer(inspectionTimerRef);
     };
-  }, []);
-
-  const cancelInspection = useCallback(() => {
-    clearInspectionTimer(inspectionTimerRef);
-    setInspectionCard(null);
-  }, []);
+  }, [cancelInspection]);
 
   const projectPointerToGround = useCallback((clientX: number, clientY: number) => {
     return projectClientToGround(
@@ -574,12 +669,442 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     );
   }, [camera, dragIntersection, dragPlane, dragPointer, dragRaycaster, gl]);
 
+  const queueTerrainInspectionFromGround = useCallback(
+    (ground: { x: number; z: number } | null) => {
+      if (!ground || !snapshot) {
+        return;
+      }
+
+      const gridPosition = toGridPositionFromWorld(
+        ground.x,
+        ground.z,
+        snapshot.boardWidth,
+        snapshot.boardHeight
+      );
+
+      if (
+        gridPosition.x < 0 ||
+        gridPosition.x >= snapshot.boardWidth ||
+        gridPosition.y < 0 ||
+        gridPosition.y >= snapshot.boardHeight
+      ) {
+        return;
+      }
+
+      const tile = stableDisplayedTiles.find(
+        (candidate) => candidate.x === gridPosition.x && candidate.y === gridPosition.y
+      );
+
+      if (tile) {
+        queueInspection(describeTileInspection(tile, terrainThumbnailUrls));
+      }
+    },
+    [
+      queueInspection,
+      snapshot,
+      stableDisplayedTiles,
+      terrainThumbnailUrls
+    ]
+  );
+
+  useEffect(() => {
+    queueTerrainInspectionFromGroundRef.current = queueTerrainInspectionFromGround;
+  }, [queueTerrainInspectionFromGround]);
+
+  const cancelActiveToolPointerDraft = useCallback(() => {
+    const currentSession = interactionSessionRef.current;
+
+    if (!currentSession?.pointerActive) {
+      return;
+    }
+
+    const nextSession = clearToolInteractionDraft(currentSession);
+    interactionSessionRef.current = nextSession;
+    setInteractionSession(nextSession);
+  }, []);
+
+  const cancelCameraPointerGesture = useCallback((pointerId: number) => {
+    const currentPanSession = cameraPanSessionRef.current;
+
+    if (currentPanSession?.pointerId === pointerId) {
+      cameraPanSessionRef.current = null;
+
+      if (currentPanSession.started) {
+        followCameraStateRef.current = "recentering";
+      }
+    }
+
+    cameraTouchPointersRef.current.delete(pointerId);
+
+    if (cameraTouchPointersRef.current.size < 2 && cameraPinchSessionRef.current) {
+      cameraPinchSessionRef.current = null;
+      followCameraStateRef.current = "recentering";
+    }
+  }, []);
+
+  const cancelCameraGestureForToolUse = useCallback(() => {
+    cameraPanSessionRef.current = null;
+    cameraPinchSessionRef.current = null;
+    cameraTouchPointersRef.current.clear();
+    cancelInspection();
+  }, [cancelInspection]);
+
+  const addCameraPanFromScreenDelta = useCallback(
+    (target: Vector3, deltaClientX: number, deltaClientY: number) => {
+      const bounds = gl.domElement.getBoundingClientRect();
+
+      if (!bounds.width || !bounds.height || !isPerspectiveCamera(camera)) {
+        return;
+      }
+
+      const distanceToTarget = Math.max(
+        FOLLOW_CAMERA_MIN_DISTANCE,
+        camera.position.distanceTo(cameraTargetRef.current)
+      );
+      const verticalSpan =
+        2 * distanceToTarget * Math.tan((camera.fov * Math.PI) / 360);
+      const horizontalSpan = verticalSpan * camera.aspect;
+      const right = cameraPanRightRef.current.setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = cameraPanUpRef.current.setFromMatrixColumn(camera.matrixWorld, 1);
+
+      right.y = 0;
+      up.y = 0;
+
+      if (right.lengthSq() < 0.0001 || up.lengthSq() < 0.0001) {
+        return;
+      }
+
+      right.normalize();
+      up.normalize();
+      target
+        .addScaledVector(right, -(deltaClientX / bounds.width) * horizontalSpan)
+        .addScaledVector(up, (deltaClientY / bounds.height) * verticalSpan);
+    },
+    [camera, gl]
+  );
+
+  const applyCameraPanFromScreenDelta = useCallback(
+    (deltaClientX: number, deltaClientY: number) => {
+      addCameraPanFromScreenDelta(cameraTargetRef.current, deltaClientX, deltaClientY);
+      cameraDesiredTargetRef.current.copy(cameraTargetRef.current);
+    },
+    [addCameraPanFromScreenDelta]
+  );
+
+  const updateFollowTargetWithinScreenWindow = useCallback(
+    (currentTarget: Vector3, focusTarget: Vector3, output: Vector3) => {
+      const bounds = gl.domElement.getBoundingClientRect();
+
+      output.copy(currentTarget);
+
+      if (!bounds.width || !bounds.height) {
+        return;
+      }
+
+      const targetProjection = cameraScreenTargetProjectionRef.current.copy(currentTarget).project(camera);
+      const focusProjection = cameraScreenFocusProjectionRef.current.copy(focusTarget).project(camera);
+      const minX = targetProjection.x - FOLLOW_CAMERA_WINDOW_NDC_X;
+      const maxX = targetProjection.x + FOLLOW_CAMERA_WINDOW_NDC_X;
+      const minY = targetProjection.y - FOLLOW_CAMERA_WINDOW_NDC_Y;
+      const maxY = targetProjection.y + FOLLOW_CAMERA_WINDOW_NDC_Y;
+      const clampedFocusX = clampNumber(focusProjection.x, minX, maxX);
+      const clampedFocusY = clampNumber(focusProjection.y, minY, maxY);
+      const contentDeltaClientX = ((clampedFocusX - focusProjection.x) * bounds.width) / 2;
+      const contentDeltaClientY = ((focusProjection.y - clampedFocusY) * bounds.height) / 2;
+
+      if (Math.abs(contentDeltaClientX) < 0.5 && Math.abs(contentDeltaClientY) < 0.5) {
+        return;
+      }
+
+      addCameraPanFromScreenDelta(output, contentDeltaClientX, contentDeltaClientY);
+    },
+    [addCameraPanFromScreenDelta, camera, gl]
+  );
+
+  useEffect(() => {
+    if (cameraControlMode !== "follow") {
+      return;
+    }
+
+    const canvas = gl.domElement;
+    const previousTouchAction = canvas.style.touchAction;
+    canvas.style.touchAction = "none";
+
+    const updateTouchPointer = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !cameraTouchPointersRef.current.has(event.pointerId)) {
+        return;
+      }
+
+      cameraTouchPointersRef.current.set(event.pointerId, {
+        clientX: event.clientX,
+        clientY: event.clientY
+      });
+    };
+
+    const updatePinchZoom = (): boolean => {
+      const touchPointers = Array.from(cameraTouchPointersRef.current.values());
+
+      if (touchPointers.length < 2) {
+        return false;
+      }
+
+      const nextDistancePx = getPointerDistancePx(touchPointers[0]!, touchPointers[1]!);
+      const currentPinchSession = cameraPinchSessionRef.current;
+      cameraPanSessionRef.current = null;
+      followCameraStateRef.current = "manual-pan";
+      cancelInspection();
+
+      if (!currentPinchSession) {
+        cancelActiveToolPointerDraft();
+        cameraPinchSessionRef.current = {
+          lastDistancePx: nextDistancePx
+        };
+        return true;
+      }
+
+      const distanceDeltaPx = nextDistancePx - currentPinchSession.lastDistancePx;
+      cameraDesiredDistanceRef.current = clampNumber(
+        cameraDesiredDistanceRef.current - distanceDeltaPx * FOLLOW_CAMERA_PINCH_ZOOM_UNITS_PER_PIXEL,
+        FOLLOW_CAMERA_MIN_DISTANCE,
+        FOLLOW_CAMERA_MAX_DISTANCE
+      );
+      currentPinchSession.lastDistancePx = nextDistancePx;
+
+      return true;
+    };
+
+    const finishPinchIfNeeded = () => {
+      if (cameraTouchPointersRef.current.size >= 2 || !cameraPinchSessionRef.current) {
+        return;
+      }
+
+      cameraPinchSessionRef.current = null;
+      followCameraStateRef.current = "recentering";
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      cameraDesiredDistanceRef.current = clampNumber(
+        cameraDesiredDistanceRef.current + event.deltaY * FOLLOW_CAMERA_WHEEL_ZOOM_UNITS_PER_PIXEL,
+        FOLLOW_CAMERA_MIN_DISTANCE,
+        FOLLOW_CAMERA_MAX_DISTANCE
+      );
+      event.preventDefault();
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      if (suppressCameraPanForToolRef.current || interactionSessionRef.current?.pointerActive) {
+        return;
+      }
+
+      if (event.pointerType === "touch") {
+        cameraTouchPointersRef.current.set(event.pointerId, {
+          clientX: event.clientX,
+          clientY: event.clientY
+        });
+
+        if (updatePinchZoom()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
+      const initialGround = projectPointerToGround(event.clientX, event.clientY);
+      queueTerrainInspectionFromGroundRef.current(initialGround);
+      cameraPanSessionRef.current = {
+        lastClientX: event.clientX,
+        lastClientY: event.clientY,
+        originClientX: event.clientX,
+        originClientY: event.clientY,
+        pointerId: event.pointerId,
+        started: false
+      };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      updateTouchPointer(event);
+
+      if (interactionSessionRef.current?.pointerActive) {
+        cameraPanSessionRef.current = null;
+        return;
+      }
+
+      if (updatePinchZoom()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      const currentPanSession = cameraPanSessionRef.current;
+
+      if (!currentPanSession || currentPanSession.pointerId !== event.pointerId) {
+        return;
+      }
+
+      if (event.pointerType !== "touch" && event.buttons === 0) {
+        cancelCameraPointerGesture(event.pointerId);
+        return;
+      }
+
+      const movedPx = Math.hypot(
+        event.clientX - currentPanSession.originClientX,
+        event.clientY - currentPanSession.originClientY
+      );
+
+      if (!currentPanSession.started) {
+        if (movedPx < FOLLOW_CAMERA_PAN_THRESHOLD_PX) {
+          return;
+        }
+
+        currentPanSession.started = true;
+        followCameraStateRef.current = "manual-pan";
+        cancelInspection();
+        currentPanSession.lastClientX = event.clientX;
+        currentPanSession.lastClientY = event.clientY;
+        event.preventDefault();
+        return;
+      }
+
+      applyCameraPanFromScreenDelta(
+        event.clientX - currentPanSession.lastClientX,
+        event.clientY - currentPanSession.lastClientY
+      );
+      currentPanSession.lastClientX = event.clientX;
+      currentPanSession.lastClientY = event.clientY;
+      event.preventDefault();
+    };
+
+    const onPointerEnd = (event: PointerEvent) => {
+      const currentPanSession = cameraPanSessionRef.current;
+
+      if (currentPanSession?.pointerId === event.pointerId) {
+        cameraPanSessionRef.current = null;
+
+        if (currentPanSession.started) {
+          followCameraStateRef.current = "recentering";
+        }
+      }
+
+      if (event.pointerType === "touch") {
+        cameraTouchPointersRef.current.delete(event.pointerId);
+        finishPinchIfNeeded();
+      }
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown, true);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+
+    return () => {
+      canvas.removeEventListener("pointerdown", onPointerDown, true);
+      canvas.removeEventListener("wheel", onWheel);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      canvas.style.touchAction = previousTouchAction;
+      cameraPanSessionRef.current = null;
+      cameraPinchSessionRef.current = null;
+      cameraTouchPointersRef.current.clear();
+    };
+  }, [
+    applyCameraPanFromScreenDelta,
+    cameraControlMode,
+    cancelActiveToolPointerDraft,
+    cancelCameraPointerGesture,
+    cancelInspection,
+    gl,
+    projectPointerToGround
+  ]);
+
+  useFrame((_, deltaSeconds) => {
+    if (cameraControlMode !== "follow") {
+      return;
+    }
+
+    const focusTarget = cameraFocusTargetRef.current;
+
+    if (snapshot && currentPlayerDisplayedPosition) {
+      const [focusX, , focusZ] = toWorldPositionFromGrid(
+        currentPlayerDisplayedPosition.x,
+        currentPlayerDisplayedPosition.y,
+        snapshot.boardWidth,
+        snapshot.boardHeight
+      );
+      focusTarget.set(focusX, 0, focusZ);
+    } else {
+      focusTarget.set(0, 0, 0);
+    }
+
+    if (!cameraInitializedRef.current) {
+      cameraTargetRef.current.copy(focusTarget);
+      cameraDesiredTargetRef.current.copy(focusTarget);
+      cameraDistanceRef.current = FOLLOW_CAMERA_DEFAULT_DISTANCE;
+      cameraDesiredDistanceRef.current = FOLLOW_CAMERA_DEFAULT_DISTANCE;
+      cameraInitializedRef.current = true;
+      cameraPositionRef.current
+        .copy(cameraTargetRef.current)
+        .addScaledVector(FOLLOW_CAMERA_OFFSET_DIRECTION, cameraDistanceRef.current);
+      camera.position.copy(cameraPositionRef.current);
+      camera.lookAt(cameraTargetRef.current);
+      camera.updateMatrixWorld();
+      return;
+    }
+
+    if (followCameraStateRef.current === "manual-pan") {
+      cameraDesiredTargetRef.current.copy(cameraTargetRef.current);
+    } else if (followCameraStateRef.current === "recentering") {
+      updateFollowTargetWithinScreenWindow(
+        cameraTargetRef.current,
+        focusTarget,
+        cameraDesiredTargetRef.current
+      );
+    } else {
+      updateFollowTargetWithinScreenWindow(
+        cameraTargetRef.current,
+        focusTarget,
+        cameraDesiredTargetRef.current
+      );
+    }
+
+    const targetDamping =
+      followCameraStateRef.current === "recentering"
+        ? FOLLOW_CAMERA_RECENTER_DAMPING
+        : FOLLOW_CAMERA_DAMPING;
+    const targetAlpha = getDampedAlpha(targetDamping, deltaSeconds);
+    const distanceAlpha = getDampedAlpha(FOLLOW_CAMERA_ZOOM_DAMPING, deltaSeconds);
+
+    cameraTargetRef.current.lerp(cameraDesiredTargetRef.current, targetAlpha);
+    cameraDistanceRef.current +=
+      (cameraDesiredDistanceRef.current - cameraDistanceRef.current) * distanceAlpha;
+
+    if (
+      followCameraStateRef.current === "recentering" &&
+      cameraTargetRef.current.distanceToSquared(cameraDesiredTargetRef.current) < 0.0025
+    ) {
+      followCameraStateRef.current = "follow";
+    }
+
+    cameraPositionRef.current
+      .copy(cameraTargetRef.current)
+      .addScaledVector(FOLLOW_CAMERA_OFFSET_DIRECTION, cameraDistanceRef.current);
+    camera.position.copy(cameraPositionRef.current);
+    camera.lookAt(cameraTargetRef.current);
+    camera.updateMatrixWorld();
+  });
+
   const startToolInteractionPointer = useCallback(
     (tool: TurnToolSnapshot, clientX: number, clientY: number) => {
       if (!snapshot || !myPlayer || !canInteract || isInstantInteractionTool(tool.toolId)) {
         return;
       }
 
+      cancelCameraGestureForToolUse();
       const currentSession = interactionSessionRef.current;
       const baseSession =
         currentSession && currentSession.toolInstanceId === tool.instanceId
@@ -597,7 +1122,15 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
       setInteractionSession(nextSession);
       cancelInspection();
     },
-    [cancelInspection, canInteract, myPlayer, projectPointerToGround, setSelectedToolInstanceId, snapshot]
+    [
+      cancelCameraGestureForToolUse,
+      cancelInspection,
+      canInteract,
+      myPlayer,
+      projectPointerToGround,
+      setSelectedToolInstanceId,
+      snapshot
+    ]
   );
 
   const startSelectedInteractionPointer = useCallback(
@@ -918,23 +1451,6 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     return <></>;
   }
 
-  const currentPlayer =
-    displayedPlayers.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
-    snapshot.players.find((player) => player.id === snapshot.turnInfo.currentPlayerId) ??
-    null;
-  const currentPlayerDisplayedPosition = currentPlayer
-    ? displayedPlayerPositions[currentPlayer.id] ?? currentPlayer.position
-    : null;
-
-  // Long-press inspection waits briefly so normal taps do not spawn scene cards.
-  const queueInspection = useCallback((nextInspectionCard: SceneInspectionCardData) => {
-    clearInspectionTimer(inspectionTimerRef);
-    inspectionTimerRef.current = window.setTimeout(() => {
-      setInspectionCard(nextInspectionCard);
-      inspectionTimerRef.current = null;
-    }, INSPECTION_HOLD_DELAY_MS);
-  }, []);
-
   const canStartScenePointerInteraction = Boolean(
     canInteract &&
       myPlayer &&
@@ -949,6 +1465,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
         event.stopPropagation();
         cancelInspection();
         if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
       }
@@ -956,7 +1473,13 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
       event.stopPropagation();
       queueInspection(describePlayerInspection(player));
     },
-    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+    [
+      canStartScenePointerInteraction,
+      cancelCameraPointerGesture,
+      cancelInspection,
+      queueInspection,
+      startSelectedInteractionPointer
+    ]
   );
 
   const handleTilePointerDown = useCallback(
@@ -965,6 +1488,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
         event.stopPropagation();
         cancelInspection();
         if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
       }
@@ -974,6 +1498,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
     },
     [
       canStartScenePointerInteraction,
+      cancelCameraPointerGesture,
       cancelInspection,
       queueInspection,
       startSelectedInteractionPointer,
@@ -987,6 +1512,7 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
         event.stopPropagation();
         cancelInspection();
         if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+          cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
       }
@@ -994,7 +1520,13 @@ export function BoardScene({ terrainThumbnailUrls }: BoardSceneProps) {
       event.stopPropagation();
       queueInspection(describeSummonInspection(summon));
     },
-    [canStartScenePointerInteraction, cancelInspection, queueInspection, startSelectedInteractionPointer]
+    [
+      canStartScenePointerInteraction,
+      cancelCameraPointerGesture,
+      cancelInspection,
+      queueInspection,
+      startSelectedInteractionPointer
+    ]
   );
 
   return (

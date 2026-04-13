@@ -17,7 +17,7 @@ interface DiceRollOverlayProps {
   simulationTimeMs: number;
 }
 
-const PLANE_Y = 2.36;
+const PLANE_Y = 0.9;
 const DICE_SCALE = 0.55;
 const DICE_START_LIFT = 4.3;
 const DICE_HALF_SIDE = DICE_SCALE * 0.5;

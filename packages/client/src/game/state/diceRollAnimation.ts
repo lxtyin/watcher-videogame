@@ -124,9 +124,22 @@ function getFinalLocalRotation(kind: DiceRollDieKind, faceIndex: number): [numbe
   return [x, y, z];
 }
 
+function toCenteredWorldPosition(
+  position: { x: number; y: number },
+  boardWidth: number,
+  boardHeight: number
+): { x: number; z: number } {
+  return {
+    x: position.x - (boardWidth / 2 - 0.5),
+    z: position.y - (boardHeight / 2 - 0.5)
+  };
+}
+
 function createDieAnimation(
   seedState: { value: number },
   input: {
+    anchorX: number;
+    anchorZ: number;
     faceIndex: number;
     index: number;
     kind: DiceRollDieKind;
@@ -135,9 +148,9 @@ function createDieAnimation(
     total: number;
   }
 ): DiceRollDieAnimation {
-  const laneX = input.total === 1 ? 0 : (input.index - (input.total - 1) / 2) * 2.35;
-  const landingOffsetX = laneX + randomBetween(seedState, -0.34, 0.34);
-  const landingOffsetZ = randomBetween(seedState, -0.74, 0.74);
+  const laneX = input.total === 1 ? 0 : (input.index - (input.total - 1) / 2) * 1.35;
+  const landingOffsetX = input.anchorX + laneX + randomBetween(seedState, -0.22, 0.22);
+  const landingOffsetZ = input.anchorZ + randomBetween(seedState, -0.34, 0.34);
   const yaw = randomBetween(seedState, 0, Math.PI * 2);
 
   return {
@@ -151,8 +164,8 @@ function createDieAnimation(
     resultLabel: input.resultLabel,
     spinTurnsX: Math.floor(randomBetween(seedState, 3, 6)),
     spinTurnsZ: Math.floor(randomBetween(seedState, 2, 5)),
-    startOffsetX: landingOffsetX + randomBetween(seedState, -0.55, 0.55),
-    startOffsetZ: landingOffsetZ + randomBetween(seedState, -0.85, 0.85),
+    startOffsetX: landingOffsetX + randomBetween(seedState, -0.38, 0.38),
+    startOffsetZ: landingOffsetZ + randomBetween(seedState, -0.48, 0.48),
     wobblePhase: randomBetween(seedState, 0, Math.PI * 2)
   };
 }
@@ -180,8 +193,16 @@ export function createDiceRollAnimation(
       `${eventId}:${nextSnapshot.turnInfo.turnNumber}:${nextSnapshot.turnInfo.currentPlayerId}`
     )
   };
+  const rollingPlayer = nextSnapshot.players.find(
+    (player) => player.id === nextSnapshot.turnInfo.currentPlayerId
+  );
+  const diceAnchor = rollingPlayer
+    ? toCenteredWorldPosition(rollingPlayer.position, nextSnapshot.boardWidth, nextSnapshot.boardHeight)
+    : { x: 0, z: 0 };
   const diceInputs: Parameters<typeof createDieAnimation>[1][] = [
     {
+      anchorX: diceAnchor.x,
+      anchorZ: diceAnchor.z,
       faceIndex: getPointFaceIndex(nextSnapshot.turnInfo.lastRolledMoveDieValue),
       index: 0,
       kind: "point" as const,
@@ -192,6 +213,8 @@ export function createDiceRollAnimation(
     ...(nextSnapshot.turnInfo.lastRolledToolId
       ? [
           {
+            anchorX: diceAnchor.x,
+            anchorZ: diceAnchor.z,
             faceIndex: getToolFaceIndex(nextSnapshot.turnInfo.lastRolledToolId),
             index: 1,
             kind: "tool" as const,
