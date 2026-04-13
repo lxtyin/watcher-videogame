@@ -427,7 +427,7 @@ export function resolveLeapDisplacement(
   options: LeapMovementOptions
 ): MovementSystemResolution {
   const movement = createMovementDescriptor("leap", options.movement);
-  const landingTriggerMovement = createMovementDescriptor("translate", options.movement);
+  // const landingTriggerMovement = createMovementDescriptor("translate", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, null);
   const startMs = options.startMs ?? 0;
@@ -465,7 +465,7 @@ export function resolveLeapDisplacement(
     runPassThroughTriggers(
       draft,
       state,
-      index === leap.path.length - 1 ? landingTriggerMovement : movement,
+      movement,
       startMs + traversedPath.length * stepDurationMs
     );
 
@@ -484,7 +484,7 @@ export function resolveLeapDisplacement(
   );
 
   if (traversedPath.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, landingTriggerMovement, timing.motionEndMs ?? startMs);
+    runStopTriggers(draft, state, movement, timing.motionEndMs ?? startMs);
   }
 
   return buildResolution(

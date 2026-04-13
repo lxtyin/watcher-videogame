@@ -49,7 +49,19 @@ const PLAYER_PET_STORAGE_KEY = "watcher.player_pet";
 const ROOM_SESSION_STORAGE_KEY = "watcher.room_session";
 
 function getServerUrl(): string {
-  return import.meta.env.VITE_SERVER_URL ?? "ws://localhost:2567";
+  const configuredUrl =
+    typeof import.meta.env.VITE_SERVER_URL === "string"
+      ? import.meta.env.VITE_SERVER_URL.replace(/\0/g, "").trim()
+      : "";
+
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const hostname = window.location.hostname || "localhost";
+
+  return `${protocol}//${hostname}:2567`;
 }
 
 function normalizePlayerName(playerName: string | null | undefined): string {

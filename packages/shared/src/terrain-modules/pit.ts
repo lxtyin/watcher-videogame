@@ -16,10 +16,6 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
       y: context.state.player.position.y
     };
 
-    if (!isMovementType(context.movement, "translate")) {
-      return;
-    }
-
     respawnPlayerOnTerrain(context.draft, {
       eventId: `${context.draft.sourceId}:pit:${context.tile.key}`,
       motionStyle: "spin_drop",

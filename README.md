@@ -32,7 +32,7 @@ Server: `ws://localhost:2567`
 
 To deploy on a server:
 ```powershell
-echo "VITE_SERVER_URL=ws://<YOU PUBLIC IP>:2567" > packages/client/.env
+Set-Content -Path packages/client/.env -Value "VITE_SERVER_URL=ws://<YOUR PUBLIC IP>:2567" -Encoding utf8
 
 npm.cmd install
 npm.cmd run dev

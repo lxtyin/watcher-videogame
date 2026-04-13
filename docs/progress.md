@@ -339,3 +339,17 @@
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run build --workspace @watcher/client`
   - Playwright 手动时间推进截图：`0ms / 600ms / 1200ms / 2400ms / 3000ms / 3450ms`
+
+## 2026-04-13 部署连接与 mapeditor 跳转修复
+
+- 修复 LAN 建房时客户端回退连接 `localhost:2567` 的问题：
+  - `VITE_SERVER_URL` 为空或不可用时，客户端按当前页面 hostname 推导 `ws(s)://<host>:2567`
+  - 对 env 值做空字符清理，降低 PowerShell UTF-16 `.env` 造成的影响
+- 修复 mapeditor 开房后的部署路径跳转：
+  - 不再硬编码跳转到域名根路径 `/`
+  - 从 `/mapeditor` 或子路径部署下的 `.../mapeditor` 回到当前 app 根路径并追加 `?room=...`
+  - 路由入口改为识别 pathname 最后一段，兼容子路径部署
+- 更新 README 部署命令：
+  - 用 `Set-Content -Encoding utf8` 替代 PowerShell `echo > .env`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
