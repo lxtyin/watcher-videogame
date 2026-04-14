@@ -617,6 +617,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     // The browser context menu is disabled so right click stays reserved for cancel.
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
+      event.stopPropagation();
     };
 
     canvas.addEventListener("contextmenu", onContextMenu);
@@ -924,6 +925,10 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         pointerId: event.pointerId,
         started: false
       };
+
+      if (event.pointerType === "touch") {
+        event.preventDefault();
+      }
     };
 
     const onPointerMove = (event: PointerEvent) => {

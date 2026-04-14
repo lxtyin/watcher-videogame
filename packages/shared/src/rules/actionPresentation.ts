@@ -25,6 +25,25 @@ const PROJECTILE_MOTION_MS_PER_STEP = 110;
 export const ROCKET_BLAST_DELAY_MS = 40;
 export const HOOKSHOT_PULL_DELAY_MS = 30;
 
+function normalizePresentationEvents(events: ActionPresentationEvent[]): ActionPresentationEvent[] {
+  // Player motion order drives pending-origin playback; authored reaction slots stay stable.
+  const motionEvents = events
+    .flatMap((event, index) => event.kind === "motion" ? [{ event, index }] : [])
+    .sort((left, right) => left.event.startMs - right.event.startMs || left.index - right.index)
+    .map(({ event }) => event);
+  let nextMotionIndex = 0;
+
+  return events.map((event) => {
+    if (event.kind !== "motion") {
+      return event;
+    }
+
+    const sortedEvent = motionEvents[nextMotionIndex];
+    nextMotionIndex += 1;
+    return sortedEvent ?? event;
+  });
+}
+
 export function getProjectileTravelDurationMs(stepCount: number, speed = 1): number {
   const normalizedSpeed = Math.max(0.1, speed);
 
@@ -41,11 +60,13 @@ export function createPresentation(
     return null;
   }
 
+  const normalizedEvents = normalizePresentationEvents(events);
+
   return {
     actorId,
     toolId,
-    events,
-    durationMs: Math.max(...events.map((event) => event.startMs + event.durationMs))
+    events: normalizedEvents,
+    durationMs: Math.max(...normalizedEvents.map((event) => event.startMs + event.durationMs))
   };
 }
 
@@ -210,7 +231,7 @@ export function appendPresentationEvents(
     return null;
   }
 
-  const nextEvents = [...(presentation?.events ?? []), ...events];
+  const nextEvents = normalizePresentationEvents([...(presentation?.events ?? []), ...events]);
 
   if (!nextEvents.length) {
     return null;

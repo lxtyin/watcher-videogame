@@ -469,3 +469,20 @@
 - 调整：
   - `highlightTiles` 改为显式写入，不再在 draft 终结时从地形触发或 tile mutation 反推
   - 传送带、毒气、坑洞由各自 terrain module 写入；土墙破坏由现有破坏发生点写入
+
+## 2026-04-14 Pit 动画与移动端地形预览
+
+- 修正 Pit 相关 presentation 顺序：
+  - 在 `ActionPresentation` 生成与追加边界统一规范 motion 顺序，按 `startMs` 稳定排序
+  - 移除位移系统内针对 pass-through 事件的局部重排做法，避免把 Pit 当成个例处理
+  - 非 motion 事件保留原槽位与相对顺序，避免打乱现有 reaction / state transition 播放约定
+  - 保持 leap 中间格使用 `leap` 语义，只有落点使用 `landing` 触发接触型地形
+- 修正移动端长按地形说明闪退：
+  - canvas contextmenu 阻止继续冒泡，避免移动端长按菜单事件清掉刚显示的检查卡
+  - touch 场景按下进入检查/平移候选时调用 `preventDefault()`，减少浏览器长按行为干扰
+- 已验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`，`31/31` golden cases passed
+  - `npm.cmd run build --workspace @watcher/client`
+  - shared 语义抽检：Pit 触发时 presentation 顺序为 `motion:ground:0 -> motion:spin_drop:150`
+  - shared 语义抽检：跳跃飞过 Pit 只生成 `motion:arc:0`，不生成 `spin_drop`
