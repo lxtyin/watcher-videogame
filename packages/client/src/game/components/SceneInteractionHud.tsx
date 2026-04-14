@@ -35,7 +35,12 @@ interface SceneActionRingProps {
   selectedToolInstanceId: SelectedToolInstanceId;
   showArc?: boolean;
   tools: TurnToolSnapshot[];
-  onBeginPointerTool: (toolInstanceId: string, clientX: number, clientY: number) => void;
+  onBeginPointerTool: (
+    toolInstanceId: string,
+    clientX: number,
+    clientY: number,
+    pointerType: string
+  ) => void;
   onCommitChoice: (toolInstanceId: string, choiceId: string) => void;
   onEndTurn: () => void;
   onRollDice: () => void;
@@ -224,7 +229,7 @@ export function SceneActionRing({
 
             event.preventDefault();
             event.stopPropagation();
-            onBeginPointerTool(tool.instanceId, event.clientX, event.clientY);
+            onBeginPointerTool(tool.instanceId, event.clientX, event.clientY, event.pointerType);
           }
         : undefined;
 

@@ -56,6 +56,7 @@ import { SceneInspectionCard } from "./SceneInspectionCard";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
 import { PetPiece } from "./PetPiece";
 import { BoardStaticTileLayer, BoardTileSelectionLayer } from "./BoardStaticTileLayer";
+import { SceneToolCancelZone } from "./SceneToolCancelZone";
 import {
   buildActionPreview,
   toGridPositionFromWorld,
@@ -99,12 +100,15 @@ const FOLLOW_CAMERA_MIN_DISTANCE = 9.5;
 const FOLLOW_CAMERA_MAX_DISTANCE = 22;
 const FOLLOW_CAMERA_WINDOW_NDC_X = 0.24;
 const FOLLOW_CAMERA_WINDOW_NDC_Y = 0.15;
+const TOOL_POINTER_CAMERA_WINDOW_NDC_X = 0.6;
+const TOOL_POINTER_CAMERA_WINDOW_NDC_Y = 0.5;
 const FOLLOW_CAMERA_DAMPING = 6.8;
 const FOLLOW_CAMERA_RECENTER_DAMPING = 13;
 const FOLLOW_CAMERA_ZOOM_DAMPING = 10;
 const FOLLOW_CAMERA_PAN_THRESHOLD_PX = 8;
 const FOLLOW_CAMERA_PINCH_ZOOM_UNITS_PER_PIXEL = 0.025;
 const FOLLOW_CAMERA_WHEEL_ZOOM_UNITS_PER_PIXEL = 0.012;
+const TOOL_POINTER_CANCEL_ZONE_HEIGHT_PX = 120;
 const FOLLOW_CAMERA_OFFSET_DIRECTION = new Vector3(11, 20.6, 10).normalize();
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
@@ -267,6 +271,10 @@ function isPerspectiveCamera(camera: Camera): camera is PerspectiveCamera {
   return (camera as PerspectiveCamera & { isPerspectiveCamera?: boolean }).isPerspectiveCamera === true;
 }
 
+function isToolPointerCancelZoneHit(clientY: number): boolean {
+  return clientY >= window.innerHeight - TOOL_POINTER_CANCEL_ZONE_HEIGHT_PX;
+}
+
 interface BoardSceneProps {
   cameraControlMode: CameraControlMode;
   terrainThumbnailUrls: Partial<Record<string, string>>;
@@ -293,9 +301,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
   const actionPresentationQueue = useGameStore((state) => state.actionPresentationQueue);
   const [interactionSession, setInteractionSession] = useState<ToolInteractionSession | null>(null);
   const [inspectionCard, setInspectionCard] = useState<SceneInspectionCardData | null>(null);
+  const [activeToolPointerType, setActiveToolPointerType] = useState<string | null>(null);
+  const [isToolPointerInsideCancelZone, setIsToolPointerInsideCancelZone] = useState(false);
   const [cellEntrySerialByPlayer, setCellEntrySerialByPlayer] = useState<Record<string, number>>({});
   const interactionSessionRef = useRef<ToolInteractionSession | null>(null);
   const inspectionTimerRef = useRef<number | null>(null);
+  const activeToolPointerTypeRef = useRef<string | null>(null);
+  const toolPointerFocusWorldRef = useRef<{ x: number; z: number } | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
   const nextCellEntrySerialRef = useRef(1);
@@ -347,6 +359,9 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       ? getToolInteractionDirectionState(interactionSession, myPlayer.position)
       : null;
   const isPointerInteractionActive = Boolean(interactionSession?.pointerActive);
+  const showToolPointerCancelZone = Boolean(
+    interactionSession?.pointerActive && activeToolPointerType === "touch"
+  );
   const canShowDirectionArrows = Boolean(
     myPlayer &&
       canInteract &&
@@ -713,6 +728,55 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     queueTerrainInspectionFromGroundRef.current = queueTerrainInspectionFromGround;
   }, [queueTerrainInspectionFromGround]);
 
+  const setToolPointerType = useCallback((pointerType: string | null) => {
+    activeToolPointerTypeRef.current = pointerType;
+    setActiveToolPointerType(pointerType);
+  }, []);
+
+  const beginToolPointerInteraction = useCallback(
+    (pointerType: string, pointerWorld: { x: number; z: number } | null) => {
+      setToolPointerType(pointerType);
+      setIsToolPointerInsideCancelZone(false);
+      toolPointerFocusWorldRef.current = null;
+
+      if (pointerWorld) {
+        toolPointerFocusWorldRef.current = {
+          x: pointerWorld.x,
+          z: pointerWorld.z
+        };
+      }
+
+      if (cameraControlMode === "follow") {
+        followCameraStateRef.current = "follow";
+      }
+    },
+    [cameraControlMode, setToolPointerType]
+  );
+
+  const updateToolPointerFocusWorld = useCallback((pointerWorld: { x: number; z: number } | null) => {
+    if (!pointerWorld) {
+      return;
+    }
+
+    toolPointerFocusWorldRef.current = {
+      x: pointerWorld.x,
+      z: pointerWorld.z
+    };
+  }, []);
+
+  const clearToolPointerInteractionContext = useCallback(
+    (recenter = true) => {
+      toolPointerFocusWorldRef.current = null;
+      setToolPointerType(null);
+      setIsToolPointerInsideCancelZone(false);
+
+      if (recenter && cameraControlMode === "follow") {
+        followCameraStateRef.current = "recentering";
+      }
+    },
+    [cameraControlMode, setToolPointerType]
+  );
+
   const cancelActiveToolPointerDraft = useCallback(() => {
     const currentSession = interactionSessionRef.current;
 
@@ -723,7 +787,8 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     const nextSession = clearToolInteractionDraft(currentSession);
     interactionSessionRef.current = nextSession;
     setInteractionSession(nextSession);
-  }, []);
+    clearToolPointerInteractionContext();
+  }, [clearToolPointerInteractionContext]);
 
   const cancelCameraPointerGesture = useCallback((pointerId: number) => {
     const currentPanSession = cameraPanSessionRef.current;
@@ -748,8 +813,16 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     cameraPanSessionRef.current = null;
     cameraPinchSessionRef.current = null;
     cameraTouchPointersRef.current.clear();
+    toolPointerFocusWorldRef.current = null;
+    setToolPointerType(null);
+    setIsToolPointerInsideCancelZone(false);
+
+    if (cameraControlMode === "follow") {
+      followCameraStateRef.current = "follow";
+    }
+
     cancelInspection();
-  }, [cancelInspection]);
+  }, [cameraControlMode, cancelInspection, setToolPointerType]);
 
   const addCameraPanFromScreenDelta = useCallback(
     (target: Vector3, deltaClientX: number, deltaClientY: number) => {
@@ -794,7 +867,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
   );
 
   const updateFollowTargetWithinScreenWindow = useCallback(
-    (currentTarget: Vector3, focusTarget: Vector3, output: Vector3) => {
+    (
+      currentTarget: Vector3,
+      focusTarget: Vector3,
+      output: Vector3,
+      windowNdcX: number,
+      windowNdcY: number
+    ) => {
       const bounds = gl.domElement.getBoundingClientRect();
 
       output.copy(currentTarget);
@@ -805,10 +884,10 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
 
       const targetProjection = cameraScreenTargetProjectionRef.current.copy(currentTarget).project(camera);
       const focusProjection = cameraScreenFocusProjectionRef.current.copy(focusTarget).project(camera);
-      const minX = targetProjection.x - FOLLOW_CAMERA_WINDOW_NDC_X;
-      const maxX = targetProjection.x + FOLLOW_CAMERA_WINDOW_NDC_X;
-      const minY = targetProjection.y - FOLLOW_CAMERA_WINDOW_NDC_Y;
-      const maxY = targetProjection.y + FOLLOW_CAMERA_WINDOW_NDC_Y;
+      const minX = targetProjection.x - windowNdcX;
+      const maxX = targetProjection.x + windowNdcX;
+      const minY = targetProjection.y - windowNdcY;
+      const maxY = targetProjection.y + windowNdcY;
       const clampedFocusX = clampNumber(focusProjection.x, minX, maxX);
       const clampedFocusY = clampNumber(focusProjection.y, minY, maxY);
       const contentDeltaClientX = ((clampedFocusX - focusProjection.x) * bounds.width) / 2;
@@ -1034,8 +1113,18 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     }
 
     const focusTarget = cameraFocusTargetRef.current;
+    const toolPointerFocusWorld =
+      interactionSessionRef.current?.pointerActive ? toolPointerFocusWorldRef.current : null;
+    const followWindowNdcX = toolPointerFocusWorld
+      ? TOOL_POINTER_CAMERA_WINDOW_NDC_X
+      : FOLLOW_CAMERA_WINDOW_NDC_X;
+    const followWindowNdcY = toolPointerFocusWorld
+      ? TOOL_POINTER_CAMERA_WINDOW_NDC_Y
+      : FOLLOW_CAMERA_WINDOW_NDC_Y;
 
-    if (snapshot && currentPlayerDisplayedPosition) {
+    if (toolPointerFocusWorld) {
+      focusTarget.set(toolPointerFocusWorld.x, 0, toolPointerFocusWorld.z);
+    } else if (snapshot && currentPlayerDisplayedPosition) {
       const [focusX, , focusZ] = toWorldPositionFromGrid(
         currentPlayerDisplayedPosition.x,
         currentPlayerDisplayedPosition.y,
@@ -1068,13 +1157,17 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       updateFollowTargetWithinScreenWindow(
         cameraTargetRef.current,
         focusTarget,
-        cameraDesiredTargetRef.current
+        cameraDesiredTargetRef.current,
+        followWindowNdcX,
+        followWindowNdcY
       );
     } else {
       updateFollowTargetWithinScreenWindow(
         cameraTargetRef.current,
         focusTarget,
-        cameraDesiredTargetRef.current
+        cameraDesiredTargetRef.current,
+        followWindowNdcX,
+        followWindowNdcY
       );
     }
 
@@ -1105,12 +1198,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
   });
 
   const startToolInteractionPointer = useCallback(
-    (tool: TurnToolSnapshot, clientX: number, clientY: number) => {
+    (tool: TurnToolSnapshot, clientX: number, clientY: number, pointerType: string) => {
       if (!snapshot || !myPlayer || !canInteract || isInstantInteractionTool(tool.toolId)) {
         return;
       }
 
       cancelCameraGestureForToolUse();
+      const pointerWorld = projectPointerToGround(clientX, clientY);
       const currentSession = interactionSessionRef.current;
       const baseSession =
         currentSession && currentSession.toolInstanceId === tool.instanceId
@@ -1120,15 +1214,17 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         actorPosition: myPlayer.position,
         boardHeight: snapshot.boardHeight,
         boardWidth: snapshot.boardWidth,
-        pointerWorld: projectPointerToGround(clientX, clientY)
+        pointerWorld
       });
 
       interactionSessionRef.current = nextSession;
       setSelectedToolInstanceId(tool.instanceId);
       setInteractionSession(nextSession);
+      beginToolPointerInteraction(pointerType, pointerWorld);
       cancelInspection();
     },
     [
+      beginToolPointerInteraction,
       cancelCameraGestureForToolUse,
       cancelInspection,
       canInteract,
@@ -1140,12 +1236,12 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
   );
 
   const startSelectedInteractionPointer = useCallback(
-    (clientX: number, clientY: number): boolean => {
+    (clientX: number, clientY: number, pointerType: string): boolean => {
       if (!selectedInteractiveTool) {
         return false;
       }
 
-      startToolInteractionPointer(selectedInteractiveTool, clientX, clientY);
+      startToolInteractionPointer(selectedInteractiveTool, clientX, clientY, pointerType);
       return true;
     },
     [selectedInteractiveTool, startToolInteractionPointer]
@@ -1155,6 +1251,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     if (!selectedInteractiveTool || !myPlayer || !canInteract) {
       interactionSessionRef.current = null;
       setInteractionSession(null);
+      clearToolPointerInteractionContext(false);
       return;
     }
 
@@ -1172,12 +1269,20 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       interactionSessionRef.current = nextSession;
       return nextSession;
     });
-  }, [canInteract, myPlayer, selectedInteractiveTool]);
+  }, [canInteract, clearToolPointerInteractionContext, myPlayer, selectedInteractiveTool]);
 
   useEffect(() => {
     if (!snapshot || !myPlayer || !canInteract) {
       return;
     }
+
+    const cancelInteraction = () => {
+      interactionSessionRef.current = null;
+      setInteractionSession(null);
+      setSelectedToolInstanceId(null);
+      clearToolPointerInteractionContext();
+      cancelInspection();
+    };
 
     const onPointerMove = (event: PointerEvent) => {
       const currentSession = interactionSessionRef.current;
@@ -1186,11 +1291,24 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         return;
       }
 
+      const isTouchCancelPointer = activeToolPointerTypeRef.current === "touch";
+      const isInsideCancelZone = isTouchCancelPointer && isToolPointerCancelZoneHit(event.clientY);
+      setIsToolPointerInsideCancelZone(isInsideCancelZone);
+
+      if (isInsideCancelZone) {
+        event.preventDefault();
+        cancelInteraction();
+        return;
+      }
+
+      const pointerWorld = projectPointerToGround(event.clientX, event.clientY);
+      updateToolPointerFocusWorld(pointerWorld);
+
       const nextSession = updateToolInteractionFromPointer(currentSession, {
         actorPosition: myPlayer.position,
         boardHeight: snapshot.boardHeight,
         boardWidth: snapshot.boardWidth,
-        pointerWorld: projectPointerToGround(event.clientX, event.clientY)
+        pointerWorld
       });
 
       interactionSessionRef.current = nextSession;
@@ -1208,7 +1326,17 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         return;
       }
 
+      if (
+        activeToolPointerTypeRef.current === "touch" &&
+        isToolPointerCancelZoneHit(event.clientY)
+      ) {
+        event.preventDefault();
+        cancelInteraction();
+        return;
+      }
+
       const result = finalizeToolInteractionStage(currentSession);
+      clearToolPointerInteractionContext();
 
       if (result.kind === "execute" && result.payload) {
         const didSend = useToolPayload(result.payload, currentSession.toolInstanceId);
@@ -1222,13 +1350,6 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
 
       interactionSessionRef.current = result.session;
       setInteractionSession(result.session);
-    };
-
-    const cancelInteraction = () => {
-      interactionSessionRef.current = null;
-      setInteractionSession(null);
-      setSelectedToolInstanceId(null);
-      cancelInspection();
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -1259,6 +1380,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       const nextSession = clearToolInteractionDraft(currentSession);
       interactionSessionRef.current = nextSession;
       setInteractionSession(nextSession);
+      clearToolPointerInteractionContext();
     };
 
     const onContextMenu = (event: MouseEvent) => {
@@ -1290,8 +1412,11 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     dragRaycaster,
     gl,
     myPlayer,
+    clearToolPointerInteractionContext,
+    projectPointerToGround,
     setSelectedToolInstanceId,
     snapshot,
+    updateToolPointerFocusWorld,
     useToolPayload
   ]);
 
@@ -1471,7 +1596,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       if (canStartScenePointerInteraction) {
         event.stopPropagation();
         cancelInspection();
-        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        if (
+          startSelectedInteractionPointer(
+            event.nativeEvent.clientX,
+            event.nativeEvent.clientY,
+            event.nativeEvent.pointerType
+          )
+        ) {
           cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
@@ -1494,7 +1625,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       if (canStartScenePointerInteraction) {
         event.stopPropagation();
         cancelInspection();
-        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        if (
+          startSelectedInteractionPointer(
+            event.nativeEvent.clientX,
+            event.nativeEvent.clientY,
+            event.nativeEvent.pointerType
+          )
+        ) {
           cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
@@ -1518,7 +1655,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       if (canStartScenePointerInteraction) {
         event.stopPropagation();
         cancelInspection();
-        if (startSelectedInteractionPointer(event.nativeEvent.clientX, event.nativeEvent.clientY)) {
+        if (
+          startSelectedInteractionPointer(
+            event.nativeEvent.clientX,
+            event.nativeEvent.clientY,
+            event.nativeEvent.pointerType
+          )
+        ) {
           cancelCameraPointerGesture(event.nativeEvent.pointerId);
           return;
         }
@@ -1667,7 +1810,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
                 screenOffsetY={actionRingOffset.y}
                 selectedToolInstanceId={isMe ? selectedToolInstanceId : null}
                 showArc={!isMe || showActionRingArc}
-                onBeginPointerTool={(toolInstanceId, clientX, clientY) => {
+                onBeginPointerTool={(toolInstanceId, clientX, clientY, pointerType) => {
                   if (!isMe || !canInteract) {
                     return;
                   }
@@ -1675,7 +1818,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
                   const tool = findToolInstance(snapshotPlayer.tools, toolInstanceId);
 
                   if (tool) {
-                    startToolInteractionPointer(tool, clientX, clientY);
+                    startToolInteractionPointer(tool, clientX, clientY, pointerType);
                   }
                 }}
                 onCommitChoice={(toolInstanceId, choiceId) => {
@@ -1797,6 +1940,10 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         />
       ) : null}
 
+      <SceneToolCancelZone
+        active={isToolPointerInsideCancelZone}
+        visible={showToolPointerCancelZone}
+      />
       <SceneInspectionCard inspection={inspectionCard} />
 
       {currentPlayer ? (

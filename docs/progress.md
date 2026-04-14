@@ -486,3 +486,21 @@
   - `npm.cmd run build --workspace @watcher/client`
   - shared 语义抽检：Pit 触发时 presentation 顺序为 `motion:ground:0 -> motion:spin_drop:150`
   - shared 语义抽检：跳跃飞过 Pit 只生成 `motion:arc:0`，不生成 `spin_drop`
+
+## 2026-04-14 工具拖拽跟随与移动端取消区
+
+- 调整 pointer tool 拖拽时的 follow 相机：
+  - 工具拖拽激活后，相机 focus 从当前行动玩家切换为当前 pointer 的世界坐标
+  - pointer 释放、取消或执行后，focus 清回玩家，并进入 `recentering`
+  - 工具拖拽使用独立的 `TOOL_POINTER_CAMERA_WINDOW_NDC_X/Y` 参数，当前先与角色 follow 的 camera window 保持一致
+- 新增移动端底部取消区：
+  - touch 拖拽工具时，屏幕底部显示取消带
+  - 手指拖入底部取消带，或在取消带内抬起时，按与右键相同的路径取消当前工具交互
+  - 取消带只依赖当前 pointer tool 状态，不引入任何 Tool 专用特判
+- 客户端实现整理：
+  - `SceneToolCancelZone` 作为独立 scene overlay 组件挂入 `BoardScene`
+  - `BoardScene` 单独维护工具拖拽期间的原始 pointer 世界坐标，避免把相机逻辑塞进 tool interaction session
+- 已验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `npm.cmd run goldens`，`31/31` golden cases passed
