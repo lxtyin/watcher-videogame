@@ -61,6 +61,7 @@ import {
   toGridPositionFromWorld,
   toWorldPosition
 } from "../utils/boardMath";
+import { estimateBoardShadowBounds } from "../utils/shadowCamera";
 
 interface SceneHudOffset {
   x: number;
@@ -96,15 +97,15 @@ const STACK_ENTRY_LIFT_EPSILON = 0.12;
 const FOLLOW_CAMERA_DEFAULT_DISTANCE = 14;
 const FOLLOW_CAMERA_MIN_DISTANCE = 9.5;
 const FOLLOW_CAMERA_MAX_DISTANCE = 22;
-const FOLLOW_CAMERA_WINDOW_NDC_X = 0.34;
-const FOLLOW_CAMERA_WINDOW_NDC_Y = 0.22;
+const FOLLOW_CAMERA_WINDOW_NDC_X = 0.24;
+const FOLLOW_CAMERA_WINDOW_NDC_Y = 0.15;
 const FOLLOW_CAMERA_DAMPING = 6.8;
 const FOLLOW_CAMERA_RECENTER_DAMPING = 13;
 const FOLLOW_CAMERA_ZOOM_DAMPING = 10;
 const FOLLOW_CAMERA_PAN_THRESHOLD_PX = 8;
 const FOLLOW_CAMERA_PINCH_ZOOM_UNITS_PER_PIXEL = 0.025;
 const FOLLOW_CAMERA_WHEEL_ZOOM_UNITS_PER_PIXEL = 0.012;
-const FOLLOW_CAMERA_OFFSET_DIRECTION = new Vector3(11, 15.6, 10).normalize();
+const FOLLOW_CAMERA_OFFSET_DIRECTION = new Vector3(11, 20.6, 10).normalize();
 const DIRECTION_ROTATION_Y: Record<Direction, number> = {
   up: 0,
   right: -Math.PI / 2,
@@ -1458,6 +1459,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       isPointerStageActive(interactionSession) &&
       !interactionSession.pointerActive
   );
+  const shadowBounds = estimateBoardShadowBounds(snapshot.boardWidth, snapshot.boardHeight);
 
   const handlePiecePointerDown = useCallback(
     (player: PlayerSnapshot, event: ThreeEvent<PointerEvent>) => {
@@ -1537,8 +1539,13 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         castShadow
         intensity={1.35}
         position={[6, 12, 4]}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-camera-bottom={-shadowBounds}
+        shadow-camera-left={-shadowBounds}
+        shadow-camera-right={shadowBounds}
+        shadow-camera-top={shadowBounds}
+        shadow-bias={-0.0001}
+        shadow-mapSize-width={4096}
+        shadow-mapSize-height={4096}
       />
       <mesh position={[0, -0.7, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[snapshot.boardWidth + 2, snapshot.boardHeight + 2]} />
@@ -1548,6 +1555,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
       <BoardStaticTileLayer
         boardHeight={snapshot.boardHeight}
         boardWidth={snapshot.boardWidth}
+        highlightKeys={scenePreview.highlightKeys}
         onTilePointerDown={handleTilePointerDown}
         tiles={stableDisplayedTiles}
       />

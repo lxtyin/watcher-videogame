@@ -4,6 +4,7 @@ import {
   type GridPosition
 } from "@watcher/shared";
 import { BoardTileVisual } from "../game/assets/board/BoardTileVisual";
+import { estimateBoardShadowBounds } from "../game/utils/shadowCamera";
 import type { TerrainLibraryEntry } from "./terrainCatalog";
 
 const GHOST_SELECTION_COLOR = "#f7f0dc";
@@ -43,12 +44,23 @@ export function MapEditorScene({
       ? createGhostBoard(board, selectedTerrain, hoveredPosition)
       : null;
   const hoveredTileKey = hoveredPosition ? toTileKey(hoveredPosition) : null;
+  const shadowBounds = estimateBoardShadowBounds(board.width, board.height);
 
   return (
     <>
       <color attach="background" args={["#f3ead9"]} />
       <ambientLight intensity={1.08} />
-      <directionalLight castShadow intensity={1.18} position={[5, 9, 6]} shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+      <directionalLight
+        castShadow
+        intensity={1.18}
+        position={[5, 9, 6]}
+        shadow-camera-bottom={-shadowBounds}
+        shadow-camera-left={-shadowBounds}
+        shadow-camera-right={shadowBounds}
+        shadow-camera-top={shadowBounds}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
       <group>
         {board.tiles.map((tile) => (
           <BoardTileVisual

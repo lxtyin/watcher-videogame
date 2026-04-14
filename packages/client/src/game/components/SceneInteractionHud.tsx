@@ -223,6 +223,7 @@ export function SceneActionRing({
             }
 
             event.preventDefault();
+            event.stopPropagation();
             onBeginPointerTool(tool.instanceId, event.clientX, event.clientY);
           }
         : undefined;
@@ -333,8 +334,20 @@ export function SceneActionRing({
                 data-tool-id={action.toolId}
                 data-tool-instance-id={action.toolInstanceId}
                 style={{ ...getRingButtonStyle(index, actions.length), "--scene-accent": action.accent } as CSSProperties}
-                onPointerDown={interactive ? action.onPointerDown : undefined}
-                onClick={interactive ? action.onClick : undefined}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+
+                  if (interactive) {
+                    action.onPointerDown?.(event);
+                  }
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+
+                  if (interactive) {
+                    action.onClick();
+                  }
+                }}
                 aria-disabled={action.disabled || !interactive}
               >
                 <span className="scene-action-button__token">{action.token}</span>
@@ -351,7 +364,13 @@ export function SceneActionRing({
                 type="button"
                 className="scene-choice-button"
                 data-testid={`scene-choice-${selectedChoiceTool.toolId}-${choice.id}`}
-                onClick={() => onCommitChoice(selectedChoiceTool.instanceId, choice.id)}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCommitChoice(selectedChoiceTool.instanceId, choice.id);
+                }}
               >
                 <span className="scene-choice-button__label">{choice.label}</span>
                 <span className="scene-choice-button__detail">{choice.description}</span>

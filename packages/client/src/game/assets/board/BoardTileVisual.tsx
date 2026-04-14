@@ -12,6 +12,7 @@ import { PoisonTileAsset } from "./PoisonTileAsset";
 import { StartTileAsset } from "./StartTileAsset";
 import { ToolTilePreviewAsset } from "../tools/shared/ToolTilePreviewAsset";
 import { WallTileAsset } from "./WallTileAsset";
+import { DangerTileHighlightAsset } from "./DangerTileHighlightAsset";
 
 interface TileVisualStyle {
   color: string;
@@ -21,7 +22,7 @@ interface TileVisualStyle {
 export const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   floor: { color: "#d5c6a1", height: 0.22 },
   wall: { color: "#455062", height: 0.8 },
-  earthWall: { color: "#bc7441", height: 0.8 },
+  earthWall: { color: "#bc7441", height: 0.22 },
   highwall: { color: "#556273", height: 0.8 },
   poison: { color: "#4c6b3e", height: 0.22 },
   pit: { color: "#8b705f", height: 0.22 },
@@ -33,11 +34,18 @@ export const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   goal: { color: "#e59e96", height: 0.22 }
 };
 
-export function BoardTileDecorationAsset({ tile }: { tile: TileDefinition }) {
+
+export function BoardTileDecorationAsset({
+  highlighted = false,
+  tile
+}: {
+  highlighted?: boolean;
+  tile: TileDefinition;
+}) {
   return (
     <>
       {tile.type === "wall" ? <WallTileAsset /> : null}
-      {tile.type === "earthWall" ? <EarthWallTileAsset /> : null}
+      {tile.type === "earthWall" ? <EarthWallTileAsset breaking={highlighted} /> : null}
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
       {tile.type === "poison" ? <PoisonTileAsset /> : null}
       {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
@@ -46,8 +54,9 @@ export function BoardTileDecorationAsset({ tile }: { tile: TileDefinition }) {
       {tile.type === "start" ? <StartTileAsset /> : null}
       {tile.type === "goal" ? <GoalTileAsset /> : null}
       {tile.type === "conveyor" && tile.direction ? (
-        <ConveyorArrowAsset direction={tile.direction} />
+        <ConveyorArrowAsset direction={tile.direction} highlighted={highlighted}/>
       ) : null}
+      {highlighted && (tile.type === "pit" || tile.type === "poison") ? <DangerTileHighlightAsset /> : null}
     </>
   );
 }
@@ -81,6 +90,7 @@ export function BoardTileVisual({
   selectionActive,
   selectionColor,
   tile,
+  highlighted = false,
   yOffset = 0
 }: {
   baseOpacity?: number;
@@ -92,6 +102,7 @@ export function BoardTileVisual({
   selectionActive: boolean;
   selectionColor: string;
   tile: TileDefinition;
+  highlighted?: boolean;
   yOffset?: number;
 }) {
   const [x, y, z] = toWorldPosition({ x: tile.x, y: tile.y }, boardWidth, boardHeight);
@@ -112,7 +123,7 @@ export function BoardTileVisual({
           opacity={baseOpacity}
         />
       </mesh>
-      <BoardTileDecorationAsset tile={tile} />
+      <BoardTileDecorationAsset highlighted={highlighted} tile={tile} />
       <BoardTileSelectionOverlay active={selectionActive} color={selectionColor} />
     </group>
   );

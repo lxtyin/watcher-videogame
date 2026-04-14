@@ -1,4 +1,4 @@
-import { appendTerrainTrigger, respawnPlayerOnTerrain } from "./helpers";
+import { appendTerrainPreviewHighlight, appendTerrainTrigger, respawnPlayerOnTerrain } from "./helpers";
 import type { TerrainModule } from "./types";
 
 export const POISON_TERRAIN_MODULE: TerrainModule = {
@@ -10,6 +10,7 @@ export const POISON_TERRAIN_MODULE: TerrainModule = {
   }),
   label: "毒气",
   onStop: (context) => {
+    appendTerrainPreviewHighlight(context.draft, context.position);
     respawnPlayerOnTerrain(context.draft, {
       eventId: `${context.draft.sourceId}:poison:${context.tile.key}`,
       motionStyle: "fall_side",

@@ -64,6 +64,7 @@ export function createPreviewDescriptor(
   return {
     actorPath: dedupePreviewPositions([...(preview.actorPath ?? [])]),
     effectTiles: dedupePreviewPositions([...(preview.effectTiles ?? [])]),
+    highlightTiles: dedupePreviewPositions([...(preview.highlightTiles ?? [])]),
     playerTargets: (preview.playerTargets ?? []).map((target) => ({
       boardVisible: target.boardVisible,
       playerId: target.playerId,

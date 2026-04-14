@@ -135,19 +135,19 @@ export const SUMMON_DEFINITIONS: Record<SummonId, SummonDefinition> = {
     id: "wallet",
     ...SUMMON_REGISTRY.wallet,
     onPassThrough: (context) => {
-      if (!canWalletTrigger(context, ["translate", "drag"])) {
+      if (!canWalletTrigger(context, ["translate", "drag", "landing"])) {
         return;
       }
 
       grantWalletReward(context);
     },
-    onStop: (context) => {
-      if (!canWalletTrigger(context, ["leap"])) {
-        return;
-      }
+    // onStop: (context) => {
+    //   if (!canWalletTrigger(context, ["leap"])) {
+    //     return;
+    //   }
 
-      grantWalletReward(context);
-    }
+    //   grantWalletReward(context);
+    // }
   }
 };
 

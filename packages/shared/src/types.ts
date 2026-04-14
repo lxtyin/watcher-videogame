@@ -503,6 +503,7 @@ export interface PreviewPlayerTarget {
 export interface PreviewDescriptor {
   actorPath: GridPosition[];
   effectTiles: GridPosition[];
+  highlightTiles: GridPosition[];
   playerTargets: PreviewPlayerTarget[];
   selectionTiles: GridPosition[];
   valid: boolean;

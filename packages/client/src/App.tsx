@@ -4,6 +4,7 @@ import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
 import { CreateRoomScreen } from "./game/components/CreateRoomScreen";
 import { HomeScreen } from "./game/components/HomeScreen";
 import { HudSidebar } from "./game/components/HudSidebar";
+import { MobilePwaPrompt } from "./game/components/MobilePwaPrompt";
 import { RaceSettlementOverlay } from "./game/components/RaceSettlementOverlay";
 import { RoomEntryScreen } from "./game/components/RoomEntryScreen";
 import { useAnimationClock } from "./game/hooks/useAnimationClock";
@@ -127,46 +128,52 @@ export default function App() {
   if (!route.roomCode) {
     if (route.screen === "create") {
       return (
-        <CreateRoomScreen
-          busy={busy}
-          lastError={lastError}
-          mapId={selectedCreateMapId}
-          onBack={navigateHome}
-          onCreateRoom={async () => {
-            const roomCode = await createRoom({
-              mapId: selectedCreateMapId,
-              petId: playerProfile.petId,
-              playerName: playerProfile.playerName
-            });
+        <>
+          <CreateRoomScreen
+            busy={busy}
+            lastError={lastError}
+            mapId={selectedCreateMapId}
+            onBack={navigateHome}
+            onCreateRoom={async () => {
+              const roomCode = await createRoom({
+                mapId: selectedCreateMapId,
+                petId: playerProfile.petId,
+                playerName: playerProfile.playerName
+              });
 
-            if (roomCode) {
-              navigateToRoom(roomCode);
-            }
-          }}
-          onMapIdChange={setSelectedCreateMapId}
-        />
+              if (roomCode) {
+                navigateToRoom(roomCode);
+              }
+            }}
+            onMapIdChange={setSelectedCreateMapId}
+          />
+          <MobilePwaPrompt />
+        </>
       );
     }
 
     return (
-      <HomeScreen
-        busy={busy}
-        lastError={lastError}
-        onJoinRoom={async ({ petId, playerName, roomCode }) => {
-          const joined = await joinRoom({ petId, playerName, roomCode });
+      <>
+        <HomeScreen
+          busy={busy}
+          lastError={lastError}
+          onJoinRoom={async ({ petId, playerName, roomCode }) => {
+            const joined = await joinRoom({ petId, playerName, roomCode });
 
-          if (joined) {
-            navigateToRoom(roomCode.trim());
+            if (joined) {
+              navigateToRoom(roomCode.trim());
+            }
+          }}
+          onOpenCreateScreen={navigateToCreateScreen}
+          onPetIdChange={(petId) => setPlayerProfile((current) => ({ ...current, petId }))}
+          onPlayerNameChange={(playerName) =>
+            setPlayerProfile((current) => ({ ...current, playerName }))
           }
-        }}
-        onOpenCreateScreen={navigateToCreateScreen}
-        onPetIdChange={(petId) => setPlayerProfile((current) => ({ ...current, petId }))}
-        onPlayerNameChange={(playerName) =>
-          setPlayerProfile((current) => ({ ...current, playerName }))
-        }
-        petId={playerProfile.petId}
-        playerName={playerProfile.playerName}
-      />
+          petId={playerProfile.petId}
+          playerName={playerProfile.playerName}
+        />
+        <MobilePwaPrompt />
+      </>
     );
   }
 
@@ -174,36 +181,39 @@ export default function App() {
 
   if (!snapshot) {
     return (
-      <RoomEntryScreen
-        busy={roomEntryBusy}
-        canReconnect={hasStoredRoomSessionForRoom(roomCode)}
-        initialPlayerName={playerProfile.playerName}
-        lastError={lastError}
-        onBackHome={() => {
-          void leaveRoom().finally(() => {
-            navigateHome();
-          });
-        }}
-        onJoinRoom={async ({ playerName, roomCode }) => {
-          const joined = await joinRoom({
-            petId: playerProfile.petId,
-            playerName,
-            roomCode
-          });
+      <>
+        <RoomEntryScreen
+          busy={roomEntryBusy}
+          canReconnect={hasStoredRoomSessionForRoom(roomCode)}
+          initialPlayerName={playerProfile.playerName}
+          lastError={lastError}
+          onBackHome={() => {
+            void leaveRoom().finally(() => {
+              navigateHome();
+            });
+          }}
+          onJoinRoom={async ({ playerName, roomCode }) => {
+            const joined = await joinRoom({
+              petId: playerProfile.petId,
+              playerName,
+              roomCode
+            });
 
-          if (joined) {
-            navigateToRoom(roomCode.trim());
-          }
-        }}
-        onReconnect={async () => {
-          const reconnected = await reconnectToStoredRoom(roomCode);
+            if (joined) {
+              navigateToRoom(roomCode.trim());
+            }
+          }}
+          onReconnect={async () => {
+            const reconnected = await reconnectToStoredRoom(roomCode);
 
-          if (reconnected) {
-            navigateToRoom(roomCode);
-          }
-        }}
-        roomCode={roomCode}
-      />
+            if (reconnected) {
+              navigateToRoom(roomCode);
+            }
+          }}
+          roomCode={roomCode}
+        />
+        <MobilePwaPrompt />
+      </>
     );
   }
 
@@ -258,6 +268,8 @@ export default function App() {
           }}
         />
       ) : null}
+
+      <MobilePwaPrompt />
     </div>
   );
 }

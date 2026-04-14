@@ -24,7 +24,7 @@ import type {
   TurnToolSnapshot
 } from "../types";
 import { createPresentation } from "./actionPresentation";
-import { createEmptyPreview } from "./previewDescriptor";
+import { createEmptyPreview, createPreviewDescriptor } from "./previewDescriptor";
 
 export interface ResolutionDraft {
   actor: MovementActor;
@@ -35,6 +35,7 @@ export interface ResolutionDraft {
   playersById: Map<string, BoardPlayerState>;
   presentationEvents: ActionPresentationEvent[];
   presentationToolId: ToolId;
+  previewHighlightTiles: GridPosition[];
   sourceId: string;
   summonMutations: SummonMutation[];
   summonsById: Map<string, BoardSummonState>;
@@ -61,6 +62,24 @@ function clonePosition(position: GridPosition): GridPosition {
     x: position.x,
     y: position.y
   };
+}
+
+function appendUniquePosition(positions: GridPosition[], position: GridPosition): void {
+  if (positions.some((entry) => entry.x === position.x && entry.y === position.y)) {
+    return;
+  }
+
+  positions.push(clonePosition(position));
+}
+
+function finalizeDraftPreview(draft: ToolActionDraft): PreviewDescriptor {
+  return createPreviewDescriptor({
+    ...draft.preview,
+    highlightTiles: [
+      ...draft.preview.highlightTiles,
+      ...draft.previewHighlightTiles
+    ]
+  });
 }
 
 function cloneBoardPlayerState(player: BoardPlayerState): BoardPlayerState {
@@ -140,6 +159,7 @@ export function createResolutionDraft(options: {
     ),
     presentationEvents: [],
     presentationToolId: options.presentationToolId,
+    previewHighlightTiles: [],
     sourceId: options.sourceId,
     summonMutations: [],
     summonsById: new Map(
@@ -421,6 +441,15 @@ export function appendDraftTriggeredSummonEffects(
   draft.triggeredSummonEffects.push(...triggeredSummonEffects);
 }
 
+export function appendDraftPreviewHighlightTiles(
+  draft: ResolutionDraft,
+  highlightTiles: GridPosition[]
+): void {
+  for (const position of highlightTiles) {
+    appendUniquePosition(draft.previewHighlightTiles, position);
+  }
+}
+
 export function setDraftBlocked(
   draft: ToolActionDraft,
   reason: string,
@@ -474,6 +503,7 @@ export function finalizeToolActionDraft(draft: ToolActionDraft): ActionResolutio
     draft.presentationEvents.length
       ? createPresentation(draft.actorId, draft.presentationToolId, draft.presentationEvents)
       : null;
+  const preview = finalizeDraftPreview(draft);
 
   if (draft.kind === "blocked") {
     return {
@@ -491,7 +521,7 @@ export function finalizeToolActionDraft(draft: ToolActionDraft): ActionResolutio
       path: draft.path.map(clonePosition),
       phaseEffect: null,
       presentation,
-      preview: draft.preview,
+      preview,
       reason: draft.reason ?? "Tool did not resolve",
       summonMutations: draft.summonMutations,
       tileMutations: draft.tileMutations,
@@ -516,7 +546,7 @@ export function finalizeToolActionDraft(draft: ToolActionDraft): ActionResolutio
     path: draft.path.map(clonePosition),
     phaseEffect: draft.phaseEffect,
     presentation,
-    preview: draft.preview,
+    preview,
     summary: draft.summary ?? "Tool resolved.",
     summonMutations: draft.summonMutations,
     tileMutations: draft.tileMutations,

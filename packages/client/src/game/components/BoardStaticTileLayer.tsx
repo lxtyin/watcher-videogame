@@ -131,10 +131,12 @@ function TileBaseInstances({
 function TileDecorationLayer({
   boardHeight,
   boardWidth,
+  highlightKeys,
   tiles
 }: {
   boardHeight: number;
   boardWidth: number;
+  highlightKeys: ReadonlySet<string>;
   tiles: readonly TileDefinition[];
 }) {
   return (
@@ -144,7 +146,7 @@ function TileDecorationLayer({
 
         return (
           <group key={`tile-decoration-${tile.key}`} position={[x, y, z]}>
-            <BoardTileDecorationAsset tile={tile} />
+            <BoardTileDecorationAsset highlighted={highlightKeys.has(tile.key)} tile={tile} />
           </group>
         );
       })}
@@ -241,15 +243,18 @@ function BoardTileSelectionLayerComponent({
 function BoardStaticTileLayerComponent({
   boardHeight,
   boardWidth,
+  highlightKeys,
   onTilePointerDown,
   tiles
 }: {
   boardHeight: number;
   boardWidth: number;
+  highlightKeys?: ReadonlySet<string>;
   onTilePointerDown: ((tile: TileDefinition, event: ThreeEvent<PointerEvent>) => void) | undefined;
   tiles: readonly TileDefinition[];
 }) {
   const groupedTiles = useMemo(() => groupTilesByType(tiles), [tiles]);
+  const activeHighlightKeys = highlightKeys ?? new Set<string>();
 
   return (
     <>
@@ -265,6 +270,7 @@ function BoardStaticTileLayerComponent({
       <TileDecorationLayer
         boardHeight={boardHeight}
         boardWidth={boardWidth}
+        highlightKeys={activeHighlightKeys}
         tiles={tiles}
       />
       <TileInteractionLayer

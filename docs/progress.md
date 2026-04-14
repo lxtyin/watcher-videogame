@@ -403,3 +403,69 @@
   - `npm.cmd run build --workspace @watcher/client`
   - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
   - 自定义 Playwright 交互检查：拖拽后玩家回到屏幕窗口边界内，zoom out 后仍按屏幕窗口约束
+
+## 2026-04-13 PWA 与单点按压优先级
+
+- 按移动端 Web 游戏的 PWA 方案补齐客户端外壳：
+  - 新增 `manifest.webmanifest`，使用 `fullscreen + landscape`，并声明主题色、启动范围和 SVG 图标
+  - 新增生产环境 service worker，缓存 app shell 与静态资源，导航请求保持 network-first 回退
+  - `index.html` 增加 manifest、theme color、standalone/iOS Web App meta 与 `viewport-fit=cover`
+  - `main.tsx` 仅在生产环境注册 service worker，避免开发时缓存干扰
+- 单点按压优先级整理：
+  - 场景弧形工具按钮、选择按钮与左侧栏工具按钮在 `pointerdown/click` 阶段阻止事件继续冒泡
+  - 工具按钮区域使用 `touch-action: none`，棋盘区域保持 `touch-action: none`
+  - 页面根节点增加 `overscroll-behavior`，减少移动端下拉刷新/边界滚动干扰
+- 已验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
+  - 自定义 Playwright 交互检查：棋盘拖动会平移视角，静止长按会显示检查卡，按住场景工具按钮拖动时相机位移为 0px
+
+## 2026-04-13 移动端全屏提示
+
+- 确认 PWA manifest 不会改变普通浏览器标签页的地址栏/标签栏表现：
+  - `display: fullscreen` 只影响已安装 PWA 从桌面图标启动后的显示模式
+  - `requestFullscreen()` 需要用户手势，不能在横屏事件中静默触发
+- 新增移动端普通浏览器提示：
+  - `MobilePwaPrompt` 在 coarse pointer 且非 standalone/fullscreen display mode 时显示
+  - 支持 `beforeinstallprompt` 的浏览器会出现“安装应用”入口
+  - 支持 Fullscreen API 的浏览器会出现“进入全屏”入口
+  - iOS 等不支持安装事件的浏览器显示“分享菜单添加到主屏幕”的文字提示
+- 调整提示位置：
+  - 横屏时放在右上角，避免遮挡创建页底部按钮
+  - 竖屏时保持底部展示，并低于横屏提示层级
+- manifest 补充 `id` 与 `display_override`，让不支持 `fullscreen` 的浏览器按 `standalone / minimal-ui / browser` 顺序回退。
+- manifest 将同一个 SVG 图标显式声明为 `any / 192x192 / 512x512`；后续若要更稳触发 Chromium 安装推广，建议补正式 PNG 图标导出链。
+- 已验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `develop-web-game` Playwright 脚本回放 `basic-movement-right`，golden 通过且无 console error
+  - 移动端横屏 Playwright 检查：首页、创建页和对局内都会显示移动端全屏/安装提示
+
+## 2026-04-14 阴影相机范围
+
+- 为 directional light 增加按地图尺寸估算的 shadow camera bounds：
+  - 主棋盘、建房地图预览、地图编辑器都使用 `estimateBoardShadowBounds()`
+  - bounds 使用棋盘半对角线加保守 margin，避免 Three.js 默认 `10 x 10` 阴影正交范围在大地图上出现方形边界
+- 已验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-14 地形预览强调
+
+- `PreviewDescriptor` 新增 `highlightTiles`：
+  - shared 提供显式写入 helper，由工具或地形在结算过程中主动登记强调地块
+  - 当前覆盖顺向传送带加速、土墙被击碎、毒气/坑洞死亡预览
+  - client 根据当前地形类型决定具体表现，不在 shared 写 mesh 细节
+- 客户端棋盘地形预览：
+  - 传送带高亮时箭头变绿
+  - 土墙资产重做为层次不齐的长条柱子，高亮时虚化并向外倒塌
+  - 毒气/坑洞高亮时在地块上方显示红色危险提示
+- 已验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run build --workspace @watcher/client`
+  - shared 语义抽检：移动经过传送带/土墙、坑、毒时 `preview.highlightTiles` 分别返回预期坐标
+  - `npm.cmd run goldens`，`31/31` golden cases passed
+- 调整：
+  - `highlightTiles` 改为显式写入，不再在 draft 终结时从地形触发或 tile mutation 反推
+  - 传送带、毒气、坑洞由各自 terrain module 写入；土墙破坏由现有破坏发生点写入

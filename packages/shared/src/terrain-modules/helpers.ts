@@ -1,6 +1,7 @@
 import {
   appendDraftPresentationEvents,
   applyResolvedPlayerStateToDraft,
+  appendDraftPreviewHighlightTiles,
   appendDraftTileMutations,
   appendDraftTriggeredTerrainEffects,
   setDraftToolDieSeed,
@@ -55,6 +56,13 @@ export function appendTerrainTrigger(
   effect: TriggeredTerrainEffect
 ): void {
   appendDraftTriggeredTerrainEffects(draft, [effect]);
+}
+
+export function appendTerrainPreviewHighlight(
+  draft: ResolutionDraft,
+  position: GridPosition
+): void {
+  appendDraftPreviewHighlightTiles(draft, [position]);
 }
 
 export function mutateTerrainTile(

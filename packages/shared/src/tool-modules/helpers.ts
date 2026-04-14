@@ -102,7 +102,7 @@ export interface ToolMovementPlan {
 export function createToolMovementPlan(
   context: ToolActionContext,
   definition: ToolContentDefinition,
-  fallbackType: "drag" | "leap" | "teleport" | "translate",
+  fallbackType: "drag" | "leap" | "translate" | "landing",
   extraTags: string[] = []
 ): ToolMovementPlan {
   const definitionMovement =
@@ -199,6 +199,7 @@ export function createToolPreview(
     actorTarget = context.actor.position,
     affectedPlayers = [],
     effectTiles = [],
+    highlightTiles = [],
     selectionTiles = [],
     valid
   }: {
@@ -206,6 +207,7 @@ export function createToolPreview(
     actorTarget?: GridPosition;
     affectedPlayers?: AffectedPlayerMove[];
     effectTiles?: GridPosition[];
+    highlightTiles?: GridPosition[];
     selectionTiles?: GridPosition[];
     valid: boolean;
   }
@@ -226,6 +228,7 @@ export function createToolPreview(
   return createPreviewDescriptor({
     actorPath,
     effectTiles,
+    highlightTiles,
     playerTargets: createPreviewPlayerTargets(
       context.actor,
       actorTarget,

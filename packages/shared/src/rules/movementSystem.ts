@@ -18,6 +18,7 @@ import type { ResolutionDraft } from "./actionDraft";
 import {
   appendDraftPresentationEvents,
   appendDraftAffectedPlayerMove,
+  appendDraftPreviewHighlightTiles,
   applyResolvedPlayerStateToDraft,
   createDraftEventId,
   markDraftPresentation
@@ -312,6 +313,7 @@ function resolveSteppedDisplacement(
   movementType: Extract<MovementType, "drag" | "translate">
 ): MovementSystemResolution {
   const movement = createMovementDescriptor(movementType, options.movement);
+  const movementLanding = createMovementDescriptor("landing", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, options.movePoints);
   const startMs = options.startMs ?? 0;
@@ -361,13 +363,14 @@ function resolveSteppedDisplacement(
     stepsTaken += 1;
 
     if (tile.type === "earthWall") {
+      appendDraftPreviewHighlightTiles(draft, [target]);
       draft.tileMutations.push(createTileMutation(target, "floor", 0));
     }
 
     runPassThroughTriggers(
       draft,
       state,
-      movement,
+      state.remainingMovePoints > 0 ? movement : movementLanding,
       startMs + stepsTaken * stepDurationMs
     );
   }
@@ -427,7 +430,7 @@ export function resolveLeapDisplacement(
   options: LeapMovementOptions
 ): MovementSystemResolution {
   const movement = createMovementDescriptor("leap", options.movement);
-  // const landingTriggerMovement = createMovementDescriptor("translate", options.movement);
+  const movementLanding = createMovementDescriptor("landing", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, null);
   const startMs = options.startMs ?? 0;
@@ -465,7 +468,7 @@ export function resolveLeapDisplacement(
     runPassThroughTriggers(
       draft,
       state,
-      movement,
+      index === leap.path.length - 1 ? movementLanding : movement,
       startMs + traversedPath.length * stepDurationMs
     );
 
@@ -514,7 +517,7 @@ export function resolveTeleportDisplacement(
   draft: ResolutionDraft,
   options: TeleportMovementOptions
 ): MovementSystemResolution {
-  const movement = createMovementDescriptor("teleport", options.movement);
+  const movement = createMovementDescriptor("landing", options.movement);
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, null, null);
   const startMs = options.startMs ?? 0;

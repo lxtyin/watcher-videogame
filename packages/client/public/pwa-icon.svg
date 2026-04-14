@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Watcher">
+  <rect width="512" height="512" rx="96" fill="#17233a"/>
+  <path d="M128 176h256v160H128z" fill="#f3ead9"/>
+  <path d="M160 208h64v64h-64zM224 272h64v32h-64zM288 208h64v64h-64z" fill="#2aa6a1"/>
+  <path d="M136 344 256 112l120 232" fill="none" stroke="#f06c5f" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="42" fill="#17233a"/>
+</svg>

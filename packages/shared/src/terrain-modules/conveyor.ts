@@ -1,4 +1,4 @@
-import { appendTerrainTrigger } from "./helpers";
+import { appendTerrainPreviewHighlight, appendTerrainTrigger } from "./helpers";
 import type { TerrainModule } from "./types";
 import { isMovementType } from "../rules/displacement";
 
@@ -29,6 +29,7 @@ export const CONVEYOR_TERRAIN_MODULE: TerrainModule = {
 
     if (context.state.direction === context.tile.direction) {
       context.state.remainingMovePoints += 2;
+      appendTerrainPreviewHighlight(context.draft, context.state.player.position);
       appendTerrainTrigger(context.draft, {
         kind: "conveyor_boost",
         movement: context.movement,

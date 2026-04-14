@@ -53,8 +53,13 @@ function buildPreviewKeys(previewDescriptor: PreviewDescriptor | null): Set<stri
   return new Set((previewDescriptor?.selectionTiles ?? []).map((position) => `${position.x},${position.y}`));
 }
 
+function buildHighlightKeys(previewDescriptor: PreviewDescriptor | null): Set<string> {
+  return new Set((previewDescriptor?.highlightTiles ?? []).map((position) => `${position.x},${position.y}`));
+}
+
 export interface ScenePreviewState {
   effectTiles: GridPosition[];
+  highlightKeys: Set<string>;
   landingRings: PreviewRingSpec[];
   previewColor: string;
   selectionKeys: Set<string>;
@@ -76,6 +81,7 @@ export function resolveScenePreviewState({
 }): ScenePreviewState {
   return {
     effectTiles: previewDescriptor?.effectTiles ?? [],
+    highlightKeys: buildHighlightKeys(previewDescriptor),
     landingRings: buildLandingRings(previewDescriptor, snapshot),
     previewColor: getPreviewColor(toolId),
     selectionKeys: buildPreviewKeys(previewDescriptor)

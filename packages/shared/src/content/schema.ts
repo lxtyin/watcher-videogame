@@ -17,7 +17,7 @@ export type GameMode = "free" | "race";
 export type TurnPhase = "turn-start" | "turn-action" | "turn-end";
 export type Direction = "up" | "down" | "left" | "right";
 export type ToolSource = "turn" | "character_skill";
-export type MovementType = "translate" | "leap" | "drag" | "teleport";
+export type MovementType = "translate" | "leap" | "drag" | "landing";
 export type MovementDisposition = "active" | "passive";
 
 export type ToolCommonParameterId = "movePoints";

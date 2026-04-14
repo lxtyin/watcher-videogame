@@ -3,12 +3,14 @@ import { useMemo } from "react";
 import { Vector3 } from "three";
 import { createBoardDefinition, type GameMapId } from "@watcher/shared";
 import { BoardStaticTileLayer } from "./BoardStaticTileLayer";
+import { estimateBoardShadowBounds } from "../utils/shadowCamera";
 
 const PREVIEW_CAMERA_TARGET = new Vector3(0, 0, 0);
 
 function CreateRoomMapPreviewScene({ mapId }: { mapId: GameMapId }) {
   const board = useMemo(() => createBoardDefinition(mapId), [mapId]);
   const maxBoardSize = Math.max(board.width, board.height);
+  const shadowBounds = estimateBoardShadowBounds(board.width, board.height);
 
   useFrame(({ camera, clock }) => {
     const elapsedSeconds = clock.getElapsedTime();
@@ -24,7 +26,15 @@ function CreateRoomMapPreviewScene({ mapId }: { mapId: GameMapId }) {
     <>
       <color attach="background" args={["#f3ead9"]} />
       <ambientLight intensity={1.02} />
-      <directionalLight castShadow intensity={1.32} position={[7, 12, 4]} />
+      <directionalLight
+        castShadow
+        intensity={1.32}
+        position={[7, 12, 4]}
+        shadow-camera-bottom={-shadowBounds}
+        shadow-camera-left={-shadowBounds}
+        shadow-camera-right={shadowBounds}
+        shadow-camera-top={shadowBounds}
+      />
       <hemisphereLight args={["#fff5d8", "#c9d2c1", 0.74]} />
       <fog attach="fog" args={["#f3ead9", maxBoardSize * 1.4, maxBoardSize * 3.2]} />
       <mesh position={[0, -0.72, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>

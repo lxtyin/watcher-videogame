@@ -28,7 +28,7 @@ export function createMovementDescriptorInput(
 
 export function createMovementDescriptor(
   type: MovementType,
-  input: MovementDescriptorInput
+  input: MovementDescriptorInput | MovementDescriptor
 ): MovementDescriptor {
   return {
     type,

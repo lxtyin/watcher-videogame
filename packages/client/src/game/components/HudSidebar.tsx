@@ -547,6 +547,9 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                         .filter(Boolean)
                         .join(" ")}
                       aria-disabled={!availability.usable}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
                       onClick={() => handleToolClick(tool)}
                     >
                       {describeToolButtonLabel(tool)}
@@ -576,6 +579,9 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               <button
                 type="button"
                 data-testid="use-instant-tool-button"
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
                 onClick={() => useToolPayload({ input: {} }, selectedTool.instanceId)}
               >
                 使用 {selectedToolDefinition?.label}

@@ -9,12 +9,14 @@ const DIRECTION_ROTATION_Y: Record<Direction, number> = {
 
 // Conveyor arrows are authored as a reusable board-surface asset.
 export function ConveyorArrowAsset({
-  color = "#6db0c6",
-  direction
+  direction,
+  highlighted=false
 }: {
-  color?: string;
   direction: Direction;
+  highlighted?: boolean;
 }) {
+  const color = highlighted ? "#2bd96b" : "#6db0c6";
+  
   return (
     <group rotation={[0, DIRECTION_ROTATION_Y[direction], 0]}>
       <mesh position={[0, -0.2, -0.3]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, 0.2]}>
