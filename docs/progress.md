@@ -504,3 +504,23 @@
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run build --workspace @watcher/client`
   - `npm.cmd run goldens`，`31/31` golden cases passed
+
+## 2026-04-15 场景 Overlay 回归修复
+
+- 修复 PC 端拖拽工具时右键无法取消：
+  - 右键取消相关的 `pointerdown / mousedown / contextmenu` 改为 capture 阶段监听，避免被 scene canvas 上的事件链吞掉
+  - canvas 仍然阻止浏览器右键菜单，但不再拦截后续取消逻辑
+- 修复移动端地形长按预览与取消区定位：
+  - 不再使用 R3F `Html fullscreen` 承载地形预览卡和工具取消区
+  - 新增 `useSceneOverlayStore`，由 `BoardScene` 同步 overlay 状态，`GameBoardCanvas` 在 `board-shell` 下以普通 DOM UI 渲染
+  - 这样地形预览卡与取消区都固定在 3D 视口屏幕空间，不再跟随相机或 scene 变换漂移
+  - 工具取消命中区域改为基于主 canvas 的可视区域底边计算，不再错误使用整窗 `window.innerHeight`
+- 客户端验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `npm.cmd run goldens`，`31/31` 通过
+  - 桌面端 Playwright 复现并验证：拖拽 `scene-tool-jump-1` 时右键后，`selectedToolInstanceId` 从 `jump-2` 变为 `null`
+  - 移动端 landscape 模拟验证：长按地块时 `inspectionCard` 正常出现，预览框 rect 与 `board-shell` 对齐；拖拽工具时取消区 rect 在连续 touch move 中保持不变
+- 2026-04-15 补充微调：touch 拖拽工具进入取消区时只高亮，不再立刻取消；改为松手时再按取消区命中执行取消，避免误触。
+- 2026-04-15 补充微调：将 `board-shell__ui-layer` 层级抬高到工具环之上，避免地形预览卡被场景工具栏遮挡；工具拖拽时的相机 follow 目标改为“鼠标所在格中心”，并对目标格做棋盘边界钳制，减少平移抖动并避免视角被拖出棋盘。
+- 2026-04-15 补充微调：`board-shell__ui-layer` 的层级提升到高于 drei `Html` 默认区间，避免地形预览卡仍被场景工具环遮挡；工具拖拽 follow 改为“目标格中心 + 切格迟滞”，仅在指针真正进入相邻格一定深度后才切换 follow tile，减少边界来回跳动。

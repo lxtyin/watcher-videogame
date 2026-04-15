@@ -510,6 +510,14 @@ button:disabled {
   touch-action: none;
 }
 
+.board-shell__ui-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20000000;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .brand-block h1 {
   margin: 0.3rem 0 0.5rem;
   font-family: Georgia, "Times New Roman", serif;
@@ -2336,7 +2344,7 @@ button:disabled {
   right: 0;
   bottom: 0;
   left: 0;
-  height: calc(7.5rem + env(safe-area-inset-bottom));
+  height: calc(3.5rem + env(safe-area-inset-bottom));
   background:
     linear-gradient(180deg, rgba(89, 18, 14, 0) 0%, rgba(123, 24, 18, 0.14) 38%, rgba(123, 24, 18, 0.44) 100%);
   border-top: 1px solid rgba(255, 216, 207, 0.24);
@@ -2345,7 +2353,8 @@ button:disabled {
 
 .scene-tool-cancel-zone__label {
   position: relative;
-  min-width: min(18rem, calc(100vw - 2rem));
+  min-width: min(18rem, calc(100% - 2rem));
+  max-width: calc(100% - 2rem);
   padding: 0.75rem 1rem;
   border-radius: 8px;
   color: #fff4ef;
@@ -2386,8 +2395,8 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  min-width: min(420px, calc(100vw - 4rem));
-  max-width: min(520px, calc(100vw - 3rem));
+  min-width: min(420px, calc(100% - 4rem));
+  max-width: min(520px, calc(100% - 3rem));
   padding: 0.95rem 1.05rem;
   border-radius: 22px;
   color: #fff8ee;

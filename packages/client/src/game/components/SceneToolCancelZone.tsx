@@ -1,5 +1,3 @@
-import { Html } from "@react-three/drei";
-
 interface SceneToolCancelZoneProps {
   active?: boolean;
   visible: boolean;
@@ -12,11 +10,9 @@ export function SceneToolCancelZone({ active = false, visible }: SceneToolCancel
   }
 
   return (
-    <Html fullscreen>
-      <div className={`scene-tool-cancel-zone${active ? " active" : ""}`} aria-hidden="true">
-        <div className="scene-tool-cancel-zone__band" />
-        <div className="scene-tool-cancel-zone__label">拖到这里取消</div>
-      </div>
-    </Html>
+    <div className={`scene-tool-cancel-zone${active ? " active" : ""}`} aria-hidden="true">
+      <div className="scene-tool-cancel-zone__band" />
+      <div className="scene-tool-cancel-zone__label">拖到这里取消</div>
+    </div>
   );
 }

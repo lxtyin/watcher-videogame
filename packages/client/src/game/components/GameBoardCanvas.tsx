@@ -7,7 +7,10 @@ import {
   expandTerrainThumbnailEntriesForCapture,
   TERRAIN_THUMBNAIL_ENTRIES
 } from "../assets/board/terrainThumbnailCatalog";
+import { useSceneOverlayStore } from "../state/useSceneOverlayStore";
 import { BoardScene } from "./BoardScene";
+import { SceneInspectionCard } from "./SceneInspectionCard";
+import { SceneToolCancelZone } from "./SceneToolCancelZone";
 
 const DISABLED_MOUSE_BUTTON = -1 as MOUSE;
 const DISABLED_TOUCH_ACTION = -1 as TOUCH;
@@ -48,10 +51,20 @@ function RenderStatsProbe() {
 export function GameBoardCanvas() {
   const cameraControlMode = getCameraControlMode();
   const [terrainThumbnailUrls, setTerrainThumbnailUrls] = useState<Partial<Record<string, string>>>({});
+  const inspectionCard = useSceneOverlayStore((state) => state.inspectionCard);
+  const resetSceneOverlays = useSceneOverlayStore((state) => state.reset);
+  const toolCancelActive = useSceneOverlayStore((state) => state.toolCancelActive);
+  const toolCancelVisible = useSceneOverlayStore((state) => state.toolCancelVisible);
   const thumbnailEntries = useMemo(
     () => expandTerrainThumbnailEntriesForCapture(TERRAIN_THUMBNAIL_ENTRIES),
     []
   );
+
+  useEffect(() => {
+    return () => {
+      resetSceneOverlays();
+    };
+  }, [resetSceneOverlays]);
 
   return (
     <div className="board-shell">
@@ -97,6 +110,10 @@ export function GameBoardCanvas() {
         ) : null}
         <BoardScene cameraControlMode={cameraControlMode} terrainThumbnailUrls={terrainThumbnailUrls} />
       </Canvas>
+      <div className="board-shell__ui-layer">
+        <SceneToolCancelZone active={toolCancelActive} visible={toolCancelVisible} />
+        <SceneInspectionCard inspection={inspectionCard} />
+      </div>
     </div>
   );
 }
