@@ -4,6 +4,8 @@ import { setDraftApplied, setDraftToolInventory } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
 import {
+  appendDraftSoundEvent,
+  createPlayerAnchor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -49,6 +51,9 @@ function resolveDashTool(
       : tool
   );
 
+  appendDraftSoundEvent(draft, "tool_buff", "dash:activate", {
+    anchor: createPlayerAnchor(context.actor.id)
+  });
   setDraftToolInventory(draft, nextTools);
   setDraftApplied(draft, createUsedSummary(DASH_TOOL_DEFINITION.label), {
     path: [],

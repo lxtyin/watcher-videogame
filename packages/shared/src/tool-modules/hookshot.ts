@@ -27,6 +27,8 @@ import {
 } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  createDraftSoundEvent,
+  createPlayerAnchor,
   createPassiveToolMovementPlan,
   createToolMovementPlan,
   createToolPreview,
@@ -167,7 +169,10 @@ function resolveHookshotTool(
           0,
           outboundDurationMs,
           "extend_from_from"
-        )
+        ),
+        createDraftSoundEvent(draft, "tool_chain", "hookshot:activate", {
+          anchor: createPlayerAnchor(context.actor.id)
+        })
       ];
       const pullDurationMs =
         actorResolution.motionStartMs !== null && actorResolution.motionEndMs !== null
@@ -249,7 +254,10 @@ function resolveHookshotTool(
         0,
         outboundDurationMs,
         "extend_from_from"
-      )
+      ),
+      createDraftSoundEvent(draft, "tool_chain", "hookshot:activate", {
+        anchor: createPlayerAnchor(context.actor.id)
+      })
     ];
     const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
     let pullSucceeded = false;

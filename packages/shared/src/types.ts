@@ -159,6 +159,7 @@ export interface EventLogEntry {
 export type PresentationMotionStyle = "ground" | "arc" | "finish" | "fall_side" | "spin_drop";
 export type PresentationProjectileType = "basketball" | "rocket" | "awm_bullet";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
+export type PresentationSoundCueId = keyof typeof import("./content/sounds").SOUND_CUE_REGISTRY;
 export type PresentationLinkStyle = "chain";
 export type PresentationLinkProgressStyle = "full" | "extend_from_from";
 
@@ -493,6 +494,17 @@ export interface ReactionPresentationEvent extends ActionPresentationEventBase {
   reaction: ReactionPresentationPayload;
 }
 
+export interface SoundPresentationPayload {
+  anchor: PresentationAnchor | null;
+  cueId: PresentationSoundCueId;
+  volume?: number;
+}
+
+export interface SoundPresentationEvent extends ActionPresentationEventBase {
+  kind: "sound";
+  sound: SoundPresentationPayload;
+}
+
 export interface PreviewPlayerTarget {
   boardVisible: boolean;
   playerId: string;
@@ -556,6 +568,7 @@ export interface StateTransitionPresentationEvent extends ActionPresentationEven
 export type ActionPresentationEvent =
   | MotionPresentationEvent
   | ReactionPresentationEvent
+  | SoundPresentationEvent
   | StateTransitionPresentationEvent;
 
 export interface ActionPresentation {

@@ -14,8 +14,10 @@ import {
 } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
 import {
+  appendDraftSoundEvent,
   adjustMovementTools,
   clearMovementTools,
+  createPlayerAnchor,
   createToolPreview,
   createToolUnavailableResult,
   createUsedSummary,
@@ -102,6 +104,9 @@ function resolveBalanceTool(
 
   nextTools = choiceId === "trim_and_bank" ? adjustMovementTools(nextTools, -1) : clearMovementTools(nextTools);
 
+  appendDraftSoundEvent(draft, "tool_buff", "balance:activate", {
+    anchor: createPlayerAnchor(context.actor.id)
+  });
   setDraftActorTags(
     draft,
     setPlayerTagValue(context.actor.tags, FARTHER_BANKED_MOVEMENT_TAG, nextBankedMovement)

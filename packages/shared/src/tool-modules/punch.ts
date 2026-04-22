@@ -17,6 +17,9 @@ import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { getOppositeDirection, traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  createDraftSoundEvent,
+  createPlayerAnchor,
+  createPositionAnchor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -104,6 +107,9 @@ function resolvePunchTool(
 
   if (trace.collision.kind === "player") {
     nestedEvents.push(
+      createDraftSoundEvent(draft, "tool_punch", "punch:impact", {
+        anchor: createPositionAnchor(trace.collision.position)
+      }),
       createEffectEvent(
         createDraftEventId(draft, "punch:player-hit"),
         "punch_player_hit",
@@ -133,6 +139,9 @@ function resolvePunchTool(
     }
   } else if (trace.collision.kind === "solid") {
     nestedEvents.push(
+      createDraftSoundEvent(draft, "tool_punch", "punch:impact", {
+        anchor: createPositionAnchor(trace.collision.position)
+      }),
       createEffectEvent(
         createDraftEventId(draft, "punch:wall-hit"),
         "punch_wall_hit",
@@ -156,6 +165,12 @@ function resolvePunchTool(
     if (pushResolution.path.length) {
       nestedEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
     }
+  } else {
+    nestedEvents.push(
+      createDraftSoundEvent(draft, "tool_punch", "punch:activate", {
+        anchor: createPlayerAnchor(context.actor.id)
+      })
+    );
   }
 
   appendDraftPresentationEvents(draft, nestedEvents);

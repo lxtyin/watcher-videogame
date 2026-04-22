@@ -152,3 +152,8 @@ export interface PresentationEffectContentDefinition {
   description: string;
   label: string;
 }
+
+export interface PresentationSoundCueContentDefinition {
+  description: string;
+  label: string;
+}

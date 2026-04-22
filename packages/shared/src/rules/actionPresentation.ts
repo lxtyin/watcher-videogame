@@ -9,7 +9,9 @@ import type {
   PresentationLinkStyle,
   PresentationMotionStyle,
   PresentationProjectileType,
+  PresentationSoundCueId,
   ReactionPresentationEvent,
+  SoundPresentationEvent,
   SummonStateTransition,
   TileStateTransition,
   ToolId
@@ -196,6 +198,22 @@ export function createLinkReactionEvent(
     },
     startMs,
     durationMs
+  };
+}
+
+export function createSoundEvent(
+  eventId: string,
+  cueId: PresentationSoundCueId,
+  anchor: PresentationAnchor | null = null,
+  startMs = 0,
+  volume?: number
+): SoundPresentationEvent {
+  return {
+    id: eventId,
+    kind: "sound",
+    sound: volume === undefined ? { anchor, cueId } : { anchor, cueId, volume },
+    startMs,
+    durationMs: 0
   };
 }
 

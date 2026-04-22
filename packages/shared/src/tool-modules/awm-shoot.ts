@@ -25,6 +25,8 @@ import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
+  createDraftSoundEvent,
+  createPlayerAnchor,
   createUsedSummary,
   getToolParamValue,
   getTotalMovementPoints,
@@ -110,7 +112,18 @@ function resolveAwmShootTool(
   );
 
   if (projectileEvent) {
-    appendDraftPresentationEvents(draft, [projectileEvent]);
+    appendDraftPresentationEvents(draft, [
+      projectileEvent,
+      createDraftSoundEvent(draft, "tool_shot_bullet", "awm:fire", {
+        anchor: createPlayerAnchor(context.actor.id)
+      })
+    ]);
+  } else {
+    appendDraftPresentationEvents(draft, [
+      createDraftSoundEvent(draft, "tool_shot_bullet", "awm:fire", {
+        anchor: createPlayerAnchor(context.actor.id)
+      })
+    ]);
   }
 
   setDraftToolInventory(draft, consumeActiveTool(context));

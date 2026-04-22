@@ -9,7 +9,13 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary, isChargedToolAvailable } from "./helpers";
+import {
+  appendDraftSoundEvent,
+  createPlayerAnchor,
+  createToolPreview,
+  createUsedSummary,
+  isChargedToolAvailable
+} from "./helpers";
 
 export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   label: "备弹",
@@ -36,6 +42,9 @@ function resolveBlazePrepareBombTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
+  appendDraftSoundEvent(draft, "tool_buff", "blaze-prepare-bomb:activate", {
+    anchor: createPlayerAnchor(context.actor.id)
+  });
   setDraftActorTags(
     draft,
     setPlayerTagValue(context.actor.tags, BLAZE_BOMB_PREPARED_TAG, true)

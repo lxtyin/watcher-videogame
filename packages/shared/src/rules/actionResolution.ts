@@ -24,6 +24,7 @@ import type {
 import {
   appendPresentationEvents,
   createEffectEvent,
+  createSoundEvent,
   createStateTransitionEvent,
   getMotionArrivalStartMs
 } from "./actionPresentation";
@@ -165,6 +166,17 @@ export function buildStateTransitionPresentationEvents(options: {
           [mutation.position],
           startMs,
           earthWallBreakEffectMs
+        )
+      );
+      events.push(
+        createSoundEvent(
+          `${options.sourceId}:earth-wall-break-sound-${index}`,
+          "terrain_earth_wall_break",
+          {
+            kind: "position",
+            position: mutation.position
+          },
+          startMs
         )
       );
     }

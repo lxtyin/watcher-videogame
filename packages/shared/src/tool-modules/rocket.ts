@@ -30,6 +30,9 @@ import {
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
+  createDraftSoundEvent,
+  createPlayerAnchor,
+  createPositionAnchor,
   createUsedSummary,
   getToolParamValue,
   isChargedToolAvailable,
@@ -141,7 +144,24 @@ export function resolveRocketCore(
   const explosionStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : spec.startMs;
 
   if (projectileEvent) {
-    appendDraftPresentationEvents(draft, [projectileEvent]);
+    appendDraftPresentationEvents(draft, [
+      projectileEvent,
+      createDraftSoundEvent(draft, "tool_shot_heavy", "rocket:launch", {
+        anchor: spec.projectileOwnerId
+          ? createPlayerAnchor(spec.projectileOwnerId)
+          : createPositionAnchor(spec.originPosition),
+        startMs: spec.startMs
+      })
+    ]);
+  } else {
+    appendDraftPresentationEvents(draft, [
+      createDraftSoundEvent(draft, "tool_shot_heavy", "rocket:launch", {
+        anchor: spec.projectileOwnerId
+          ? createPlayerAnchor(spec.projectileOwnerId)
+          : createPositionAnchor(spec.originPosition),
+        startMs: spec.startMs
+      })
+    ]);
   }
 
   const livePlayers = getDraftPlayers(draft);
@@ -191,6 +211,10 @@ export function resolveRocketCore(
 
   const effectTiles = collectExplosionPreviewTiles(draft.board, explosionPosition);
   appendDraftPresentationEvents(draft, [
+    createDraftSoundEvent(draft, "tool_explosion", "rocket:explosion-sound", {
+      anchor: createPositionAnchor(explosionPosition),
+      startMs: explosionStartMs
+    }),
     createEffectEvent(
       `${spec.eventIdPrefix}:explosion`,
       "rocket_explosion",

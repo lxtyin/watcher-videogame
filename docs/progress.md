@@ -524,3 +524,27 @@
 - 2026-04-15 补充微调：touch 拖拽工具进入取消区时只高亮，不再立刻取消；改为松手时再按取消区命中执行取消，避免误触。
 - 2026-04-15 补充微调：将 `board-shell__ui-layer` 层级抬高到工具环之上，避免地形预览卡被场景工具栏遮挡；工具拖拽时的相机 follow 目标改为“鼠标所在格中心”，并对目标格做棋盘边界钳制，减少平移抖动并避免视角被拖出棋盘。
 - 2026-04-15 补充微调：`board-shell__ui-layer` 的层级提升到高于 drei `Html` 默认区间，避免地形预览卡仍被场景工具环遮挡；工具拖拽 follow 改为“目标格中心 + 切格迟滞”，仅在指针真正进入相邻格一定深度后才切换 follow tile，减少边界来回跳动。
+
+## 2026-04-22 背景音乐与表现层音效
+
+- 新增 shared 音效语义：
+  - `ActionPresentation` 增加 `sound` 事件类型，沿用 `startMs` 时间线，并保留 `anchor` 以支持未来空间音效扩展
+  - 新增 `packages/shared/src/content/sounds.ts` 与 `packages/shared/src/sounds.ts` 作为音效 cue 注册表与查询入口
+  - `sound` 事件约定为触发型语义，`durationMs = 0`，不延长 action busy 时长
+- 背景音乐接入：
+  - `App.tsx` 增加页面级 BGM 切换，主页/建房/进房前使用 `Porchside Pause`
+  - 进入实际对局地图后切换为 `Marimba Turn`
+  - `GameAudioDirector` 负责首个用户手势解锁音频、循环播放与切歌
+- 表现层音效接入：
+  - 脚步声进入 shared 位移主流程，普通移动按落格出声，飞跃只在落地时出声
+  - 土墙击碎在真实地形变化处写入破碎音效，不由 client 反推
+  - 多个工具模块在效果触发点各自写入 `sound` 事件，避免集中式 `toolId -> sound` 特判
+- client 音频资源整理：
+  - 音频素材统一放入 `packages/client/src/game/assets/audio/`
+  - 新增 `audioRegistry.ts`、`audioRuntime.ts`、`GameAudioDirector.tsx`，分别负责 cue 映射、播放运行时与 presentation 调度
+  - 脚步等多变体音效按 `event.id` 稳定选样，保证随机感与回放一致性
+- 测试与验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run build --workspace @watcher/client`
+  - `npm.cmd run goldens`，`31/31` golden cases passed
+  - 浏览器轻量冒烟：主页与建房页无新增 console / page error

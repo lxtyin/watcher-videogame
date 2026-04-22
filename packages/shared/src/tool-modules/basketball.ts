@@ -22,6 +22,8 @@ import { traceProjectile } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
+  createDraftSoundEvent,
+  createPlayerAnchor,
   createUsedSummary,
   getToolParamValue,
   isChargedToolAvailable,
@@ -84,7 +86,12 @@ function resolveBasketballTool(
     buildMotionPositions(context.actor.position, trace.path)
   );
   const impactStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
-  const motionEvents: ActionPresentationEvent[] = projectileEvent ? [projectileEvent] : [];
+  const motionEvents: ActionPresentationEvent[] = [
+    ...(projectileEvent ? [projectileEvent] : []),
+    createDraftSoundEvent(draft, "tool_throw", "basketball:throw", {
+      anchor: createPlayerAnchor(context.actor.id)
+    })
+  ];
   const nestedEvents: ActionPresentationEvent[] = [];
 
   setDraftToolInventory(draft, consumeActiveTool(context));

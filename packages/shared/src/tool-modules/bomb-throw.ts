@@ -22,6 +22,8 @@ import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
+  createDraftSoundEvent,
+  createPositionAnchor,
   createUsedSummary,
   createToolUnavailableResult,
   getToolParamValue,
@@ -176,6 +178,11 @@ function resolveBombThrowTool(
     return;
   }
 
+  motionEvents.push(
+    createDraftSoundEvent(draft, "tool_throw", "bomb-throw:activate", {
+      anchor: createPositionAnchor(targetPosition)
+    })
+  );
   setDraftActionPresentation(
     draft,
     createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)

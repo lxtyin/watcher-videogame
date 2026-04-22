@@ -7,6 +7,7 @@ import { HudSidebar } from "./game/components/HudSidebar";
 import { MobilePwaPrompt } from "./game/components/MobilePwaPrompt";
 import { RaceSettlementOverlay } from "./game/components/RaceSettlementOverlay";
 import { RoomEntryScreen } from "./game/components/RoomEntryScreen";
+import { GameAudioDirector } from "./game/audio/GameAudioDirector";
 import { useAnimationClock } from "./game/hooks/useAnimationClock";
 import { useAutomationBridge } from "./game/hooks/useAutomationBridge";
 import { useKeyboardInteraction } from "./game/hooks/useKeyboardInteraction";
@@ -124,11 +125,13 @@ export default function App() {
     snapshot?.mode === "race" &&
     snapshot.roomPhase === "settlement" &&
     snapshot.settlementState === "complete";
+  const bgmTrackId = route.roomCode !== null && snapshot ? "gameplay" : "menu";
 
   if (!route.roomCode) {
     if (route.screen === "create") {
       return (
         <>
+          <GameAudioDirector bgmTrackId={bgmTrackId} />
           <CreateRoomScreen
             busy={busy}
             lastError={lastError}
@@ -154,6 +157,7 @@ export default function App() {
 
     return (
       <>
+        <GameAudioDirector bgmTrackId={bgmTrackId} />
         <HomeScreen
           busy={busy}
           lastError={lastError}
@@ -182,6 +186,7 @@ export default function App() {
   if (!snapshot) {
     return (
       <>
+        <GameAudioDirector bgmTrackId={bgmTrackId} />
         <RoomEntryScreen
           busy={roomEntryBusy}
           canReconnect={hasStoredRoomSessionForRoom(roomCode)}
@@ -218,58 +223,63 @@ export default function App() {
   }
 
   return (
-    <div className={["app-shell", sidebarCollapsed ? "sidebar-collapsed" : ""].filter(Boolean).join(" ")}>
-      <button
-        type="button"
-        className="app-shell__sidebar-toggle"
-        data-testid="sidebar-toggle-button"
-        aria-expanded={!sidebarCollapsed}
-        aria-label={sidebarCollapsed ? "展开左侧栏" : "收起左侧栏"}
-        onClick={() => setSidebarCollapsed((current) => !current)}
+    <>
+      <GameAudioDirector bgmTrackId={bgmTrackId} />
+      <div
+        className={["app-shell", sidebarCollapsed ? "sidebar-collapsed" : ""].filter(Boolean).join(" ")}
       >
-        {sidebarCollapsed ? ">" : "<"}
-      </button>
+        <button
+          type="button"
+          className="app-shell__sidebar-toggle"
+          data-testid="sidebar-toggle-button"
+          aria-expanded={!sidebarCollapsed}
+          aria-label={sidebarCollapsed ? "展开左侧栏" : "收起左侧栏"}
+          onClick={() => setSidebarCollapsed((current) => !current)}
+        >
+          {sidebarCollapsed ? ">" : "<"}
+        </button>
 
-      <div className="app-sidebar-slot">
-        <HudSidebar
-          onLeaveRoom={() => {
-            void leaveRoom().finally(() => {
-              navigateHome();
-            });
-          }}
-        />
-      </div>
-
-      <main className="scene-panel">
-        <GameBoardCanvas />
-      </main>
-
-      <div className="rotate-device-overlay" aria-hidden="true">
-        <div className="rotate-device-card">
-          <strong>请横屏游玩</strong>
-          <span>横屏后左侧栏会保留在左边，双指可旋转和缩放视角。</span>
+        <div className="app-sidebar-slot">
+          <HudSidebar
+            onLeaveRoom={() => {
+              void leaveRoom().finally(() => {
+                navigateHome();
+              });
+            }}
+          />
         </div>
-      </div>
 
-      {toolNotice ? (
-        <div className="ui-notice" role="status" aria-live="polite">
-          {toolNotice.message}
+        <main className="scene-panel">
+          <GameBoardCanvas />
+        </main>
+
+        <div className="rotate-device-overlay" aria-hidden="true">
+          <div className="rotate-device-card">
+            <strong>请横屏游玩</strong>
+            <span>横屏后左侧栏会保留在左边，双指可旋转和缩放视角。</span>
+          </div>
         </div>
-      ) : null}
 
-      {showSettlement ? (
-        <RaceSettlementOverlay
-          snapshot={snapshot}
-          onBackToRoom={() => sendReturnToRoom()}
-          onBackToHome={() => {
-            void leaveRoom().finally(() => {
-              navigateHome();
-            });
-          }}
-        />
-      ) : null}
+        {toolNotice ? (
+          <div className="ui-notice" role="status" aria-live="polite">
+            {toolNotice.message}
+          </div>
+        ) : null}
 
-      <MobilePwaPrompt />
-    </div>
+        {showSettlement ? (
+          <RaceSettlementOverlay
+            snapshot={snapshot}
+            onBackToRoom={() => sendReturnToRoom()}
+            onBackToHome={() => {
+              void leaveRoom().finally(() => {
+                navigateHome();
+              });
+            }}
+          />
+        ) : null}
+
+        <MobilePwaPrompt />
+      </div>
+    </>
   );
 }

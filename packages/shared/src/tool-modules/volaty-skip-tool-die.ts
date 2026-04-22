@@ -9,7 +9,13 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool } from "../rules/actionResolution";
 import type { ToolModule } from "./types";
-import { createToolPreview, createUsedSummary, isChargedToolAvailable } from "./helpers";
+import {
+  appendDraftSoundEvent,
+  createPlayerAnchor,
+  createToolPreview,
+  createUsedSummary,
+  isChargedToolAvailable
+} from "./helpers";
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "飞跃",
@@ -36,6 +42,9 @@ function resolveVolatySkipToolDieTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
+  appendDraftSoundEvent(draft, "tool_buff", "volaty-skip-tool-die:activate", {
+    anchor: createPlayerAnchor(context.actor.id)
+  });
   setDraftActorTags(
     draft,
     setPlayerTagValue(context.actor.tags, VOLATY_LEAP_TURN_TAG, true)

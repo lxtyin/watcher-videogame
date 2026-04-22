@@ -18,6 +18,8 @@ import { resolveTeleportDisplacement } from "../rules/movementSystem";
 import { collectBoardSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
+  createDraftSoundEvent,
+  createPositionAnchor,
   createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
@@ -86,6 +88,11 @@ function resolveTeleportTool(
   }
 
   const presentationEvents = consumeDraftPresentationFrom(draft, presentationMark);
+  presentationEvents.push(
+    createDraftSoundEvent(draft, "tool_teleport", "teleport:activate", {
+      anchor: createPositionAnchor(targetPosition)
+    })
+  );
   setDraftActionPresentation(
     draft,
     createPresentation(context.actor.id, context.activeTool.toolId, presentationEvents)

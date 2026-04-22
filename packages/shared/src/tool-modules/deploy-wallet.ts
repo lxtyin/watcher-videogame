@@ -16,6 +16,8 @@ import { isLandablePosition } from "../rules/spatial";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import type { ToolModule } from "./types";
 import {
+  appendDraftSoundEvent,
+  createPositionAnchor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -105,6 +107,9 @@ function resolveDeployWalletTool(
         targetPosition
       )
     ]);
+  appendDraftSoundEvent(draft, "tool_build", "deploy-wallet:activate", {
+    anchor: createPositionAnchor(targetPosition)
+  });
   setDraftToolInventory(draft, consumeActiveTool(context));
   setDraftApplied(draft, createUsedSummary(DEPLOY_WALLET_TOOL_DEFINITION.label), {
     endsTurn: true,

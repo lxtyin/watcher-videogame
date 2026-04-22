@@ -17,6 +17,8 @@ import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  appendDraftSoundEvent,
+  createPositionAnchor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -105,6 +107,9 @@ function resolveBuildWallTool(
     return;
   }
 
+  appendDraftSoundEvent(draft, "tool_build", "build-wall:activate", {
+    anchor: createPositionAnchor(targetPosition)
+  });
   appendDraftTileMutations(draft, [createTileMutation(targetPosition, "earthWall", wallDurability)]);
   setDraftToolInventory(draft, consumeActiveTool(context));
   setDraftApplied(draft, createUsedSummary(BUILD_WALL_TOOL_DEFINITION.label), {

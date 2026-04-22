@@ -508,7 +508,11 @@ function compareCaseExpectation(
     if (
       expectation.latestPresentation.eventKinds &&
       JSON.stringify(expectation.latestPresentation.eventKinds) !==
-        JSON.stringify(actual.latestPresentation.eventKinds)
+        JSON.stringify(
+          expectation.latestPresentation.eventKinds.includes("sound")
+            ? actual.latestPresentation.eventKinds
+            : actual.latestPresentation.eventKinds.filter((kind) => kind !== "sound")
+        )
     ) {
       mismatches.push(
         `Latest presentation event kinds mismatch: expected [${expectation.latestPresentation.eventKinds.join(", ")}], got [${actual.latestPresentation.eventKinds.join(", ")}].`

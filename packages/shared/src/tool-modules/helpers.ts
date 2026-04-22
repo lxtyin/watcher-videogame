@@ -14,6 +14,8 @@ import type {
   MovementDescriptor,
   MovementDescriptorInput,
   MovementType,
+  PresentationAnchor,
+  PresentationSoundCueId,
   PreviewDescriptor,
   ToolActionContext,
   TurnToolSnapshot
@@ -22,8 +24,14 @@ import {
   appendPresentationEvents,
   buildMotionPositions,
   createPlayerMotionEvent,
+  createSoundEvent,
   createPresentation
 } from "../rules/actionPresentation";
+import {
+  appendDraftPresentationEvents,
+  createDraftEventId,
+  type ResolutionDraft
+} from "../rules/actionDraft";
 import {
   createMovementDescriptorInput
 } from "../rules/displacement";
@@ -148,6 +156,59 @@ export function createPassiveToolMovementPlan(
     }),
     type
   };
+}
+
+function cloneGridPosition(position: GridPosition): GridPosition {
+  return {
+    x: position.x,
+    y: position.y
+  };
+}
+
+export function createPlayerAnchor(playerId: string): PresentationAnchor {
+  return {
+    kind: "player",
+    playerId
+  };
+}
+
+export function createPositionAnchor(position: GridPosition): PresentationAnchor {
+  return {
+    kind: "position",
+    position: cloneGridPosition(position)
+  };
+}
+
+export function createDraftSoundEvent(
+  draft: ResolutionDraft,
+  cueId: PresentationSoundCueId,
+  scope: string,
+  options: {
+    anchor?: PresentationAnchor | null;
+    startMs?: number;
+    volume?: number;
+  } = {}
+) {
+  return createSoundEvent(
+    createDraftEventId(draft, scope),
+    cueId,
+    options.anchor ?? null,
+    options.startMs ?? 0,
+    options.volume
+  );
+}
+
+export function appendDraftSoundEvent(
+  draft: ResolutionDraft,
+  cueId: PresentationSoundCueId,
+  scope: string,
+  options: {
+    anchor?: PresentationAnchor | null;
+    startMs?: number;
+    volume?: number;
+  } = {}
+): void {
+  appendDraftPresentationEvents(draft, [createDraftSoundEvent(draft, cueId, scope, options)]);
 }
 
 export function createActorMotionPresentation(

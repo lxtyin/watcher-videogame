@@ -26,6 +26,7 @@ import {
 import {
   buildMotionPositions,
   createPlayerMotionEvent,
+  createSoundEvent,
   getMotionStepDurationMs
 } from "./actionPresentation";
 import { createMovementDescriptor } from "./displacement";
@@ -123,6 +124,41 @@ function resolveMotionStyle(movement: MovementDescriptor): "arc" | "ground" {
   return movement.type === "leap" ? "arc" : "ground";
 }
 
+function appendMovementFootstepSoundEvents(
+  draft: ResolutionDraft,
+  playerId: string,
+  path: GridPosition[],
+  motionStyle: "arc" | "ground",
+  startMs: number
+): void {
+  if (!path.length) {
+    return;
+  }
+
+  const stepDurationMs = getMotionStepDurationMs(motionStyle);
+  const positions =
+    motionStyle === "arc"
+      ? [path[path.length - 1]!]
+      : path;
+
+  appendDraftPresentationEvents(
+    draft,
+    positions.map((position, index) =>
+      createSoundEvent(
+        createDraftEventId(draft, `footstep:${playerId}`),
+        "footstep_soft",
+        {
+          kind: "position",
+          position: clonePosition(position)
+        },
+        motionStyle === "arc"
+          ? startMs + path.length * stepDurationMs
+          : startMs + (index + 1) * stepDurationMs
+      )
+    )
+  );
+}
+
 function appendMovementMotionEvent(
   draft: ResolutionDraft,
   playerId: string,
@@ -153,6 +189,7 @@ function appendMovementMotionEvent(
   }
 
   appendDraftPresentationEvents(draft, [motionEvent]);
+  appendMovementFootstepSoundEvents(draft, playerId, path, motionStyle, startMs);
 
   return {
     endMs: motionEvent.startMs + motionEvent.durationMs,
