@@ -5,7 +5,8 @@ import type {
   GridPosition,
   MovementActor,
   PreviewDescriptor,
-  PreviewPlayerTarget
+  PreviewPlayerTarget,
+  Direction
 } from "../types";
 import { CARDINAL_DIRECTIONS, stepPosition } from "./spatial";
 
@@ -84,11 +85,26 @@ export function createEmptyPreview(valid = false): PreviewDescriptor {
 
 export function collectDirectionSelectionTiles(
   board: BoardDefinition,
-  origin: GridPosition
+  origin: GridPosition,
+  direction: Direction,
+  range = 1
 ): GridPosition[] {
-  return CARDINAL_DIRECTIONS.map((direction) => stepPosition(origin, direction)).filter((position) =>
-    isWithinBoard(board, position)
-  );
+  // return CARDINAL_DIRECTIONS.map((direction) => stepPosition(origin, direction)).filter((position) =>
+  //   isWithinBoard(board, position)
+  // );
+  const positions: GridPosition[] = [];
+
+  for (let i = 1; i <= range; i += 1) { 
+    const position = stepPosition(origin, direction, i);
+
+    if (isWithinBoard(board, position)) {
+      positions.push(position);
+    } else {
+      break;
+    }
+  }
+
+  return positions
 }
 
 export function collectAdjacentSelectionTiles(

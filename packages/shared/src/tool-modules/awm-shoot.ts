@@ -62,12 +62,12 @@ function resolveAwmShootTool(
 ): void {
   const direction = requireDirection(context);
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
-  const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
+  // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 
   if (!direction) {
     setDraftBlocked(draft, "AWM Shoot needs a direction", {
       preview: createToolPreview(context, {
-        selectionTiles,
+        // selectionTiles,
         valid: false
       })
     });
@@ -120,7 +120,7 @@ function resolveAwmShootTool(
       actorPath: trace.path,
       affectedPlayers: draft.affectedPlayers,
       effectTiles: trace.path,
-      selectionTiles,
+      // selectionTiles,
       valid: true
     })
   });

@@ -27,8 +27,10 @@ import {
   createUsedSummary,
   getToolParamValue,
   isMovePointToolAvailable,
-  toMovementSubject
+  toMovementSubject,
 } from "./helpers";
+import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
+
 
 export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   actorMovement: {
@@ -86,37 +88,23 @@ function resolveBrakeTool(
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
-  const resolution =
-    movement.type === "leap"
-      ? resolveLeapDisplacement(draft, {
-          direction: axisTarget.direction,
-          maxDistance: requestedDistance,
-          movement: movement.descriptor,
-          player: toMovementSubject(context.actor),
-          startMs: 0
-        })
-      : movement.type === "drag"
-        ? resolveDragDisplacement(draft, {
-            direction: axisTarget.direction,
-            movePoints: requestedDistance,
-            movement: movement.descriptor,
-            player: toMovementSubject(context.actor),
-            startMs: 0
-          })
-        : resolveLinearDisplacement(draft, {
-            direction: axisTarget.direction,
-            movePoints: requestedDistance,
-            movement: movement.descriptor,
-            player: toMovementSubject(context.actor),
-            startMs: 0
-          });
-
+  const resolution = resolveLinearDisplacement(draft, {
+      direction: axisTarget.direction,
+      movePoints: requestedDistance,
+      movement: movement.descriptor,
+      player: toMovementSubject(context.actor),
+      startMs: 0
+  });
+  
+  const selectedTiles = collectDirectionSelectionTiles(context.board, context.actor.position, axisTarget.direction, requestedDistance);
+  
   if (!resolution.path.length) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,
       preview: createToolPreview(context, {
         actorPath: resolution.path,
+        selectionTiles: selectedTiles,
         effectTiles: resolution.path,
         valid: false
       })
@@ -141,6 +129,7 @@ function resolveBrakeTool(
       actorPath: resolution.path,
       actorTarget: draft.actor.position,
       affectedPlayers: draft.affectedPlayers,
+      selectionTiles: selectedTiles,
       effectTiles: resolution.path,
       valid: true
     })
