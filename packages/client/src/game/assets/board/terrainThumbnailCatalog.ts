@@ -49,6 +49,7 @@ export const TERRAIN_THUMBNAIL_ENTRIES: TerrainThumbnailEntry[] = [
   createTerrainThumbnailEntry("."),
   createTerrainThumbnailEntry("#"),
   createTerrainThumbnailEntry("e"),
+  createTerrainThumbnailEntry("b"),
   createTerrainThumbnailEntry("H"),
   createTerrainThumbnailEntry("p"),
   createTerrainThumbnailEntry("o"),

@@ -2,6 +2,7 @@ export type TileType =
   | "floor"
   | "wall"
   | "earthWall"
+  | "boxingBall"
   | "highwall"
   | "poison"
   | "pit"

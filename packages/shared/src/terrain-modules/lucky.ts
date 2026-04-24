@@ -4,7 +4,7 @@ import { appendDraftPresentationEvents } from "../rules/actionDraft";
 import { createRolledToolInstance } from "../tools";
 import {
   appendTerrainTrigger,
-  grantLuckyReward,
+  grantTerrainRewardTool,
   mutateTerrainTile
 } from "./helpers";
 import type { TerrainModule } from "./types";
@@ -40,7 +40,7 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
       toolRoll.value
     );
 
-    grantLuckyReward(context.draft, context.player, rewardedTool, toolRoll.nextSeed);
+    grantTerrainRewardTool(context.draft, context.player, rewardedTool, toolRoll.nextSeed);
     mutateTerrainTile(context.draft, context.tile, "emptyLucky");
     appendDraftPresentationEvents(context.draft, [
       createEffectEvent(

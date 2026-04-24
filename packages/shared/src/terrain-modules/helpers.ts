@@ -84,11 +84,11 @@ export function mutateTerrainTile(
   ]);
 }
 
-export function grantLuckyReward(
+export function grantTerrainRewardTool(
   draft: ResolutionDraft,
   player: MovementActor,
   rewardedTool: TurnToolSnapshot,
-  nextToolDieSeed: number
+  nextToolDieSeed?: number
 ): void {
   const normalizedReward = applyOnGetToolModifiers(
     player.characterId,
@@ -106,6 +106,8 @@ export function grantLuckyReward(
   player.modifiers = [...normalizedReward.nextModifiers];
   player.tags = { ...normalizedReward.nextTags };
   applyResolvedPlayerStateToDraft(draft, player);
-  setDraftToolDieSeed(draft, nextToolDieSeed);
+  if (typeof nextToolDieSeed === "number") {
+    setDraftToolDieSeed(draft, nextToolDieSeed);
+  }
   setDraftToolInventory(draft, [...draft.tools, ...normalizedReward.tools]);
 }

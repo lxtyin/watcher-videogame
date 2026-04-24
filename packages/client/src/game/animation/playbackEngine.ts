@@ -1,3 +1,4 @@
+import { IMPACT_RECOIL_CONTACT_PROGRESS } from "@watcher/shared";
 import type {
   ActionPresentationEvent,
   Direction,
@@ -57,6 +58,14 @@ export interface ActivePlayerLiftReactionPlayback {
   progress: number;
 }
 
+export interface ActiveNumberPopupReactionPlayback {
+  eventId: string;
+  kind: "number_popup";
+  position: GridPosition;
+  progress: number;
+  value: number;
+}
+
 export interface ActiveLinkReactionPlayback {
   eventId: string;
   from: PresentationAnchor;
@@ -70,6 +79,7 @@ export interface ActiveLinkReactionPlayback {
 export type ActiveReactionPlayback =
   | ActiveEffectReactionPlayback
   | ActiveLinkReactionPlayback
+  | ActiveNumberPopupReactionPlayback
   | ActivePlayerLiftReactionPlayback;
 
 interface PendingStateTransitionPlayback {
@@ -192,6 +202,48 @@ function sampleGridPath(
   };
 }
 
+function easeOutCubic(value: number): number {
+  const normalizedValue = clampProgress(value);
+  return 1 - (1 - normalizedValue) ** 3;
+}
+
+function lerpNumber(from: number, to: number, progress: number): number {
+  return from + (to - from) * progress;
+}
+
+function sampleImpactRecoilPath(positions: GridPosition[], progress: number): SampledGridPosition {
+  if (positions.length < 3) {
+    return sampleGridPath(positions, progress);
+  }
+
+  const normalizedProgress = clampProgress(progress);
+  const start = positions[0]!;
+  const contact = positions[1]!;
+  const end = positions[positions.length - 1]!;
+  const facing = getFacingBetweenPoints(start, contact);
+
+  if (normalizedProgress <= IMPACT_RECOIL_CONTACT_PROGRESS) {
+    const localProgress = easeOutCubic(normalizedProgress / IMPACT_RECOIL_CONTACT_PROGRESS);
+    return {
+      x: lerpNumber(start.x, contact.x, localProgress),
+      y: lerpNumber(start.y, contact.y, localProgress),
+      lift: 0,
+      facing
+    };
+  }
+
+  const returnProgress = easeOutCubic(
+    (normalizedProgress - IMPACT_RECOIL_CONTACT_PROGRESS) / (1 - IMPACT_RECOIL_CONTACT_PROGRESS)
+  );
+
+  return {
+    x: lerpNumber(contact.x, end.x, returnProgress),
+    y: lerpNumber(contact.y, end.y, returnProgress),
+    lift: 0,
+    facing
+  };
+}
+
 function isEventActive(event: ActionPresentationEvent, elapsedMs: number): boolean {
   return elapsedMs >= event.startMs && elapsedMs <= event.startMs + event.durationMs;
 }
@@ -243,15 +295,18 @@ function evaluateEventPlayback(
         playerId: event.subject.playerId,
         motionStyle: event.subject.motionStyle,
         progress,
-        position: sampleGridPath(
-          event.positions,
-          progress,
-          event.subject.motionStyle === "arc"
-            ? 0.7 + Math.max(0, event.positions.length - 2) * 0.08
-            : event.subject.motionStyle === "finish"
-              ? 1.75
-              : 0
-        )
+        position:
+          event.subject.motionStyle === "impact_recoil"
+            ? sampleImpactRecoilPath(event.positions, progress)
+            : sampleGridPath(
+                event.positions,
+                progress,
+                event.subject.motionStyle === "arc"
+                  ? 0.7 + Math.max(0, event.positions.length - 2) * 0.08
+                  : event.subject.motionStyle === "finish"
+                    ? 1.75
+                    : 0
+              )
       };
       continue;
     }
@@ -283,6 +338,17 @@ function evaluateEventPlayback(
         position: event.reaction.position,
         progress,
         tiles: event.reaction.tiles
+      });
+      continue;
+    }
+
+    if (event.reaction.kind === "number_popup") {
+      reactions.push({
+        eventId: event.id,
+        kind: "number_popup",
+        position: event.reaction.position,
+        progress,
+        value: event.reaction.value
       });
       continue;
     }

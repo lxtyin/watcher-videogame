@@ -22,6 +22,7 @@ import {
 import { createMovementDescriptor, createMovementDescriptorInput } from "../rules/displacement";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
+import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
@@ -124,6 +125,21 @@ function resolveAwmShootTool(
         anchor: createPlayerAnchor(context.actor.id)
       })
     ]);
+  }
+
+  if (trace.collision.kind === "solid") {
+    resolveImpactTerrainEffect(draft, {
+      direction: trace.collision.direction,
+      position: trace.collision.position,
+      source: {
+        kind: "projectile",
+        ownerId: context.actor.id,
+        projectileType: "awm_bullet"
+      },
+      startMs: projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0,
+      strength: 999,
+      tile: trace.collision.tile
+    });
   }
 
   setDraftToolInventory(draft, consumeActiveTool(context));

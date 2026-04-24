@@ -27,6 +27,7 @@ interface RoomTileState {
     | "floor"
     | "wall"
     | "earthWall"
+    | "boxingBall"
     | "highwall"
     | "poison"
     | "pit"

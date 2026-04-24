@@ -13,7 +13,11 @@ import type {
 import { isWithinBoard } from "../board";
 import { clonePlayerTags } from "../playerTags";
 import { resolvePassThroughSummonEffects, resolveStopSummonEffects } from "../summons";
-import { resolvePassThroughTerrainEffect, resolveStopTerrainEffect } from "../terrain";
+import {
+  resolveImpactTerrainEffect,
+  resolvePassThroughTerrainEffect,
+  resolveStopTerrainEffect
+} from "../terrain";
 import type { ResolutionDraft } from "./actionDraft";
 import {
   appendDraftPresentationEvents,
@@ -25,6 +29,7 @@ import {
 } from "./actionDraft";
 import {
   buildMotionPositions,
+  IMPACT_RECOIL_CONTACT_PROGRESS,
   createPlayerMotionEvent,
   createSoundEvent,
   getMotionStepDurationMs
@@ -72,6 +77,7 @@ interface TeleportMovementOptions extends MovementRuntimeOptions {
 export interface MovementSystemResolution {
   actor: ResolvedActorState;
   endMs: number;
+  impactStrength: number | null;
   movement: MovementDescriptor;
   motionEndMs: number | null;
   motionStartMs: number | null;
@@ -85,6 +91,17 @@ interface MutableMovementState {
   remainingMovePoints: number | null;
   shouldContinueMovement: boolean;
   shouldResolveStopTriggers: boolean;
+}
+
+interface PendingImpact {
+  direction: Direction;
+  strength: number;
+  tile: NonNullable<ReturnType<typeof getTileAfterMutations>>;
+}
+
+interface ImpactTiming {
+  contactMs: number;
+  endMs: number;
 }
 
 function clonePosition(position: GridPosition): GridPosition {
@@ -198,6 +215,53 @@ function appendMovementMotionEvent(
   };
 }
 
+function createDirectionalOffsetPosition(
+  position: GridPosition,
+  direction: Direction,
+  amount: number
+): GridPosition {
+  const target = stepPosition(position, direction, amount);
+
+  return {
+    x: target.x,
+    y: target.y
+  };
+}
+
+function appendImpactRecoilMotionEvent(
+  draft: ResolutionDraft,
+  playerId: string,
+  position: GridPosition,
+  direction: Direction,
+  startMs: number
+): ImpactTiming {
+  const motionEvent = createPlayerMotionEvent(
+    createDraftEventId(draft, `impact:${playerId}`),
+    playerId,
+    [
+      clonePosition(position),
+      createDirectionalOffsetPosition(position, direction, 0.42),
+      clonePosition(position)
+    ],
+    "impact_recoil",
+    startMs
+  );
+
+  if (!motionEvent) {
+    return {
+      contactMs: startMs,
+      endMs: startMs
+    };
+  }
+
+  appendDraftPresentationEvents(draft, [motionEvent]);
+
+  return {
+    contactMs: startMs + Math.round(motionEvent.durationMs * IMPACT_RECOIL_CONTACT_PROGRESS),
+    endMs: motionEvent.startMs + motionEvent.durationMs
+  };
+}
+
 function syncMovementStatePlayerFromDraft(
   draft: ResolutionDraft,
   player: MovementSubject
@@ -307,7 +371,8 @@ function buildResolution(
     endMs: number;
     motionEndMs: number | null;
     motionStartMs: number | null;
-  }
+  },
+  impactStrength: number | null
 ): MovementSystemResolution {
   if (path.length) {
     applyResolvedPlayerStateToDraft(draft, state.player);
@@ -335,6 +400,7 @@ function buildResolution(
       turnFlags: [...state.player.turnFlags]
     },
     endMs: timing.endMs,
+    impactStrength,
     movement,
     motionEndMs: timing.motionEndMs,
     motionStartMs: timing.motionStartMs,
@@ -359,6 +425,7 @@ function resolveSteppedDisplacement(
   const stepDurationMs = getMotionStepDurationMs(resolveMotionStyle(movement));
   let stepsTaken = 0;
   let stopReason = "Movement ended";
+  let pendingImpact: PendingImpact | null = null;
 
   while ((state.remainingMovePoints ?? 0) > 0 && state.shouldContinueMovement) {
     const direction = state.direction;
@@ -382,7 +449,14 @@ function resolveSteppedDisplacement(
       break;
     }
 
-    if (tile.type === "wall" || tile.type === "highwall") {
+    if (tile.type === "wall" || tile.type === "boxingBall" || tile.type === "highwall") {
+      if (movementType === "translate" && (state.remainingMovePoints ?? 0) > 0) {
+        pendingImpact = {
+          direction,
+          strength: state.remainingMovePoints ?? 0,
+          tile
+        };
+      }
       stopReason = "Wall";
       break;
     }
@@ -390,6 +464,13 @@ function resolveSteppedDisplacement(
     const moveCost = tile.type === "earthWall" ? 1 + tile.durability : 1;
 
     if ((state.remainingMovePoints ?? 0) < moveCost) {
+      if (movementType === "translate" && tile.type === "earthWall" && (state.remainingMovePoints ?? 0) > 0) {
+        pendingImpact = {
+          direction,
+          strength: state.remainingMovePoints ?? 0,
+          tile
+        };
+      }
       stopReason = "Not enough move points";
       break;
     }
@@ -420,9 +501,36 @@ function resolveSteppedDisplacement(
     movement,
     startMs
   );
+  let impactTiming: ImpactTiming | null = null;
+
+  if (pendingImpact) {
+    impactTiming = appendImpactRecoilMotionEvent(
+      draft,
+      state.player.id,
+      state.player.position,
+      pendingImpact.direction,
+      timing.endMs
+    );
+    resolveImpactTerrainEffect(draft, {
+      direction: pendingImpact.direction,
+      position: {
+        x: pendingImpact.tile.x,
+        y: pendingImpact.tile.y
+      },
+      source: {
+        kind: "player",
+        movement,
+        player: state.player
+      },
+      startMs: impactTiming.contactMs,
+      strength: pendingImpact.strength,
+      tile: pendingImpact.tile
+    });
+    syncMovementStatePlayerFromDraft(draft, state.player);
+  }
 
   if (path.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, movement, timing.motionEndMs ?? startMs);
+    runStopTriggers(draft, state, movement, impactTiming?.endMs ?? timing.motionEndMs ?? startMs);
   }
 
   return buildResolution(
@@ -443,7 +551,8 @@ function resolveSteppedDisplacement(
       ),
       motionEndMs: timing.motionEndMs,
       motionStartMs: timing.motionStartMs
-    }
+    },
+    pendingImpact?.strength ?? null
   );
 }
 
@@ -495,7 +604,8 @@ export function resolveLeapDisplacement(
         endMs: startMs,
         motionEndMs: null,
         motionStartMs: null
-      }
+      },
+      null
     );
   }
 
@@ -545,7 +655,8 @@ export function resolveLeapDisplacement(
       ),
       motionEndMs: timing.motionEndMs,
       motionStartMs: timing.motionStartMs
-    }
+    },
+    null
   );
 }
 
@@ -573,7 +684,8 @@ export function resolveTeleportDisplacement(
         endMs: startMs,
         motionEndMs: null,
         motionStartMs: null
-      }
+      },
+      null
     );
   }
 
@@ -604,6 +716,7 @@ export function resolveTeleportDisplacement(
       ),
       motionEndMs: null,
       motionStartMs: null
-    }
+    },
+    null
   );
 }

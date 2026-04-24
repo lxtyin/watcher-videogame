@@ -76,15 +76,6 @@ function resolveBrakeTool(
     return;
   }
 
-  if (maxRange < 1) {
-    setDraftBlocked(draft, "No brake range left", {
-      preview: createToolPreview(context, {
-        valid: false
-      })
-    });
-    return;
-  }
-
   const requestedDistance = Math.min(maxRange, axisTarget.distance);
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
@@ -98,7 +89,7 @@ function resolveBrakeTool(
   
   const selectedTiles = collectDirectionSelectionTiles(context.board, context.actor.position, axisTarget.direction, requestedDistance);
   
-  if (!resolution.path.length) {
+  if (!resolution.path.length && resolution.impactStrength === null) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,

@@ -1,6 +1,7 @@
 import type { TileDefinition, TileType } from "@watcher/shared";
 import type { ThreeEvent } from "@react-three/fiber";
 import { toWorldPosition } from "../../utils/boardMath";
+import { BoxingBallTileAsset } from "./BoxingBallTileAsset";
 import { CannonTileAsset } from "./CannonTileAsset";
 import { ConveyorArrowAsset } from "./ConveyorArrowAsset";
 import { EarthWallTileAsset } from "./EarthWallTileAsset";
@@ -23,6 +24,7 @@ export const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   floor: { color: "#d5c6a1", height: 0.22 },
   wall: { color: "#455062", height: 0.8 },
   earthWall: { color: "#bc7441", height: 0.22 },
+  boxingBall: { color: "#c8b39d", height: 0.22 },
   highwall: { color: "#556273", height: 0.8 },
   poison: { color: "#4c6b3e", height: 0.22 },
   pit: { color: "#8b705f", height: 0.22 },
@@ -46,6 +48,7 @@ export function BoardTileDecorationAsset({
     <>
       {tile.type === "wall" ? <WallTileAsset /> : null}
       {tile.type === "earthWall" ? <EarthWallTileAsset breaking={highlighted} /> : null}
+      {tile.type === "boxingBall" ? <BoxingBallTileAsset /> : null}
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
       {tile.type === "poison" ? <PoisonTileAsset /> : null}
       {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}

@@ -19,6 +19,7 @@ import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { traceProjectile } from "../rules/spatial";
+import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
@@ -114,6 +115,21 @@ function resolveBasketballTool(
 
       nestedEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
     }
+  }
+
+  if (trace.collision.kind === "solid") {
+    resolveImpactTerrainEffect(draft, {
+      direction: trace.collision.direction,
+      position: trace.collision.position,
+      source: {
+        kind: "projectile",
+        ownerId: context.actor.id,
+        projectileType: "basketball"
+      },
+      startMs: impactStartMs,
+      strength: 999,
+      tile: trace.collision.tile
+    });
   }
 
   setDraftActionPresentation(

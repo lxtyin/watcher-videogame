@@ -548,3 +548,46 @@
   - `npm.cmd run build --workspace @watcher/client`
   - `npm.cmd run goldens`，`31/31` golden cases passed
   - 浏览器轻量冒烟：主页与建房页无新增 console / page error
+
+## 2026-04-24 撞击机制与拳击球地形
+
+- 新增 shared 通用 `impact` 语义：
+  - `translate` 在仍有剩余步数时被 solid tile 阻挡，会以剩余步数 author 一次 `impact`
+  - `drag / leap / landing` 不参与这套机制；投掷物命中 solid tile 时统一按 `impactStrength = 999` 触发地形 impact
+  - 地形模块新增 `onImpact` 入口，由 `movementSystem` 与投掷物结算统一分发
+- 新增撞击表现：
+  - `ActionPresentation` 增加 `motion(style = "impact_recoil")`，角色会继续顶到墙边，再回弹到格子中心
+  - `ActionPresentation` 的 `reaction` 增加通用 `number_popup` 载荷，用于显示拳击球撞击值
+  - client 的 `PlaybackEngine`、`BoardScene` 与 presentation 资源接入新的 recoil motion 和 number popup 渲染
+- 新增地形 `boxingBall`：
+  - 作为新的 solid tile，阻挡地面移动与投射物
+  - 被任意 impact 命中时播放摇摆 effect
+  - 被当前回合玩家以 `translate` 撞击 `x` 时，头顶弹出数字 `x`，并奖励一个 `projectilePushDistance = x` 的 `punch`
+  - 地图符号与地图编辑器缩略图新增 `b`
+- 投掷物接入：
+  - 现有 `awmShoot / basketball / rocket / punch` 的 solid collision 均会分发 projectile impact
+  - 本轮按需求不扩展 projectile trace 的中途 bounce contact 链路
+- 测试与验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run goldens`，`34/34` golden cases passed
+  - `npm.cmd run build --workspace @watcher/client`
+## 2026-04-24 拳击球白屏修复与零路径撞击落地
+
+- 修复拳击球撞击时的数字弹字实现：
+  - 将 `NumberPopupReactionVisual` 从 `@react-three/drei` 的 `Text + Billboard` 改为投影到世界坐标的 `Html`
+  - 避免运行时首次挂载 3D 文本时触发整棵 scene 的不稳定重渲染，收敛“3D 视口整屏闪烁后看不见内容”的风险
+- 调整主动平移工具的“零路径撞击”语义：
+  - `MovementSystemResolution` 新增 `impactStrength`
+  - `movement` 与 `brake` 不再因为 `path.length === 0` 就直接判 blocked；只要实际 author 了 `impact`，就视为一次有效使用
+  - 这样角色贴着墙或拳击球主动使用平移工具时，也能正常触发撞击表现与后续地形效果
+- 新增 golden：
+  - `movement-impact-adjacent-boxing-ball-still-applies`
+  - 覆盖“第一步就撞上相邻拳击球、位移路径为空，但依然消耗工具并获得缩放 punch”的链路
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`35/35` passed
+  - `npm.cmd run build --workspace @watcher/client`
+  - Playwright 复查 `/goldens?case=movement-impact-adjacent-boxing-ball-still-applies`，未出现新的 console/page error

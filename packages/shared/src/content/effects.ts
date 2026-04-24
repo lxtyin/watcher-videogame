@@ -7,6 +7,10 @@ function defineEffectRegistry<const Registry extends Record<string, Presentation
 }
 
 export const EFFECT_REGISTRY = defineEffectRegistry({
+  boxing_ball_hit: {
+    label: "拳击球摇摆",
+    description: "拳击球被撞击后出现的摇摆表现。"
+  },
   earth_wall_break: {
     label: "土墙碎裂",
     description: "土墙被撞碎时的破裂表现。"

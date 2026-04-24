@@ -15,6 +15,7 @@ import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
 import { getOppositeDirection, traceProjectile } from "../rules/spatial";
+import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   createDraftSoundEvent,
@@ -48,8 +49,8 @@ export const PUNCH_TOOL_DEFINITION: ToolContentDefinition = {
     title: "拳击",
     description: "向所选方向出拳，命中的玩家会被击退，命中墙壁时反推自身。",
     details: [
-      `射程 ${params.projectileRange ?? PUNCH_DEFAULT_RANGE} 格`,
-      `击退 ${params.projectilePushDistance ?? PUNCH_DEFAULT_PUSH_DISTANCE} 格`
+      `击退 ${params.projectilePushDistance ?? PUNCH_DEFAULT_PUSH_DISTANCE} 格`,
+      `射程 ${params.projectileRange ?? PUNCH_DEFAULT_RANGE} 格`
     ]
   }),
   color: "#ff3270",
@@ -138,6 +139,18 @@ function resolvePunchTool(
       nestedEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
     }
   } else if (trace.collision.kind === "solid") {
+    resolveImpactTerrainEffect(draft, {
+      direction: trace.collision.direction,
+      position: trace.collision.position,
+      source: {
+        kind: "projectile",
+        ownerId: context.actor.id,
+        projectileType: "punch"
+      },
+      startMs: 0,
+      strength: 999,
+      tile: trace.collision.tile
+    });
     nestedEvents.push(
       createDraftSoundEvent(draft, "tool_punch", "punch:impact", {
         anchor: createPositionAnchor(trace.collision.position)

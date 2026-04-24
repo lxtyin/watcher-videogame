@@ -472,6 +472,15 @@ function pushTerrainEvents(
       continue;
     }
 
+    if (terrainEffect.kind === "boxing_ball") {
+      pushEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} rammed a boxing ball for ${terrainEffect.impactStrength} and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
     if (terrainEffect.kind === "conveyor_boost" && actor) {
       pushEvent(
         state,

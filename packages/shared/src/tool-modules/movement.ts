@@ -70,13 +70,6 @@ function resolveMovementTool(
     return;
   }
 
-  if (movePoints < 1) {
-    setDraftBlocked(draft, "No move points left", {
-      preview: createToolPreview(context, { valid: false }),
-    });
-    return;
-  }
-
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
 
@@ -105,7 +98,7 @@ function resolveMovementTool(
             startMs: 0
           });
 
-  if (!resolution.path.length) {
+  if (!resolution.path.length && resolution.impactStrength === null) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,

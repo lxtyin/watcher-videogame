@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { PresentationEffectType } from "@watcher/shared";
 import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
+import { BoxingBallHitEffectAsset } from "../board/BoxingBallHitEffectAsset";
 import { EarthWallBreakEffectAsset } from "../board/EarthWallBreakEffectAsset";
 import { LuckyClaimEffectAsset } from "../board/LuckyClaimEffectAsset";
 import { PunchPlayerHitEffectAsset } from "../tools/punch/PunchPlayerHitEffectAsset";
@@ -18,6 +19,7 @@ interface EffectAssetProps {
 type EffectAssetComponent = ComponentType<EffectAssetProps>;
 
 const EFFECT_ASSETS: Record<PresentationEffectType, EffectAssetComponent> = {
+  boxing_ball_hit: BoxingBallHitEffectAsset,
   earth_wall_break: EarthWallBreakEffectAsset,
   lucky_claim: LuckyClaimEffectAsset,
   punch_player_hit: PunchPlayerHitEffectAsset,

@@ -27,6 +27,7 @@ import {
   stepPosition,
   traceProjectileFromPosition
 } from "../rules/spatial";
+import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   createToolPreview,
@@ -162,6 +163,21 @@ export function resolveRocketCore(
         startMs: spec.startMs
       })
     ]);
+  }
+
+  if (trace.collision.kind === "solid") {
+    resolveImpactTerrainEffect(draft, {
+      direction: trace.collision.direction,
+      position: trace.collision.position,
+      source: {
+        kind: "projectile",
+        ownerId: spec.projectileOwnerId,
+        projectileType: "rocket"
+      },
+      startMs: explosionStartMs,
+      strength: 999,
+      tile: trace.collision.tile
+    });
   }
 
   const livePlayers = getDraftPlayers(draft);

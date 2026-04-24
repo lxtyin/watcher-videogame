@@ -14,7 +14,7 @@ export const DEFAULT_BOARD_LAYOUT = [
   "#.pe#e.L..#",
   "#..^..o...#",
   "#..e..R...#",
-  "#D..##....#",
+  "#D..##..b.#",
   "#....<....#",
   "###########"
 ] as const;
@@ -23,6 +23,7 @@ export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   ".": { type: "floor" },
   "#": { type: "wall" },
   e: { type: "earthWall", durability: 2 },
+  b: { type: "boxingBall" },
   p: { type: "poison" },
   o: { type: "pit" },
   H: { type: "highwall" },

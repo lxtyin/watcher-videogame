@@ -156,7 +156,13 @@ export interface EventLogEntry {
   type: EventType;
 }
 
-export type PresentationMotionStyle = "ground" | "arc" | "finish" | "fall_side" | "spin_drop";
+export type PresentationMotionStyle =
+  | "ground"
+  | "arc"
+  | "finish"
+  | "fall_side"
+  | "spin_drop"
+  | "impact_recoil";
 export type PresentationProjectileType = "basketball" | "rocket" | "awm_bullet";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
 export type PresentationSoundCueId = keyof typeof import("./content/sounds").SOUND_CUE_REGISTRY;
@@ -354,6 +360,15 @@ export interface ResolvedActorState {
 
 export type TriggeredTerrainEffect =
   | {
+      grantedTool: TurnToolSnapshot;
+      impactStrength: number;
+      kind: "boxing_ball";
+      movement: MovementDescriptor;
+      playerId: string;
+      position: GridPosition;
+      tileKey: string;
+    }
+  | {
       kind: "goal";
       movement: MovementDescriptor | null;
       playerId: string;
@@ -475,6 +490,11 @@ export type ReactionPresentationPayload =
       effectType: PresentationEffectType;
       position: GridPosition;
       tiles: GridPosition[];
+    }
+  | {
+      kind: "number_popup";
+      position: GridPosition;
+      value: number;
     }
   | {
       from: PresentationAnchor;

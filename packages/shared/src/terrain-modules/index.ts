@@ -1,4 +1,5 @@
 import type { TileDefinition } from "../types";
+import { BOXING_BALL_TERRAIN_MODULE } from "./boxing-ball";
 import { CANNON_TERRAIN_MODULE } from "./cannon";
 import { CONVEYOR_TERRAIN_MODULE } from "./conveyor";
 import { EARTH_WALL_TERRAIN_MODULE } from "./earth-wall";
@@ -21,6 +22,7 @@ export const TERRAIN_MODULES = defineTerrainModules([
   FLOOR_TERRAIN_MODULE,
   WALL_TERRAIN_MODULE,
   EARTH_WALL_TERRAIN_MODULE,
+  BOXING_BALL_TERRAIN_MODULE,
   POISON_TERRAIN_MODULE,
   PIT_TERRAIN_MODULE,
   CANNON_TERRAIN_MODULE,

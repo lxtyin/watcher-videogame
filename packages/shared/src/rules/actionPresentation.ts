@@ -22,6 +22,8 @@ const ARC_MOTION_MS_PER_STEP = 210;
 const FINISH_MOTION_MS_PER_STEP = 820;
 const FALL_SIDE_MOTION_MS = 420;
 const SPIN_DROP_MOTION_MS = 520;
+export const IMPACT_RECOIL_MOTION_MS = 320;
+export const IMPACT_RECOIL_CONTACT_PROGRESS = 0.42;
 const PROJECTILE_MOTION_MS_PER_STEP = 110;
 
 export const ROCKET_BLAST_DELAY_MS = 40;
@@ -105,7 +107,9 @@ export function createPlayerMotionEvent(
             ? FALL_SIDE_MOTION_MS
             : motionStyle === "spin_drop"
               ? SPIN_DROP_MOTION_MS
-          : GROUND_MOTION_MS_PER_STEP)
+              : motionStyle === "impact_recoil"
+                ? IMPACT_RECOIL_MOTION_MS
+                : GROUND_MOTION_MS_PER_STEP)
   };
 }
 
@@ -195,6 +199,26 @@ export function createLinkReactionEvent(
       progressStyle,
       style,
       to
+    },
+    startMs,
+    durationMs
+  };
+}
+
+export function createNumberPopupReactionEvent(
+  eventId: string,
+  position: GridPosition,
+  value: number,
+  startMs = 0,
+  durationMs = 640
+): ReactionPresentationEvent {
+  return {
+    id: eventId,
+    kind: "reaction",
+    reaction: {
+      kind: "number_popup",
+      position,
+      value
     },
     startMs,
     durationMs

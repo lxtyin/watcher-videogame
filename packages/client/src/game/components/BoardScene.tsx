@@ -17,6 +17,7 @@ import { DiceRollOverlay } from "../assets/dice/DiceRollOverlay";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
 import { LinkReactionVisual } from "../assets/presentation/LinkReactionVisual";
+import { NumberPopupReactionVisual } from "../assets/presentation/NumberPopupReactionVisual";
 import { ProjectileVisual } from "../assets/presentation/ProjectileVisual";
 import { toWorldPositionFromGrid } from "../assets/shared/gridPlacement";
 import { SummonVisual } from "../assets/summons/SummonVisual";
@@ -2020,6 +2021,16 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           playerPositions={displayedPlayerPositions}
+          reaction={reaction}
+        />
+      ))}
+      {playbackState.reactions
+        .filter((reaction): reaction is Extract<(typeof playbackState.reactions)[number], { kind: "number_popup" }> => reaction.kind === "number_popup")
+        .map((reaction) => (
+        <NumberPopupReactionVisual
+          key={reaction.eventId}
+          boardWidth={snapshot.boardWidth}
+          boardHeight={snapshot.boardHeight}
           reaction={reaction}
         />
       ))}

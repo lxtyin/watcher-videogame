@@ -57,7 +57,7 @@ export const GOLDEN_MOVEMENT_CASES = [
             },
             latestPresentation: {
                 toolId: "movement",
-                eventKinds: ["motion"]
+                eventKinds: ["motion", "motion"]
             }
         }
     }),
@@ -725,6 +725,277 @@ export const GOLDEN_MOVEMENT_CASES = [
             latestPresentation: {
                 toolId: "movement",
                 eventKinds: ["motion", "motion", "reaction"]
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "movement-impact-recoil-on-wall-block",
+        title: "Translate movement authors an impact recoil when a wall blocks remaining steps",
+        description: "Ground translate should append an impact recoil motion when a player still has move points but the next tile is solid.",
+        scene: {
+            layout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 2, y: 2 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 2
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "up",
+                label: "Walk into the top wall with one step left"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 0
+                }
+            },
+            latestPresentation: {
+                toolId: "movement",
+                eventKinds: ["motion", "motion"]
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "movement-impact-boxing-ball-grants-scaled-punch",
+        title: "In-turn impact on a boxing ball grants a punch with matching knockback",
+        description: "An in-turn translate impact should wobble the boxing ball, pop the impact value, and grant a punch whose push distance matches the remaining move points.",
+        scene: {
+            layout: [
+                "#######",
+                "#.....#",
+                "#..b..#",
+                "#.....#",
+                "#.....#",
+                "#.....#",
+                "#######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 2 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 3
+                            }
+                        }
+                    ]
+                },
+                {
+                    id: "target",
+                    name: "Target",
+                    characterId: "late",
+                    position: { x: 2, y: 3 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Ram the boxing ball with two move points left"
+            },
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "punch",
+                direction: "down",
+                label: "Use the rewarded punch on the nearby target"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#######",
+                "#.....#",
+                "#..b..#",
+                "#.....#",
+                "#.....#",
+                "#.....#",
+                "#######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 2 },
+                    toolCount: 0
+                },
+                target: {
+                    position: { x: 2, y: 5 }
+                }
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "movement-impact-adjacent-boxing-ball-still-applies",
+        title: "Adjacent in-turn impact on a boxing ball still applies the tool",
+        description: "Even if translate movement is blocked on the first tile, an in-turn impact should still consume the tool, trigger the boxing ball, and grant the scaled punch.",
+        scene: {
+            layout: [
+                "#######",
+                "#.....#",
+                "#..b..#",
+                "#.....#",
+                "#.....#",
+                "#.....#",
+                "#######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 2, y: 2 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 2
+                            }
+                        }
+                    ]
+                },
+                {
+                    id: "target",
+                    name: "Target",
+                    characterId: "late",
+                    position: { x: 2, y: 3 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Bump directly into the adjacent boxing ball"
+            },
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "punch",
+                direction: "down",
+                label: "Use the rewarded punch after the zero-step impact"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#######",
+                "#.....#",
+                "#..b..#",
+                "#.....#",
+                "#.....#",
+                "#.....#",
+                "#######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 2 },
+                    toolCount: 0
+                },
+                target: {
+                    position: { x: 2, y: 5 }
+                }
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "projectile-impact-boxing-ball-triggers-hit-effect",
+        title: "Projectile collision with a boxing ball triggers the impact reaction",
+        description: "Projectile-owned impacts should still shake the boxing ball even though they always report impact 999.",
+        scene: {
+            layout: [
+                "#######",
+                "#.....#",
+                "#...b.#",
+                "#.....#",
+                "#######"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 2 },
+                    tools: [{ toolId: "rocket" }]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "rocket",
+                direction: "right",
+                label: "Fire a rocket into the boxing ball"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#######",
+                "#.....#",
+                "#...b.#",
+                "#.....#",
+                "#######"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 2 },
+                    toolCount: 0
+                }
+            },
+            latestPresentation: {
+                toolId: "rocket",
+                eventKinds: ["motion", "reaction", "reaction"]
             }
         }
     })
