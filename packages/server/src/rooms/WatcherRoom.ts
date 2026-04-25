@@ -9,12 +9,12 @@ import {
   getBoardSpawnPosition,
   getCharacterDefinition,
   getCharacterIds,
-  getGameMapSpawnPosition,
   type BoardDefinition,
   type CustomMapDefinition,
   type GameOrchestrator,
   type GameRuntimeState,
-  PLAYER_COLORS,
+  getAssignedPlayerColor,
+  getSequentialTeamId,
   type GrantDebugToolPayload,
   type KickPlayerCommandPayload,
   type SetCharacterCommandPayload,
@@ -39,15 +39,6 @@ interface CreateOptions {
 }
 
 const RECONNECTION_WINDOW_SECONDS = 45;
-
-function pickRandomPlayerColor(players: Iterable<PlayerState>): string {
-  const usedColors = new Set(Array.from(players).map((player) => player.color));
-  const availableColors = PLAYER_COLORS.filter((color) => !usedColors.has(color));
-  const palette = availableColors.length ? availableColors : PLAYER_COLORS;
-  const randomIndex = Math.floor(Math.random() * palette.length);
-
-  return palette[randomIndex] ?? "#ec6f5a";
-}
 
 export class WatcherRoom extends Room<WatcherState> {
   private customBoard: BoardDefinition | null = null;
@@ -137,13 +128,11 @@ export class WatcherRoom extends Room<WatcherState> {
 
     const spawnIndex = this.state.players.size;
     const characterIds = getCharacterIds();
-    const spawn = this.getSpawnPosition(spawnIndex);
     const player = new PlayerState();
 
     player.id = client.sessionId;
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
     player.petId = options.requestedPetId?.trim() || "";
-    player.color = pickRandomPlayerColor(this.state.players.values() as Iterable<PlayerState>);
     player.boardVisible = true;
     player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
     player.tagsJson = "{}";
@@ -154,10 +143,7 @@ export class WatcherRoom extends Room<WatcherState> {
     player.finishedTurnNumber = 0;
     player.isConnected = true;
     player.isReady = false;
-    player.x = spawn.x;
-    player.y = spawn.y;
-    player.spawnX = spawn.x;
-    player.spawnY = spawn.y;
+    this.assignPlayerSeatState(player, spawnIndex);
 
     clearPlayerTurnResources(player);
     this.state.players.set(client.sessionId, player);
@@ -226,6 +212,7 @@ export class WatcherRoom extends Room<WatcherState> {
       tileState.type = tile.type;
       tileState.durability = tile.durability;
       tileState.direction = tile.direction ?? "";
+      tileState.faction = tile.faction ?? "";
       this.state.board.set(tile.key, tileState);
     }
   }
@@ -234,12 +221,13 @@ export class WatcherRoom extends Room<WatcherState> {
     return this.customBoard ?? createBoardDefinition(this.state.mapId);
   }
 
-  private getSpawnPosition(playerIndex: number): { x: number; y: number } {
-    if (this.customBoard) {
-      return getBoardSpawnPosition(this.customBoard, this.state.mode, playerIndex);
-    }
-
-    return getGameMapSpawnPosition(this.state.mapId, playerIndex);
+  private getSpawnPosition(playerIndex: number, teamId: PlayerState["teamId"]): { x: number; y: number } {
+    return getBoardSpawnPosition(
+      this.getRoomBoard(),
+      this.state.mode,
+      playerIndex,
+      teamId === "" ? null : teamId
+    );
   }
 
   private findClientBySessionId(sessionId: string): Client | null {
@@ -299,11 +287,7 @@ export class WatcherRoom extends Room<WatcherState> {
         return;
       }
 
-      const spawn = this.getSpawnPosition(index);
-      player.x = spawn.x;
-      player.y = spawn.y;
-      player.spawnX = spawn.x;
-      player.spawnY = spawn.y;
+      this.assignPlayerSeatState(player, index);
       player.boardVisible = true;
       player.finishRank = 0;
       player.finishedTurnNumber = 0;
@@ -426,6 +410,10 @@ export class WatcherRoom extends Room<WatcherState> {
       return;
     }
 
+    if (this.state.roomPhase === "lobby") {
+      this.resetPlayersForCurrentMap(false);
+    }
+
     if (this.state.roomPhase === "in_game" && wasActivePlayer) {
       this.advanceSharedTurn();
     }
@@ -435,6 +423,18 @@ export class WatcherRoom extends Room<WatcherState> {
 
   private getPlayerOrder(): string[] {
     return Array.from(this.state.players.values() as Iterable<PlayerState>).map((player) => player.id);
+  }
+
+  private assignPlayerSeatState(player: PlayerState, playerIndex: number): void {
+    const teamId = this.state.mode === "bedwars" ? getSequentialTeamId(playerIndex) : null;
+    const spawn = this.getSpawnPosition(playerIndex, teamId ?? "");
+
+    player.teamId = teamId ?? "";
+    player.color = getAssignedPlayerColor(this.state.mode, playerIndex, teamId);
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.spawnX = spawn.x;
+    player.spawnY = spawn.y;
   }
 
   private getConnectedPlayers(): PlayerState[] {
@@ -447,6 +447,20 @@ export class WatcherRoom extends Room<WatcherState> {
     const connectedPlayers = this.getConnectedPlayers();
 
     return connectedPlayers.length > 0 && connectedPlayers.every((player) => player.isReady);
+  }
+
+  private hasRequiredBedwarsTeams(): boolean {
+    if (this.state.mode !== "bedwars") {
+      return true;
+    }
+
+    const teams = new Set(
+      this.getConnectedPlayers()
+        .map((player) => player.teamId)
+        .filter((teamId) => teamId !== "")
+    );
+
+    return teams.has("white") && teams.has("black");
   }
 
   private startMatch(): void {
@@ -497,6 +511,11 @@ export class WatcherRoom extends Room<WatcherState> {
 
     if (!this.areAllConnectedPlayersReady()) {
       this.pushEvent("move_blocked", `${player.name} cannot start until everyone is ready.`);
+      return;
+    }
+
+    if (!this.hasRequiredBedwarsTeams()) {
+      this.pushEvent("move_blocked", `${player.name} cannot start bedwars without both teams present.`);
       return;
     }
 

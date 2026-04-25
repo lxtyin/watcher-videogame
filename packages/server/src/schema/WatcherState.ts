@@ -6,6 +6,7 @@ import {
   type GameMode,
   type RoomPhase,
   type RolledToolId,
+  type TeamId,
   type ToolId
 } from "@watcher/shared";
 
@@ -17,6 +18,7 @@ export class TileState extends Schema {
   @type("string") type = "floor";
   @type("number") durability = 0;
   @type("string") direction = "";
+  @type("string") faction: TeamId | "" = "";
 }
 
 export class TurnToolState extends Schema {
@@ -44,6 +46,7 @@ export class PlayerState extends Schema {
   @type("number") y = 0;
   @type("number") spawnX = 0;
   @type("number") spawnY = 0;
+  @type("string") teamId: TeamId | "" = "";
   @type(["string"]) turnFlags = new ArraySchema<string>();
   @type([TurnToolState]) tools = new ArraySchema<TurnToolState>();
 }

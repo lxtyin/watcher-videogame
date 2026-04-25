@@ -9,6 +9,7 @@ import type {
   BoardDefinition,
   BoardPlayerState,
   BoardSummonState,
+  GameMode,
   GameSnapshot,
   GridPosition,
   MovementActor,
@@ -30,6 +31,7 @@ export interface ResolutionDraft {
   actor: MovementActor;
   actorId: string;
   board: BoardDefinition;
+  mode: GameMode;
   nextToolDieSeed: number;
   nextEventOrdinal: number;
   playersById: Map<string, BoardPlayerState>;
@@ -91,6 +93,7 @@ function cloneBoardPlayerState(player: BoardPlayerState): BoardPlayerState {
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition),
     tags: clonePlayerTags(player.tags),
+    teamId: player.teamId,
     turnFlags: [...player.turnFlags]
   };
 }
@@ -112,6 +115,7 @@ function cloneActor(actor: MovementActor): MovementActor {
     position: clonePosition(actor.position),
     spawnPosition: clonePosition(actor.spawnPosition),
     tags: clonePlayerTags(actor.tags),
+    teamId: actor.teamId,
     turnFlags: [...actor.turnFlags]
   };
 }
@@ -125,6 +129,7 @@ function toBoardPlayerState(actor: MovementActor, boardVisible = true): BoardPla
     position: clonePosition(actor.position),
     spawnPosition: clonePosition(actor.spawnPosition),
     tags: clonePlayerTags(actor.tags),
+    teamId: actor.teamId,
     turnFlags: [...actor.turnFlags]
   };
 }
@@ -141,6 +146,7 @@ function syncDraftActorPlayerEntry(draft: ResolutionDraft): void {
 export function createResolutionDraft(options: {
   actor: MovementActor;
   board: BoardDefinition;
+  mode: GameMode;
   nextToolDieSeed: number;
   players: BoardPlayerState[];
   presentationToolId: ToolId;
@@ -152,6 +158,7 @@ export function createResolutionDraft(options: {
     actor: cloneActor(options.actor),
     actorId: options.actor.id,
     board: options.board,
+    mode: options.mode,
     nextToolDieSeed: options.nextToolDieSeed,
     nextEventOrdinal: 0,
     playersById: new Map(
@@ -190,6 +197,7 @@ export function createToolActionDraft(context: ToolActionContext): ToolActionDra
     ...createResolutionDraft({
       actor: context.actor,
       board: context.board,
+      mode: context.mode,
       nextToolDieSeed: context.toolDieSeed,
       players: context.players,
       presentationToolId: context.activeTool.toolId,
@@ -306,6 +314,10 @@ export function appendDraftAffectedPlayerMove(
     if (affectedPlayer.turnFlags) {
       playerEntry.turnFlags = [...affectedPlayer.turnFlags];
     }
+
+    if (affectedPlayer.boardVisible !== undefined) {
+      playerEntry.boardVisible = affectedPlayer.boardVisible;
+    }
   }
 
   if (affectedPlayer.playerId === draft.actorId) {
@@ -323,13 +335,17 @@ export function appendDraftAffectedPlayerMove(
       draft.actor.turnFlags = [...affectedPlayer.turnFlags];
     }
 
-    syncDraftActorPlayerEntry(draft);
+    if (affectedPlayer.boardVisible !== undefined) {
+      setDraftPlayerVisibility(draft, affectedPlayer.playerId, affectedPlayer.boardVisible);
+    } else {
+      syncDraftActorPlayerEntry(draft);
+    }
   }
 }
 
 export function applyResolvedPlayerStateToDraft(
   draft: ResolutionDraft,
-  player: Pick<MovementActor, "characterId" | "id" | "modifiers" | "position" | "spawnPosition" | "tags" | "turnFlags">
+  player: Pick<MovementActor, "characterId" | "id" | "modifiers" | "position" | "spawnPosition" | "tags" | "teamId" | "turnFlags">
 ): void {
   if (player.id === draft.actorId) {
     draft.actor.characterId = player.characterId;
@@ -337,6 +353,7 @@ export function applyResolvedPlayerStateToDraft(
     draft.actor.position = clonePosition(player.position);
     draft.actor.spawnPosition = clonePosition(player.spawnPosition);
     draft.actor.tags = clonePlayerTags(player.tags);
+    draft.actor.teamId = player.teamId;
     draft.actor.turnFlags = [...player.turnFlags];
     syncDraftActorPlayerEntry(draft);
     return;
@@ -353,7 +370,27 @@ export function applyResolvedPlayerStateToDraft(
   playerEntry.position = clonePosition(player.position);
   playerEntry.spawnPosition = clonePosition(player.spawnPosition);
   playerEntry.tags = clonePlayerTags(player.tags);
+  playerEntry.teamId = player.teamId;
   playerEntry.turnFlags = [...player.turnFlags];
+}
+
+export function setDraftPlayerVisibility(
+  draft: ResolutionDraft,
+  playerId: string,
+  boardVisible: boolean
+): void {
+  if (playerId === draft.actorId) {
+    draft.playersById.set(playerId, toBoardPlayerState(draft.actor, boardVisible));
+    return;
+  }
+
+  const playerEntry = draft.playersById.get(playerId);
+
+  if (!playerEntry) {
+    return;
+  }
+
+  playerEntry.boardVisible = boardVisible;
 }
 
 export function appendDraftPresentationEvents(
@@ -508,6 +545,7 @@ export function finalizeToolActionDraft(draft: ToolActionDraft): ActionResolutio
   if (draft.kind === "blocked") {
     return {
       actor: {
+        boardVisible: draft.playersById.get(draft.actorId)?.boardVisible ?? true,
         modifiers: cloneModifierIds(draft.actor.modifiers),
         position: clonePosition(draft.actor.position),
         tags: clonePlayerTags(draft.actor.tags),
@@ -533,6 +571,7 @@ export function finalizeToolActionDraft(draft: ToolActionDraft): ActionResolutio
 
   return {
     actor: {
+      boardVisible: draft.playersById.get(draft.actorId)?.boardVisible ?? true,
       modifiers: cloneModifierIds(draft.actor.modifiers),
       position: clonePosition(draft.actor.position),
       tags: clonePlayerTags(draft.actor.tags),
@@ -571,9 +610,11 @@ export function createTurnStartResolutionDraft(
       height: snapshot.boardHeight,
       tiles: snapshot.tiles.map((tile) => ({
         ...tile,
-        direction: tile.direction
+        direction: tile.direction,
+        faction: tile.faction
       }))
     },
+    mode: snapshot.mode,
     nextToolDieSeed: toolDieSeed,
     players: snapshot.players
       .filter((player) => player.boardVisible)
@@ -585,6 +626,7 @@ export function createTurnStartResolutionDraft(
         position: clonePosition(player.position),
         spawnPosition: clonePosition(player.spawnPosition),
         tags: clonePlayerTags(player.tags),
+        teamId: player.teamId,
         turnFlags: [...player.turnFlags]
       })),
     presentationToolId,

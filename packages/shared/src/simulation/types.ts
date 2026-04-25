@@ -8,6 +8,7 @@ import type {
   GridPosition,
   ModifierId,
   PlayerTagMap,
+  TeamId,
   PlayerTurnFlag,
   SetCharacterCommandPayload,
   SummonId,
@@ -39,6 +40,7 @@ export interface SimulationPlayerDefinition {
   modifiers?: ModifierId[];
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
+  teamId?: TeamId | null;
   tools?: SimulationToolLoadoutDefinition[];
   turnFlags?: PlayerTurnFlag[];
 }

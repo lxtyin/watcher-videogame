@@ -66,7 +66,8 @@ export function createBoardDefinitionFromGoldenLayout(
         y,
         type: definition.type,
         durability: definition.durability ?? 0,
-        direction: definition.direction ?? null
+        direction: definition.direction ?? null,
+        faction: definition.faction ?? null
       });
     });
   });
@@ -80,12 +81,13 @@ export function createBoardDefinitionFromGoldenLayout(
 
 function symbolMatchesTile(
   symbolDefinition: LayoutSymbolDefinition,
-  tile: Pick<TileDefinition, "direction" | "durability" | "type">
+  tile: Pick<TileDefinition, "direction" | "durability" | "faction" | "type">
 ): boolean {
   return (
     symbolDefinition.type === tile.type &&
     (symbolDefinition.durability ?? 0) === tile.durability &&
-    (symbolDefinition.direction ?? null) === tile.direction
+    (symbolDefinition.direction ?? null) === tile.direction &&
+    (symbolDefinition.faction ?? null) === tile.faction
   );
 }
 

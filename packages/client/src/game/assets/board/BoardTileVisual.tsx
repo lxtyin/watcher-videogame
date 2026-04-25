@@ -11,6 +11,9 @@ import { LuckyBlockAsset } from "./LuckyBlockAsset";
 import { PitDecorationAsset } from "./PitDecorationAsset";
 import { PoisonTileAsset } from "./PoisonTileAsset";
 import { StartTileAsset } from "./StartTileAsset";
+import { TeamCampTileAsset } from "./TeamCampTileAsset";
+import { TeamSpawnTileAsset } from "./TeamSpawnTileAsset";
+import { TowerTileAsset } from "./TowerTileAsset";
 import { ToolTilePreviewAsset } from "../tools/shared/ToolTilePreviewAsset";
 import { WallTileAsset } from "./WallTileAsset";
 import { DangerTileHighlightAsset } from "./DangerTileHighlightAsset";
@@ -25,6 +28,9 @@ export const TILE_VISUAL_STYLE: Record<TileType, TileVisualStyle> = {
   wall: { color: "#455062", height: 0.8 },
   earthWall: { color: "#bc7441", height: 0.22 },
   boxingBall: { color: "#c8b39d", height: 0.22 },
+  tower: { color: "#9c98a6", height: 0.22 },
+  teamSpawn: { color: "#bbc8d2", height: 0.22 },
+  teamCamp: { color: "#ccb37b", height: 0.22 },
   highwall: { color: "#556273", height: 0.8 },
   poison: { color: "#4c6b3e", height: 0.22 },
   pit: { color: "#8b705f", height: 0.22 },
@@ -49,6 +55,9 @@ export function BoardTileDecorationAsset({
       {tile.type === "wall" ? <WallTileAsset /> : null}
       {tile.type === "earthWall" ? <EarthWallTileAsset breaking={highlighted} /> : null}
       {tile.type === "boxingBall" ? <BoxingBallTileAsset /> : null}
+      {tile.type === "tower" ? <TowerTileAsset durability={tile.durability} faction={tile.faction} /> : null}
+      {tile.type === "teamSpawn" ? <TeamSpawnTileAsset faction={tile.faction} /> : null}
+      {tile.type === "teamCamp" ? <TeamCampTileAsset faction={tile.faction} /> : null}
       {tile.type === "pit" ? <PitDecorationAsset /> : null}
       {tile.type === "poison" ? <PoisonTileAsset /> : null}
       {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}

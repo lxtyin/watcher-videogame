@@ -11,6 +11,9 @@ import { LUCKY_TERRAIN_MODULE } from "./lucky";
 import { PIT_TERRAIN_MODULE } from "./pit";
 import { POISON_TERRAIN_MODULE } from "./poison";
 import { START_TERRAIN_MODULE } from "./start";
+import { TEAM_CAMP_TERRAIN_MODULE } from "./team-camp";
+import { TEAM_SPAWN_TERRAIN_MODULE } from "./team-spawn";
+import { TOWER_TERRAIN_MODULE } from "./tower";
 import type { TerrainModule } from "./types";
 import { WALL_TERRAIN_MODULE } from "./wall";
 
@@ -23,6 +26,9 @@ export const TERRAIN_MODULES = defineTerrainModules([
   WALL_TERRAIN_MODULE,
   EARTH_WALL_TERRAIN_MODULE,
   BOXING_BALL_TERRAIN_MODULE,
+  TOWER_TERRAIN_MODULE,
+  TEAM_SPAWN_TERRAIN_MODULE,
+  TEAM_CAMP_TERRAIN_MODULE,
   POISON_TERRAIN_MODULE,
   PIT_TERRAIN_MODULE,
   CANNON_TERRAIN_MODULE,

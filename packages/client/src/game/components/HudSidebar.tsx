@@ -47,8 +47,16 @@ const TURN_PHASE_LABELS = {
 const DEBUG_TOOL_OPTIONS = getDebugGrantableToolIds();
 const CHARACTER_OPTIONS = getCharacterIds();
 
-function describeModeLabel(mode: "free" | "race" | undefined): string {
-  return mode === "race" ? "竞速模式" : "自由模式";
+function describeModeLabel(mode: "free" | "race" | "bedwars" | undefined): string {
+  if (mode === "race") {
+    return "竞速模式";
+  }
+
+  if (mode === "bedwars") {
+    return "起床战争";
+  }
+
+  return "自由模式";
 }
 
 function describeLobbyHint(isHost: boolean, allReady: boolean): string {

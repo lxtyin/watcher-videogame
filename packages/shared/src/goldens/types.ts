@@ -9,6 +9,7 @@ import type {
   GridPosition,
   ModifierId,
   PlayerTagMap,
+  TeamId,
   PlayerTurnFlag,
   SummonId,
   SummonSnapshot,
@@ -27,6 +28,7 @@ import type {
 export interface GoldenToolLoadoutDefinition extends SimulationToolLoadoutDefinition {}
 
 export interface GoldenPlayerDefinition {
+  boardVisible?: boolean;
   characterId?: CharacterId;
   color?: string;
   id: string;
@@ -35,6 +37,7 @@ export interface GoldenPlayerDefinition {
   position: GridPosition;
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
+  teamId?: TeamId | null;
   tools?: GoldenToolLoadoutDefinition[];
   turnFlags?: PlayerTurnFlag[];
 }
@@ -106,6 +109,7 @@ export type GoldenCaseStep =
   | GoldenGrantDebugToolStep;
 
 export interface GoldenExpectedPlayerState {
+  boardVisible?: boolean;
   characterId?: CharacterId;
   finishRank?: number | null;
   finishedTurnNumber?: number | null;
@@ -113,6 +117,7 @@ export interface GoldenExpectedPlayerState {
   position?: GridPosition;
   spawnPosition?: GridPosition;
   tags?: PlayerTagMap;
+  teamId?: TeamId | null;
   toolCount?: number;
   toolIds?: ToolId[];
   turnFlags?: PlayerTurnFlag[];
@@ -155,6 +160,7 @@ export interface GoldenCaseDefinition {
 }
 
 export interface GoldenCasePlayerSummary {
+  boardVisible: boolean;
   characterId: CharacterId;
   color: string;
   finishRank: number | null;
@@ -163,6 +169,7 @@ export interface GoldenCasePlayerSummary {
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: TeamId | null;
   toolCount: number;
   toolIds: ToolId[];
   turnFlags: PlayerTurnFlag[];

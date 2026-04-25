@@ -1,8 +1,10 @@
 ﻿import type {
   Direction as ContentDirection,
+  GameMode as ContentGameMode,
   MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
   MovementType as ContentMovementType,
+  TeamId as ContentTeamId,
   TileType as ContentTileType,
   ToolChoiceContentDefinition,
   ToolInteractionAnchorDefinition as ContentToolInteractionAnchorDefinition,
@@ -25,7 +27,8 @@ export type Direction = ContentDirection;
 export type MovementType = ContentMovementType;
 export type MovementDisposition = ContentMovementDisposition;
 export type MovementTiming = "in_turn" | "out_of_turn";
-export type GameMode = "free" | "race";
+export type GameMode = ContentGameMode;
+export type TeamId = ContentTeamId;
 export type GameSettlementState = "active" | "complete";
 export type RoomPhase = "lobby" | "in_game" | "settlement";
 export type SkillId = string;
@@ -90,6 +93,7 @@ export interface GridPosition {
 export interface TileDefinition extends GridPosition {
   direction: Direction | null;
   durability: number;
+  faction: TeamId | null;
   key: string;
   type: TileType;
 }
@@ -128,6 +132,7 @@ export interface PlayerSnapshot {
   modifiers: ModifierId[];
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: TeamId | null;
   tools: TurnToolSnapshot[];
   turnFlags: PlayerTurnFlag[];
 }
@@ -264,6 +269,7 @@ export interface MovementActor {
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: TeamId | null;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -295,6 +301,7 @@ export interface BoardPlayerState {
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: TeamId | null;
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -313,6 +320,7 @@ export interface TileMutation {
 }
 
 export interface AffectedPlayerMove {
+  boardVisible?: boolean;
   movement: MovementDescriptor;
   modifiers?: ModifierId[];
   path: GridPosition[];
@@ -335,6 +343,7 @@ export interface ResolvedPlayerMovement {
 export interface ActionContextBase {
   actor: MovementActor;
   board: BoardDefinition;
+  mode: GameMode;
   players: BoardPlayerState[];
 }
 
@@ -352,6 +361,7 @@ export interface ToolActionContext extends ActionContextBase {
 }
 
 export interface ResolvedActorState {
+  boardVisible: boolean;
   modifiers: ModifierId[];
   position: GridPosition;
   tags: PlayerTagMap;
@@ -380,7 +390,7 @@ export type TriggeredTerrainEffect =
       movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;
-      respawnPosition: GridPosition;
+      respawnPosition: GridPosition | null;
       tileKey: string;
     }
   | {
@@ -388,7 +398,7 @@ export type TriggeredTerrainEffect =
       movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;
-      respawnPosition: GridPosition;
+      respawnPosition: GridPosition | null;
       tileKey: string;
     }
   | {
@@ -405,6 +415,22 @@ export type TriggeredTerrainEffect =
       movement: MovementDescriptor | null;
       playerId: string;
       position: GridPosition;
+      tileKey: string;
+    }
+  | {
+      grantedTool: TurnToolSnapshot;
+      kind: "team_camp";
+      playerId: string;
+      position: GridPosition;
+      teamId: TeamId;
+      tileKey: string;
+    }
+  | {
+      kind: "tower";
+      playerId: string;
+      position: GridPosition;
+      remainingDurability: number;
+      teamId: TeamId;
       tileKey: string;
     }
   | {
@@ -544,6 +570,7 @@ export interface PreviewDescriptor {
 export interface TilePresentationState {
   direction: Direction | null;
   durability: number;
+  faction: TeamId | null;
   type: TileType;
 }
 

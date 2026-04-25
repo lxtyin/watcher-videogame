@@ -32,6 +32,7 @@ interface SummonTriggerTarget {
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: MovementActor["teamId"];
   turnFlags: PlayerTurnFlag[];
 }
 
@@ -188,6 +189,7 @@ function runSummonPhase(
         position: context.position,
         spawnPosition: context.player.spawnPosition,
         tags: context.player.tags,
+        teamId: context.player.teamId,
         turnFlags: [...context.player.turnFlags]
       },
       position: context.position,

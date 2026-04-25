@@ -61,6 +61,7 @@ import {
   VOLATY_MODIFIER_DEFINITION,
   VOLATY_SKILL_DEFINITION
 } from "./volaty";
+import { STUN_MODIFIER_DEFINITION, STUN_MODIFIER_ID } from "./stun";
 
 export {
   BLAZE_BOMB_PREPARED_TAG
@@ -79,6 +80,9 @@ export {
 export {
   VOLATY_LEAP_TURN_TAG
 } from "./volaty";
+export {
+  STUN_MODIFIER_ID
+} from "./stun";
 
 interface ModifierActorContext {
   id: string;
@@ -121,7 +125,8 @@ export const MODIFIER_REGISTRY = defineModifierRegistry({
   [BLAZE_MODIFIER_DEFINITION.id]: BLAZE_MODIFIER_DEFINITION,
   [VOLATY_MODIFIER_DEFINITION.id]: VOLATY_MODIFIER_DEFINITION,
   [CHAIN_MODIFIER_DEFINITION.id]: CHAIN_MODIFIER_DEFINITION,
-  [FARTHER_MODIFIER_DEFINITION.id]: FARTHER_MODIFIER_DEFINITION
+  [FARTHER_MODIFIER_DEFINITION.id]: FARTHER_MODIFIER_DEFINITION,
+  [STUN_MODIFIER_DEFINITION.id]: STUN_MODIFIER_DEFINITION
 } as const);
 
 export function getSkillTextDescription(skillId: SkillId): TextDescription | null {
@@ -183,11 +188,13 @@ function mergePhaseResult(
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
+  skipTurn: boolean;
 } {
   return {
     grantTools: result?.grantTools ? [...result.grantTools] : [],
     nextModifiers: result?.nextModifiers ? cloneModifierIds(result.nextModifiers) : nextModifiers,
-    nextTags: result?.nextTags ? clonePlayerTags(result.nextTags) : nextTags
+    nextTags: result?.nextTags ? clonePlayerTags(result.nextTags) : nextTags,
+    skipTurn: result?.skipTurn ?? false
   };
 }
 
@@ -199,10 +206,12 @@ function applyTurnHook(
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
+  skipTurn: boolean;
 } {
   let nextModifiers = cloneModifierIds(actor.modifiers);
   let nextTags = clonePlayerTags(actor.tags);
   const grantTools: ToolLoadoutDefinition[] = [];
+  let skipTurn = false;
 
   for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
     const result = modifier.hooks[hookName]?.({
@@ -217,13 +226,15 @@ function applyTurnHook(
     const merged = mergePhaseResult(nextModifiers, nextTags, result);
     nextModifiers = merged.nextModifiers;
     nextTags = merged.nextTags;
+    skipTurn = skipTurn || merged.skipTurn;
     grantTools.push(...merged.grantTools);
   }
 
   return {
     grantTools,
     nextModifiers,
-    nextTags
+    nextTags,
+    skipTurn
   };
 }
 
@@ -234,6 +245,7 @@ export function applyTurnActionStartModifiers(
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
+  skipTurn: boolean;
 } {
   return applyTurnHook(characterId, actor, "onTurnActionStart");
 }
@@ -245,6 +257,7 @@ export function applyTurnEndModifiers(
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
+  skipTurn: boolean;
 } {
   return applyTurnHook(characterId, actor, "onTurnEnd");
 }
@@ -256,6 +269,7 @@ export function applyTurnStartModifiers(
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
   nextTags: PlayerTagMap;
+  skipTurn: boolean;
 } {
   return applyTurnHook(characterId, actor, "onTurnStart");
 }

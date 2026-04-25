@@ -4,6 +4,7 @@ import {
   DEFAULT_BOARD_SYMBOLS,
   type LayoutSymbolDefinition
 } from "./boards/defaultBoard";
+import { BEDWARS_BOARD_LAYOUT, BEDWARS_BOARD_SYMBOLS } from "./boards/bedwarsBoard";
 import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./boards/raceBoard";
 import { RACE_BOARD2_LAYOUT, RACE_BOARD2_SYMBOLS } from "./boards/raceBoard2";
 
@@ -32,6 +33,7 @@ function defineGameMapRegistry<const Registry extends Record<string, GameMapCont
 export const DEFAULT_GAME_MAP_ID = "free_default" as const;
 export const RACE_GAME_MAP_ID = "race_sprint" as const;
 export const RACE_GAME2_MAP_ID = "race_sprint2" as const;
+export const BEDWARS_GAME_MAP_ID = "bedwars_test" as const;
 
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
   [DEFAULT_GAME_MAP_ID]: {
@@ -74,6 +76,22 @@ export const GAME_MAP_REGISTRY = defineGameMapRegistry({
     },
     spawnMode: "shared",
     spawnPositions: [{ x: 2, y: 1 }]
+  },
+  [BEDWARS_GAME_MAP_ID]: {
+    label: "起床战争测试图",
+    description: "一个用于验证阵营出生点、塔、营地、复活与眩晕规则的小型对战地图。",
+    mode: "bedwars",
+    allowDebugTools: true,
+    layout: BEDWARS_BOARD_LAYOUT,
+    symbols: {
+      ...DEFAULT_BOARD_SYMBOLS,
+      ...BEDWARS_BOARD_SYMBOLS
+    },
+    spawnMode: "cycle",
+    spawnPositions: [
+      { x: 1, y: 1 },
+      { x: 13, y: 1 }
+    ]
   }
 });
 

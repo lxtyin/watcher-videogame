@@ -3,6 +3,9 @@ export type TileType =
   | "wall"
   | "earthWall"
   | "boxingBall"
+  | "tower"
+  | "teamSpawn"
+  | "teamCamp"
   | "highwall"
   | "poison"
   | "pit"
@@ -13,7 +16,9 @@ export type TileType =
   | "start"
   | "goal";
 
-export type GameMode = "free" | "race";
+export type TeamId = "white" | "black";
+
+export type GameMode = "free" | "race" | "bedwars";
 
 export type TurnPhase = "turn-start" | "turn-action" | "turn-end";
 export type Direction = "up" | "down" | "left" | "right";

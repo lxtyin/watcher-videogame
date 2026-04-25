@@ -127,6 +127,10 @@ export function applyAffectedPlayerMoves(
     player.x = affectedPlayer.target.x;
     player.y = affectedPlayer.target.y;
 
+    if (affectedPlayer.boardVisible !== undefined) {
+      player.boardVisible = affectedPlayer.boardVisible;
+    }
+
     if (affectedPlayer.turnFlags) {
       applyFlags(player, affectedPlayer.turnFlags);
     }
@@ -171,6 +175,7 @@ export function applyGameSnapshotToState(
     tileState.type = tile.type;
     tileState.durability = tile.durability;
     tileState.direction = tile.direction ?? "";
+    tileState.faction = tile.faction ?? "";
     state.board.set(tile.key, tileState);
   }
 
@@ -216,6 +221,7 @@ export function applyGameSnapshotToState(
     playerState.y = player.position.y;
     playerState.spawnX = player.spawnPosition.x;
     playerState.spawnY = player.spawnPosition.y;
+    playerState.teamId = player.teamId ?? "";
 
     while (playerState.turnFlags.length > 0) {
       playerState.turnFlags.pop();

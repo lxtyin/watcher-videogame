@@ -4,11 +4,15 @@ import {
   appendDraftPreviewHighlightTiles,
   appendDraftTileMutations,
   appendDraftTriggeredTerrainEffects,
+  setDraftPlayerVisibility,
   setDraftToolDieSeed,
   setDraftToolInventory,
   type ResolutionDraft
 } from "../rules/actionDraft";
-import { createPlayerMotionEvent } from "../rules/actionPresentation";
+import { createPlayerMotionEvent, createStateTransitionEvent } from "../rules/actionPresentation";
+import { getTileAfterMutations } from "../rules/spatial";
+import { STUN_MODIFIER_ID } from "../skills";
+import { attachModifier } from "../modifiers";
 import { applyOnGetToolModifiers } from "../skills";
 import type {
   GridPosition,
@@ -23,6 +27,25 @@ function clonePosition(position: GridPosition): GridPosition {
     x: position.x,
     y: position.y
   };
+}
+
+function teamHasStandingTower(draft: ResolutionDraft, teamId: MovementActor["teamId"]): boolean {
+  if (!teamId) {
+    return false;
+  }
+
+  return draft.board.tiles.some((baseTile) => {
+    const tile = getTileAfterMutations(draft.board, draft.tileMutations, baseTile);
+    return tile?.type === "tower" && tile.faction === teamId;
+  });
+}
+
+function canRespawnPlayer(draft: ResolutionDraft, player: MovementActor): boolean {
+  if (draft.mode !== "bedwars") {
+    return true;
+  }
+
+  return teamHasStandingTower(draft, player.teamId);
 }
 
 export function respawnPlayerOnTerrain(
@@ -47,7 +70,41 @@ export function respawnPlayerOnTerrain(
     appendDraftPresentationEvents(draft, [motionEvent]);
   }
 
+  const respawnAllowed = canRespawnPlayer(draft, options.player);
+
+  if (!respawnAllowed) {
+    const hideEvent = createStateTransitionEvent(
+      `${options.eventId}:hide`,
+      [],
+      [],
+      [
+        {
+          playerId: options.player.id,
+          before: {
+            boardVisible: true,
+            playerId: options.player.id
+          },
+          after: {
+            boardVisible: false,
+            playerId: options.player.id
+          }
+        }
+      ],
+      motionEvent ? motionEvent.startMs + motionEvent.durationMs : options.startMs
+    );
+
+    if (hideEvent) {
+      appendDraftPresentationEvents(draft, [hideEvent]);
+    }
+
+    setDraftPlayerVisibility(draft, options.player.id, false);
+    return;
+  }
+
   options.player.position = clonePosition(options.player.spawnPosition);
+  if (draft.mode === "bedwars") {
+    options.player.modifiers = attachModifier(options.player.modifiers, STUN_MODIFIER_ID);
+  }
   applyResolvedPlayerStateToDraft(draft, options.player);
 }
 

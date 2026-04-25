@@ -18,12 +18,13 @@ export const POISON_TERRAIN_MODULE: TerrainModule = {
       startMs: context.startMs,
       triggerPosition: context.position
     });
+    const playerState = context.draft.playersById.get(context.player.id);
     appendTerrainTrigger(context.draft, {
       kind: "poison",
       movement: context.movement,
       playerId: context.player.id,
       position: context.position,
-      respawnPosition: context.player.spawnPosition,
+      respawnPosition: playerState?.boardVisible ? context.player.spawnPosition : null,
       tileKey: context.tile.key
     });
   },

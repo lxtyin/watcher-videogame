@@ -26,6 +26,7 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
         startMs: context.startMs,
         triggerPosition
       });
+      const playerState = context.draft.playersById.get(context.state.player.id);
       context.state.direction = null;
       context.state.remainingMovePoints = 0;
       context.state.shouldResolveStopTriggers = false;
@@ -34,7 +35,7 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
         movement: context.movement,
         playerId: context.state.player.id,
         position: triggerPosition,
-        respawnPosition: context.state.player.spawnPosition,
+        respawnPosition: playerState?.boardVisible ? context.state.player.spawnPosition : null,
         tileKey: context.tile.key
       });
     }

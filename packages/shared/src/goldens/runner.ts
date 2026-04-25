@@ -224,6 +224,7 @@ function summarizePlayers(
     players.map((player) => [
       player.id,
       {
+        boardVisible: player.boardVisible,
         characterId: player.characterId,
         color: player.color,
         finishRank: player.finishRank,
@@ -232,6 +233,7 @@ function summarizePlayers(
         position: clonePosition(player.position),
         spawnPosition: clonePosition(player.spawnPosition),
         tags: { ...player.tags },
+        teamId: player.teamId,
         toolCount: player.tools.length,
         toolIds: player.tools.map((tool) => tool.toolId),
         turnFlags: [...player.turnFlags]
@@ -304,6 +306,15 @@ function compareExpectedPlayerState(
   }
 
   if (
+    expected.boardVisible !== undefined &&
+    actual.boardVisible !== expected.boardVisible
+  ) {
+    mismatches.push(
+      `Player "${playerId}" visibility mismatch: expected ${String(expected.boardVisible)}, got ${String(actual.boardVisible)}.`
+    );
+  }
+
+  if (
     expected.finishedTurnNumber !== undefined &&
     actual.finishedTurnNumber !== expected.finishedTurnNumber
   ) {
@@ -333,6 +344,15 @@ function compareExpectedPlayerState(
   ) {
     mismatches.push(
       `Player "${playerId}" tags mismatch: expected ${JSON.stringify(expected.tags)}, got ${JSON.stringify(actual.tags)}.`
+    );
+  }
+
+  if (
+    expected.teamId !== undefined &&
+    actual.teamId !== expected.teamId
+  ) {
+    mismatches.push(
+      `Player "${playerId}" team mismatch: expected ${String(expected.teamId)}, got ${String(actual.teamId)}.`
     );
   }
 

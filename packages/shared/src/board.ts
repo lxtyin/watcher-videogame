@@ -4,6 +4,7 @@ import type {
   BoardDefinition,
   GameMode,
   GridPosition,
+  TeamId,
   TileDefinition
 } from "./types";
 
@@ -16,6 +17,7 @@ function buildBoardFromLayout(
   symbols: Record<
     string,
     {
+      faction?: TileDefinition["faction"];
       direction?: TileDefinition["direction"];
       durability?: number;
       type: TileDefinition["type"];
@@ -46,7 +48,8 @@ function buildBoardFromLayout(
         y,
         type: tileConfig.type,
         durability: tileConfig.durability ?? 0,
-        direction: tileConfig.direction ?? null
+        direction: tileConfig.direction ?? null,
+        faction: tileConfig.faction ?? null
       });
     }
   }
@@ -67,6 +70,7 @@ export function createBoardDefinitionFromLayout(
     symbols as Record<
       string,
       {
+        faction?: TileDefinition["faction"];
         direction?: TileDefinition["direction"];
         durability?: number;
         type: TileDefinition["type"];
@@ -130,11 +134,32 @@ export function getBoardSpawnPositions(board: BoardDefinition): GridPosition[] {
   }));
 }
 
+export function getBoardTeamSpawnPositions(
+  board: BoardDefinition,
+  teamId: TeamId
+): GridPosition[] {
+  return board.tiles
+    .filter((tile) => tile.type === "teamSpawn" && tile.faction === teamId)
+    .map((tile) => ({
+      x: tile.x,
+      y: tile.y
+    }));
+}
+
 export function getBoardSpawnPosition(
   board: BoardDefinition,
   mode: GameMode,
-  playerIndex: number
+  playerIndex: number,
+  teamId: TeamId | null = null
 ): GridPosition {
+  if (mode === "bedwars" && teamId) {
+    const teamSpawns = getBoardTeamSpawnPositions(board, teamId);
+
+    if (teamSpawns.length) {
+      return teamSpawns[playerIndex % teamSpawns.length] ?? teamSpawns[0] ?? { x: 1, y: 1 };
+    }
+  }
+
   const spawnPositions = getBoardSpawnPositions(board);
 
   if (!spawnPositions.length) {

@@ -52,6 +52,7 @@ export interface ModifierPhaseHookResult {
   grantTools?: readonly ToolLoadoutDefinition[];
   nextModifiers?: readonly ModifierId[];
   nextTags?: PlayerTagMap;
+  skipTurn?: boolean;
 }
 
 export interface ModifierToolHookResult extends ModifierPhaseHookResult {

@@ -98,6 +98,7 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
     position: actor.position,
     spawnPosition: actor.spawnPosition,
     tags: actor.tags,
+    teamId: actor.teamId,
     turnFlags: actor.turnFlags
   };
 }

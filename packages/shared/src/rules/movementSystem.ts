@@ -50,6 +50,7 @@ interface MovementSubject {
   position: GridPosition;
   spawnPosition: GridPosition;
   tags: PlayerTagMap;
+  teamId: MovementActor["teamId"];
   turnFlags: MovementActor["turnFlags"];
 }
 
@@ -119,6 +120,7 @@ function cloneSubject(player: MovementSubject): MovementSubject {
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition),
     tags: clonePlayerTags(player.tags),
+    teamId: player.teamId,
     turnFlags: [...player.turnFlags]
   };
 }
@@ -379,6 +381,7 @@ function buildResolution(
 
     if (trackAffectedPlayerReason) {
       appendDraftAffectedPlayerMove(draft, {
+        boardVisible: draft.playersById.get(state.player.id)?.boardVisible ?? true,
         movement,
         modifiers: [...state.player.modifiers],
         path: path.map(clonePosition),
@@ -394,6 +397,7 @@ function buildResolution(
 
   return {
     actor: {
+      boardVisible: draft.playersById.get(state.player.id)?.boardVisible ?? true,
       modifiers: [...state.player.modifiers],
       position: clonePosition(state.player.position),
       tags: clonePlayerTags(state.player.tags),
@@ -449,7 +453,7 @@ function resolveSteppedDisplacement(
       break;
     }
 
-    if (tile.type === "wall" || tile.type === "boxingBall" || tile.type === "highwall") {
+    if (tile.type === "wall" || tile.type === "boxingBall" || tile.type === "tower" || tile.type === "highwall") {
       if (movementType === "translate" && (state.remainingMovePoints ?? 0) > 0) {
         pendingImpact = {
           direction,

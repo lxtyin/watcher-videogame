@@ -4,15 +4,16 @@ import type {
   GameMode,
   GameSnapshot,
   ModifierId,
-  TurnPhase,
-  RoomPhase,
   PlayerTagMap,
   PlayerTurnFlag,
+  RoomPhase,
   RolledToolId,
   SequencedActionPresentation,
   SummonId,
+  TeamId,
   ToolId,
-  ToolParameterValueMap
+  ToolParameterValueMap,
+  TurnPhase
 } from "@watcher/shared";
 
 interface SchemaCollection<T> extends Iterable<T> {
@@ -28,6 +29,9 @@ interface RoomTileState {
     | "wall"
     | "earthWall"
     | "boxingBall"
+    | "tower"
+    | "teamSpawn"
+    | "teamCamp"
     | "highwall"
     | "poison"
     | "pit"
@@ -39,6 +43,7 @@ interface RoomTileState {
     | "goal";
   durability: number;
   direction: Direction | "";
+  faction: TeamId | "";
 }
 
 interface RoomPlayerState {
@@ -58,6 +63,7 @@ interface RoomPlayerState {
   isReady: boolean;
   spawnX: number;
   spawnY: number;
+  teamId: TeamId | "";
   turnFlags: Iterable<PlayerTurnFlag>;
   tools: Iterable<RoomTurnToolState>;
 }
@@ -179,7 +185,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       y: tile.y,
       type: tile.type,
       durability: tile.durability,
-      direction: tile.direction === "" ? null : tile.direction
+      direction: tile.direction === "" ? null : tile.direction,
+      faction: tile.faction === "" ? null : tile.faction
     })),
     summons: Array.from(roomState.summons.values()).map((summon) => ({
       instanceId: summon.instanceId,
@@ -211,6 +218,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
         x: player.spawnX,
         y: player.spawnY
       },
+      teamId: player.teamId === "" ? null : player.teamId,
       turnFlags: Array.from(player.turnFlags),
       tools: Array.from(player.tools).map((tool) => ({
         instanceId: tool.instanceId,

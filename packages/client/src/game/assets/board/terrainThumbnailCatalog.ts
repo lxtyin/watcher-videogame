@@ -27,7 +27,8 @@ export function createTerrainThumbnailTile(symbol: string): TileDefinition {
     y: position.y,
     type: definition.type,
     durability: definition.durability ?? 0,
-    direction: definition.direction ?? null
+    direction: definition.direction ?? null,
+    faction: definition.faction ?? null
   };
 }
 
@@ -50,6 +51,9 @@ export const TERRAIN_THUMBNAIL_ENTRIES: TerrainThumbnailEntry[] = [
   createTerrainThumbnailEntry("#"),
   createTerrainThumbnailEntry("e"),
   createTerrainThumbnailEntry("b"),
+  createTerrainThumbnailEntry("t", ["t", "T"]),
+  createTerrainThumbnailEntry("i", ["i", "I"]),
+  createTerrainThumbnailEntry("c", ["c", "C"]),
   createTerrainThumbnailEntry("H"),
   createTerrainThumbnailEntry("p"),
   createTerrainThumbnailEntry("o"),
@@ -99,7 +103,10 @@ function matchesTileSymbol(symbol: string, tile: TileDefinition): boolean {
     return false;
   }
 
-  return (definition.direction ?? null) === tile.direction;
+  return (
+    (definition.direction ?? null) === tile.direction &&
+    (definition.faction ?? null) === tile.faction
+  );
 }
 
 export function resolveTerrainThumbnailSymbol(tile: TileDefinition): string | null {

@@ -38,8 +38,10 @@ export function pushTerrainEvents(
     if (terrainEffect.kind === "pit") {
       pushRoomEvent(
         state,
-        "player_respawned",
-        `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        terrainEffect.respawnPosition ? "player_respawned" : "terrain_triggered",
+        terrainEffect.respawnPosition
+          ? `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+          : `${affectedPlayer.name} fell through a pit and was eliminated.`
       );
       continue;
     }
@@ -47,8 +49,10 @@ export function pushTerrainEvents(
     if (terrainEffect.kind === "poison") {
       pushRoomEvent(
         state,
-        "player_respawned",
-        `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        terrainEffect.respawnPosition ? "player_respawned" : "terrain_triggered",
+        terrainEffect.respawnPosition
+          ? `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+          : `${affectedPlayer.name} was knocked down by poison and was eliminated.`
       );
       continue;
     }
@@ -76,6 +80,24 @@ export function pushTerrainEvents(
         state,
         "terrain_triggered",
         `${affectedPlayer.name} rammed a boxing ball for ${terrainEffect.impactStrength} and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "team_camp") {
+      pushRoomEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} used the team camp and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "tower") {
+      pushRoomEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} damaged the ${terrainEffect.teamId} tower. Remaining durability ${terrainEffect.remainingDurability}.`
       );
       continue;
     }

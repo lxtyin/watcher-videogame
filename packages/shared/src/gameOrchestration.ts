@@ -1,11 +1,11 @@
 import { getTile } from "./board";
 import { getCharacterDefinition, getCharacterIds } from "./characters";
-import { PLAYER_COLORS } from "./constants";
 import { rollMovementDie, rollToolDie } from "./dice";
 import {
   buildGameMapRuntimeMetadata,
-  getNextActiveRacePlayerId,
+  getNextActivePlayerId,
   getNextFinishRank,
+  isPlayerActiveForTurn,
   resolveSettlementState
 } from "./gameplay";
 import { createBoardDefinitionFromGoldenLayout } from "./goldens/layout";
@@ -42,6 +42,7 @@ import {
   findToolInstance,
   getToolDefinition
 } from "./tools";
+import { getAssignedPlayerColor, getSequentialTeamId, getTeamDisplayLabel } from "./teams";
 import type {
   ActionPresentation,
   BoardDefinition,
@@ -116,7 +117,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
   return {
     ...snapshot,
     hostPlayerId: snapshot.hostPlayerId,
-    tiles: snapshot.tiles.map((tile) => ({ ...tile })),
+    tiles: snapshot.tiles.map((tile) => ({ ...tile, faction: tile.faction })),
     players: snapshot.players.map((player) => ({
       ...player,
       boardVisible: player.boardVisible,
@@ -129,6 +130,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
+      teamId: player.teamId,
       tools: player.tools.map((tool) => ({
         ...tool,
         params: {
@@ -197,7 +199,8 @@ function buildBoardDefinition(snapshot: GameSnapshot): BoardDefinition {
     height: snapshot.boardHeight,
     tiles: snapshot.tiles.map((tile) => ({
       ...tile,
-      direction: tile.direction
+      direction: tile.direction,
+      faction: tile.faction
     }))
   };
 }
@@ -213,6 +216,7 @@ function buildBoardPlayers(snapshot: GameSnapshot): BoardPlayerState[] {
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
+      teamId: player.teamId,
       turnFlags: [...player.turnFlags]
     }));
 }
@@ -236,6 +240,10 @@ function getPlayerOrder(snapshot: GameSnapshot): string[] {
 
 function isRaceMode(state: MutableGameOrchestrationState): boolean {
   return state.snapshot.mode === "race";
+}
+
+function isBedwarsMode(state: MutableGameOrchestrationState): boolean {
+  return state.snapshot.mode === "bedwars";
 }
 
 function normalizePlayerTools(
@@ -335,6 +343,7 @@ function applySummonMutations(snapshot: GameSnapshot, summonMutations: SummonMut
 function applyAffectedPlayerMoves(
   snapshot: GameSnapshot,
   affectedPlayers: Array<{
+    boardVisible?: boolean;
     modifiers?: import("./types").ModifierId[];
     playerId: string;
     target: GridPosition;
@@ -350,6 +359,10 @@ function applyAffectedPlayerMoves(
     }
 
     player.position = clonePosition(affectedPlayer.target);
+
+    if (affectedPlayer.boardVisible !== undefined) {
+      player.boardVisible = affectedPlayer.boardVisible;
+    }
 
     if (affectedPlayer.turnFlags) {
       applyPlayerTurnFlags(player, affectedPlayer.turnFlags);
@@ -439,8 +452,10 @@ function pushTerrainEvents(
     if (terrainEffect.kind === "pit") {
       pushEvent(
         state,
-        "player_respawned",
-        `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        terrainEffect.respawnPosition ? "player_respawned" : "terrain_triggered",
+        terrainEffect.respawnPosition
+          ? `${affectedPlayer.name} fell through a pit and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+          : `${affectedPlayer.name} fell through a pit and was eliminated.`
       );
       continue;
     }
@@ -448,8 +463,10 @@ function pushTerrainEvents(
     if (terrainEffect.kind === "poison") {
       pushEvent(
         state,
-        "player_respawned",
-        `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+        terrainEffect.respawnPosition ? "player_respawned" : "terrain_triggered",
+        terrainEffect.respawnPosition
+          ? `${affectedPlayer.name} was knocked down by poison and respawned at (${terrainEffect.respawnPosition.x}, ${terrainEffect.respawnPosition.y}).`
+          : `${affectedPlayer.name} was knocked down by poison and was eliminated.`
       );
       continue;
     }
@@ -472,11 +489,29 @@ function pushTerrainEvents(
       continue;
     }
 
+    if (terrainEffect.kind === "team_camp") {
+      pushEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} used the team camp and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
     if (terrainEffect.kind === "boxing_ball") {
       pushEvent(
         state,
         "terrain_triggered",
         `${affectedPlayer.name} rammed a boxing ball for ${terrainEffect.impactStrength} and gained ${getToolDefinition(terrainEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
+    if (terrainEffect.kind === "tower") {
+      pushEvent(
+        state,
+        "terrain_triggered",
+        `${affectedPlayer.name} damaged the ${terrainEffect.teamId} tower. Remaining durability ${terrainEffect.remainingDurability}.`
       );
       continue;
     }
@@ -534,7 +569,22 @@ function enterSettlementState(state: MutableGameOrchestrationState): void {
   state.snapshot.settlementState = "complete";
 }
 
-function applyRaceGoalProgress(
+function refreshSettlementState(state: MutableGameOrchestrationState): boolean {
+  const settlementState = resolveSettlementState(state.snapshot.mode, state.snapshot.players);
+  state.snapshot.settlementState = settlementState;
+  return settlementState === "complete";
+}
+
+function wasPlayerKnockedOutByTerrain(
+  triggeredTerrainEffects: TriggeredTerrainEffect[],
+  playerId: string
+): boolean {
+  return triggeredTerrainEffects.some(
+    (effect) => (effect.kind === "pit" || effect.kind === "poison") && effect.playerId === playerId
+  );
+}
+
+function applyModeProgress(
   state: MutableGameOrchestrationState,
   actorId: string,
   triggeredTerrainEffects: TriggeredTerrainEffect[]
@@ -545,7 +595,7 @@ function applyRaceGoalProgress(
   if (!isRaceMode(state)) {
     return {
       actorFinished: false,
-      settlementComplete: false
+      settlementComplete: refreshSettlementState(state)
     };
   }
 
@@ -576,12 +626,9 @@ function applyRaceGoalProgress(
     );
   }
 
-  const settlementState = resolveSettlementState(state.snapshot.mode, state.snapshot.players);
-  state.snapshot.settlementState = settlementState;
-
   return {
     actorFinished,
-    settlementComplete: settlementState === "complete"
+    settlementComplete: refreshSettlementState(state)
   };
 }
 
@@ -713,7 +760,7 @@ function applyPhaseStartToPlayer(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
   phase: TurnInfoSnapshot["phase"]
-): void {
+): { skipTurn: boolean } {
   const phaseStart =
     phase === "turn-start"
       ? applyTurnStartModifiers(player.characterId, {
@@ -746,7 +793,9 @@ function applyPhaseStartToPlayer(
   applyPlayerTags(player, phaseStart.nextTags);
 
   if (!phaseStart.grantTools.length) {
-    return;
+    return {
+      skipTurn: phaseStart.skipTurn
+    };
   }
 
   applyToolInventory(
@@ -757,6 +806,10 @@ function applyPhaseStartToPlayer(
     ],
     phase
   );
+
+  return {
+    skipTurn: phaseStart.skipTurn
+  };
 }
 
 function applyPhaseEntryStop(
@@ -775,6 +828,7 @@ function applyPhaseEntryStop(
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
+      teamId: player.teamId,
       turnFlags: [...player.turnFlags]
     },
     `${phase}:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
@@ -885,7 +939,8 @@ function enterActionPhaseWithRoll(
     (diceRollModifiers.rolledTool?.toolId as TurnInfoSnapshot["lastRolledToolId"]) ?? null;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   const triggeredTerrainEffects = applyPhaseEntryStop(state, player, "turn-action");
-  const goalProgress = applyRaceGoalProgress(state, player.id, triggeredTerrainEffects);
+  const goalProgress = applyModeProgress(state, player.id, triggeredTerrainEffects);
+  const actorWasKnockedOut = wasPlayerKnockedOutByTerrain(triggeredTerrainEffects, player.id);
 
   if (goalProgress.actorFinished) {
     queueRaceFinishAdvance(
@@ -895,6 +950,17 @@ function enterActionPhaseWithRoll(
       true,
       goalProgress.settlementComplete
     );
+    return;
+  }
+
+  if (isBedwarsMode(state) && goalProgress.settlementComplete) {
+    enterSettlementState(state);
+    pushEvent(state, "match_finished", buildSettlementMessage(state));
+    return;
+  }
+
+  if (isBedwarsMode(state) && actorWasKnockedOut) {
+    finishTurn(state, player, `${player.name} was knocked out and ended the turn.`);
     return;
   }
 
@@ -954,25 +1020,16 @@ function getNextPlayerId(
 ): string | null {
   const playerOrder = getPlayerOrder(state.snapshot);
 
-  if (isRaceMode(state)) {
-    return getNextActiveRacePlayerId(
-      playerOrder,
-      state.snapshot.players,
-      currentPlayerId
-    );
-  }
-
   if (!playerOrder.length) {
     return null;
   }
 
-  const currentIndex = playerOrder.findIndex((playerId) => playerId === currentPlayerId);
-
-  if (currentIndex < 0) {
-    return playerOrder[0] ?? null;
-  }
-
-  return playerOrder[(currentIndex + 1) % playerOrder.length] ?? null;
+  return getNextActivePlayerId(
+    playerOrder,
+    state.snapshot.players,
+    currentPlayerId,
+    state.snapshot.mode
+  );
 }
 
 function queueRaceFinishAdvance(
@@ -1050,7 +1107,11 @@ function beginTurnFor(
 
   restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
-  applyPhaseStartToPlayer(state, player, "turn-start");
+  const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
+
+  if (phaseStart.skipTurn) {
+    finishTurn(state, player, `${player.name} was stunned and skipped the turn.`);
+  }
 }
 
 function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): void {
@@ -1061,7 +1122,11 @@ function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): 
   }
 
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
-  applyPhaseStartToPlayer(state, activePlayer, "turn-start");
+  const phaseStart = applyPhaseStartToPlayer(state, activePlayer, "turn-start");
+
+  if (phaseStart.skipTurn) {
+    finishTurn(state, activePlayer, `${activePlayer.name} was stunned and skipped the turn.`);
+  }
 }
 
 function hasPendingAdvance(runtime: GameRuntimeState): boolean {
@@ -1109,6 +1174,19 @@ function buildOkOutcome(message: string): SimulationCommandOutcome {
     status: "ok",
     message
   };
+}
+
+function buildSettlementMessage(state: MutableGameOrchestrationState): string {
+  if (isRaceMode(state)) {
+    return "All players reached the goal. Settlement is ready.";
+  }
+
+  if (isBedwarsMode(state)) {
+    const winningTeam = state.snapshot.players.find((player) => player.boardVisible && player.teamId)?.teamId;
+    return winningTeam ? `${getTeamDisplayLabel(winningTeam)}获胜。` : "起床战争结束。";
+  }
+
+  return "Settlement is ready.";
 }
 
 function blockCommand(
@@ -1186,10 +1264,12 @@ function runUseToolCommand(
       position: clonePosition(player.position),
       spawnPosition: clonePosition(player.spawnPosition),
       tags: clonePlayerTags(player.tags),
+      teamId: player.teamId,
       turnFlags: [...player.turnFlags]
     },
     activeTool,
     input: cloneToolSelectionRecord(payload.input),
+    mode: state.snapshot.mode,
     phase: state.snapshot.turnInfo.phase,
     players: buildBoardPlayers(state.snapshot),
     summons: buildBoardSummons(state.snapshot),
@@ -1205,6 +1285,8 @@ function runUseToolCommand(
   }
 
   player.position = clonePosition(resolution.actor.position);
+  player.boardVisible = resolution.actor.boardVisible;
+  applyPlayerModifiers(player, resolution.actor.modifiers);
   applyPlayerTags(player, resolution.actor.tags);
   applyPlayerTurnFlags(player, resolution.actor.turnFlags);
   applyToolInventory(player, resolution.tools, state.snapshot.turnInfo.phase);
@@ -1234,7 +1316,8 @@ function runUseToolCommand(
 
   pushTerrainEvents(state, player.id, resolution.triggeredTerrainEffects);
   pushSummonEvents(state, resolution.triggeredSummonEffects);
-  const goalProgress = applyRaceGoalProgress(state, player.id, resolution.triggeredTerrainEffects);
+  const goalProgress = applyModeProgress(state, player.id, resolution.triggeredTerrainEffects);
+  const actorWasKnockedOut = wasPlayerKnockedOutByTerrain(resolution.triggeredTerrainEffects, player.id);
 
   if (activeTool.toolId === "movement") {
     const movementDirection = getDirectionSelection(payload.input);
@@ -1249,6 +1332,19 @@ function runUseToolCommand(
 
   if (goalProgress.actorFinished) {
     queueRaceFinishAdvance(state, player, resolution.presentation, true, goalProgress.settlementComplete);
+    return buildOkOutcome(resolution.summary);
+  }
+
+  if (isBedwarsMode(state) && goalProgress.settlementComplete) {
+    enterSettlementState(state);
+    const winningTeam = state.snapshot.players.find((candidate) => candidate.boardVisible && candidate.teamId)?.teamId;
+    pushEvent(
+      state,
+      "match_finished",
+      winningTeam
+        ? `${getTeamDisplayLabel(winningTeam)}获胜。`
+        : "起床战争结束。"
+    );
     return buildOkOutcome(resolution.summary);
   }
 
@@ -1280,6 +1376,10 @@ function runUseToolCommand(
   if (!(resolution.phaseEffect?.finishTurn || resolution.endsTurn)) {
     if (resolution.phaseEffect?.nextPhase) {
       state.snapshot.turnInfo.phase = resolution.phaseEffect.nextPhase;
+    }
+
+    if (isBedwarsMode(state) && actorWasKnockedOut) {
+      finishTurn(state, player, `${player.name} was knocked out and ended the turn.`);
     }
 
     return buildOkOutcome(resolution.summary);
@@ -1330,12 +1430,16 @@ function runSetCharacterCommand(
   applyPlayerModifiers(player, []);
   applyPlayerTags(player, {});
   clearPlayerTurnResources(player);
-  applyPhaseStartToPlayer(state, player, "turn-start");
+  const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
   pushEvent(
     state,
     "character_switched",
     `${player.name} switched to ${getCharacterDefinition(player.characterId).label}.`
   );
+
+  if (phaseStart.skipTurn) {
+    finishTurn(state, player, `${player.name} was stunned and skipped the turn.`);
+  }
 
   return buildOkOutcome(`${player.name} switched to ${player.characterId}.`);
 }
@@ -1402,7 +1506,7 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
 
     if (!pendingAdvance.nextPlayerId) {
       enterSettlementState(state);
-      pushEvent(state, "match_finished", "All players reached the goal. Settlement is ready.");
+      pushEvent(state, "match_finished", buildSettlementMessage(state));
       return buildOkOutcome("Advanced into settlement.");
     }
 
@@ -1425,7 +1529,8 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
   const currentPlayerId = state.snapshot.turnInfo.currentPlayerId;
 
   if (!currentPlayerId) {
-    const firstPlayerId = state.snapshot.players[0]?.id ?? null;
+    const firstPlayerId =
+      state.snapshot.players.find((player) => isPlayerActiveForTurn(state.snapshot.mode, player))?.id ?? null;
 
     if (!firstPlayerId) {
       return buildBlockedOutcome("No players are available to take a turn.");
@@ -1437,12 +1542,12 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
 
   const currentPlayer = findPlayer(state.snapshot, currentPlayerId);
 
-  if (!currentPlayer || currentPlayer.finishRank !== null) {
+  if (!currentPlayer || !isPlayerActiveForTurn(state.snapshot.mode, currentPlayer)) {
     const nextPlayerId = getNextPlayerId(state, currentPlayerId);
 
     if (!nextPlayerId) {
       enterSettlementState(state);
-      pushEvent(state, "match_finished", "All players reached the goal. Settlement is ready.");
+      pushEvent(state, "match_finished", buildSettlementMessage(state));
       return buildOkOutcome("Advanced into settlement.");
     }
 
@@ -1487,24 +1592,32 @@ export function createGameOrchestrationStateFromScene(
     sceneDefinition.symbols
   );
   const firstPlayerId = sceneDefinition.players[0]?.id ?? "";
-  const players: PlayerSnapshot[] = sceneDefinition.players.map((player, index) => ({
-    id: player.id,
-    name: player.name ?? player.id,
-    petId: player.petId ?? "",
-    color: player.color ?? PLAYER_COLORS[index % PLAYER_COLORS.length] ?? "#ec6f5a",
-    boardVisible: player.boardVisible ?? player.finishRank == null,
-    characterId: player.characterId ?? "late",
-    finishRank: player.finishRank ?? null,
-    finishedTurnNumber: player.finishedTurnNumber ?? null,
-    isConnected: true,
-    isReady: false,
-    modifiers: cloneModifierIds(player.modifiers ?? []),
-    position: clonePosition(player.position),
-    spawnPosition: clonePosition(player.spawnPosition ?? player.position),
-    tags: clonePlayerTags(player.tags ?? {}),
-    tools: [],
-    turnFlags: [...(player.turnFlags ?? [])]
-  }));
+  const players: PlayerSnapshot[] = sceneDefinition.players.map((player, index) => {
+    const teamId =
+      mapMetadata.mode === "bedwars"
+        ? (player.teamId ?? getSequentialTeamId(index))
+        : (player.teamId ?? null);
+
+    return {
+      id: player.id,
+      name: player.name ?? player.id,
+      petId: player.petId ?? "",
+      color: player.color ?? getAssignedPlayerColor(mapMetadata.mode, index, teamId),
+      boardVisible: player.boardVisible ?? player.finishRank == null,
+      characterId: player.characterId ?? "late",
+      finishRank: player.finishRank ?? null,
+      finishedTurnNumber: player.finishedTurnNumber ?? null,
+      isConnected: true,
+      isReady: false,
+      modifiers: cloneModifierIds(player.modifiers ?? []),
+      position: clonePosition(player.position),
+      spawnPosition: clonePosition(player.spawnPosition ?? player.position),
+      tags: clonePlayerTags(player.tags ?? {}),
+      teamId,
+      tools: [],
+      turnFlags: [...(player.turnFlags ?? [])]
+    };
+  });
   const runtime = createInitialGameRuntimeState({
     ...(sceneDefinition.seeds?.moveDieSeed !== undefined
       ? { moveDieSeed: sceneDefinition.seeds.moveDieSeed }

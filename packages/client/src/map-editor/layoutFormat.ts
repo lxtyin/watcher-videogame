@@ -11,7 +11,7 @@ export interface MapEditorDocumentLike {
 }
 
 const LABEL_PATTERN = /^\/\/\s*label:\s*(.+)$/im;
-const MODE_PATTERN = /^\/\/\s*mode:\s*(free|race)\s*$/im;
+const MODE_PATTERN = /^\/\/\s*mode:\s*(free|race|bedwars)\s*$/im;
 const DEBUG_PATTERN = /^\/\/\s*allowDebugTools:\s*(true|false)\s*$/im;
 const LAYOUT_PATTERN =
   /export\s+const\s+[A-Z0-9_]+_LAYOUT\s*=\s*\[([\s\S]*?)\]\s*as const\s*;?/im;

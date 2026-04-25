@@ -92,7 +92,13 @@ export function stepPosition(
 
 // Ground blockers prevent landing and direct entry.
 export function isSolidTileType(tileType: TileType): boolean {
-  return tileType == "wall" || tileType == "earthWall" || tileType == "boxingBall" || tileType == "highwall";
+  return (
+    tileType === "wall" ||
+    tileType === "earthWall" ||
+    tileType === "boxingBall" ||
+    tileType === "tower" ||
+    tileType === "highwall"
+  );
 }
 
 export function isLeapBlockingTileType(tileType: TileType): boolean {
@@ -100,7 +106,13 @@ export function isLeapBlockingTileType(tileType: TileType): boolean {
 }
 
 export function isProjectileBlockingTileType(tileType: TileType): boolean {
-  return tileType == "wall" || tileType == "earthWall" || tileType == "boxingBall" || tileType == "highwall";
+  return (
+    tileType === "wall" ||
+    tileType === "earthWall" ||
+    tileType === "boxingBall" ||
+    tileType === "tower" ||
+    tileType === "highwall"
+  );
 }
 
 export function positionsEqual(a: GridPosition, b: GridPosition): boolean {

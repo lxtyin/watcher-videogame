@@ -1,6 +1,7 @@
 import { DEFAULT_GAME_MAP_ID, type GameMapId } from "@watcher/shared";
 import { useEffect, useRef, useState } from "react";
 import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
+import { BedwarsSettlementOverlay } from "./game/components/BedwarsSettlementOverlay";
 import { CreateRoomScreen } from "./game/components/CreateRoomScreen";
 import { HomeScreen } from "./game/components/HomeScreen";
 import { HudSidebar } from "./game/components/HudSidebar";
@@ -122,7 +123,8 @@ export default function App() {
   const roomEntryBusy = busy || connectionStatus === "connected";
   const showSettlement =
     route.roomCode !== null &&
-    snapshot?.mode === "race" &&
+    snapshot !== null &&
+    snapshot.mode !== "free" &&
     snapshot.roomPhase === "settlement" &&
     snapshot.settlementState === "complete";
   const bgmTrackId = route.roomCode !== null && snapshot ? "gameplay" : "menu";
@@ -266,17 +268,31 @@ export default function App() {
           </div>
         ) : null}
 
-        {showSettlement ? (
-          <RaceSettlementOverlay
-            snapshot={snapshot}
-            onBackToRoom={() => sendReturnToRoom()}
-            onBackToHome={() => {
-              void leaveRoom().finally(() => {
-                navigateHome();
-              });
-            }}
-          />
-        ) : null}
+        {showSettlement
+          ? snapshot.mode === "race"
+            ? (
+                <RaceSettlementOverlay
+                  snapshot={snapshot}
+                  onBackToRoom={() => sendReturnToRoom()}
+                  onBackToHome={() => {
+                    void leaveRoom().finally(() => {
+                      navigateHome();
+                    });
+                  }}
+                />
+              )
+            : (
+                <BedwarsSettlementOverlay
+                  snapshot={snapshot}
+                  onBackToRoom={() => sendReturnToRoom()}
+                  onBackToHome={() => {
+                    void leaveRoom().finally(() => {
+                      navigateHome();
+                    });
+                  }}
+                />
+              )
+          : null}
 
         <MobilePwaPrompt />
       </div>

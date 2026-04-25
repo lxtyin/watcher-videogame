@@ -591,3 +591,36 @@
   - `npm.cmd run goldens`，`35/35` passed
   - `npm.cmd run build --workspace @watcher/client`
   - Playwright 复查 `/goldens?case=movement-impact-adjacent-boxing-ball-still-applies`，未出现新的 console/page error
+
+## 2026-04-25 起床战争模式
+
+- 新增 `bedwars` 模式主链：
+  - `GameMode` 扩展为 `free / race / bedwars`
+  - 玩家快照、房间同步状态与客户端反序列化新增 `teamId`
+  - 棋盘地块新增通用 `faction` 字段，用于承载阵营出生点、阵营营地、塔等阵营地形
+  - 新增 `teams.ts` 统一顺序分队、白队/黑队显示名与浅色/深色玩家色分配
+- 新增起床战争核心规则：
+  - 服务器与本地 simulation 都按加入顺序自动分配白队/黑队
+  - `tower` 作为新的 `solid` 地形，被敌方角色撞击时耐久 `-1`，耐久归零后击碎为 `floor`
+  - `teamSpawn` 作为阵营出生点，bedwars 下复活点按阵营出生点推导
+  - `teamCamp` 作为阵营营地，仅己方角色在自己回合停留时触发一次随机工具骰奖励
+  - 玩家被 `pit / poison` 击倒后，若己方塔仍存在则回出生点并挂 `basis:stun`；若塔已毁则直接淘汰
+  - 一方全部淘汰后立即进入 settlement
+- 能力系统扩展：
+  - 新增通用 runtime modifier `basis:stun`
+  - `ModifierPhaseHookResult` 新增 `skipTurn`
+  - `gameOrchestration` 接入回合开始自动跳过并清除眩晕
+- 表现与客户端入口：
+  - 新增 `TowerTileAsset`、`TeamSpawnTileAsset`、`TeamCampTileAsset`
+  - `tower` 顶部常驻显示剩余耐久
+  - 新增 `BedwarsSettlementOverlay`
+  - 创建房间页面、侧边栏模式文案、地图编辑器模式选择与导入导出格式都接入 `bedwars`
+- 内容与测试：
+  - 新增内置地图 `bedwars_test`
+  - 地图符号新增 `t/T`（白/黑塔）、`i/I`（白/黑出生点）、`c/C`（白/黑营地）
+  - 新增 6 个 bedwars golden case，覆盖塔掉血/击碎、营地奖励、复活附眩晕、眩晕跳回合、无塔淘汰结算
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`41/41` passed

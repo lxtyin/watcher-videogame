@@ -127,6 +127,7 @@ export function buildActionPreview(
       tags: player.tags,
       position: player.position,
       spawnPosition: player.spawnPosition,
+      teamId: player.teamId,
       turnFlags: player.turnFlags
     }));
   const summons = snapshot.summons.map((summon) => ({
@@ -142,6 +143,7 @@ export function buildActionPreview(
     tags: me.tags,
     position: me.position,
     spawnPosition: me.spawnPosition,
+    teamId: me.teamId,
     turnFlags: me.turnFlags
   };
   const activeTool = findToolInstance(me.tools, payload.toolInstanceId);
@@ -155,6 +157,7 @@ export function buildActionPreview(
     actor,
     activeTool,
     input: cloneToolSelectionRecord(payload.input),
+    mode: snapshot.mode,
     phase: snapshot.turnInfo.phase as TurnPhase,
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
     tools: me.tools,

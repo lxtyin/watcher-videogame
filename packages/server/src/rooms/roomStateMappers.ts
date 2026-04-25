@@ -30,7 +30,8 @@ export function createBoardDefinitionFromState(state: WatcherState) {
       y: tile.y,
       type: tile.type as TileType,
       durability: tile.durability,
-      direction: tile.direction === "" ? null : (tile.direction as Direction)
+      direction: tile.direction === "" ? null : (tile.direction as Direction),
+      faction: tile.faction === "" ? null : tile.faction
     }))
   };
 }
@@ -53,6 +54,7 @@ export function createBoardPlayersFromState(state: WatcherState): BoardPlayerSta
         x: entry.spawnX,
         y: entry.spawnY
       },
+      teamId: entry.teamId === "" ? null : entry.teamId,
       turnFlags: Array.from(entry.turnFlags) as PlayerTurnFlag[]
     }));
 }
@@ -150,6 +152,7 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
         x: player.spawnX,
         y: player.spawnY
       },
+      teamId: player.teamId === "" ? null : player.teamId,
       turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[],
       tools: createPlayerToolsFromState(player)
     })),

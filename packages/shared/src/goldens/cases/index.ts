@@ -1,3 +1,4 @@
+import { GOLDEN_BEDWARS_CASES } from "./bedwars";
 import { GOLDEN_CHARACTER_CASES } from "./characters";
 import { HEAVY_GOLDEN_CASES } from "./heavy";
 import { GOLDEN_MULTIPLAYER_CASES } from "./multiplayer";
@@ -8,6 +9,7 @@ import { GOLDEN_WALLET_CASES } from "./wallet";
 
 
 export const GOLDEN_CASES = [
+  ...GOLDEN_BEDWARS_CASES,
   ...GOLDEN_CHARACTER_CASES,
   ...GOLDEN_WALLET_CASES,
   ...GOLDEN_MOVEMENT_CASES,

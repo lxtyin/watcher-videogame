@@ -33,12 +33,14 @@ import {
 function toTilePresentationState(tile: {
   direction: Direction | null;
   durability: number;
+  faction: TilePresentationState["faction"];
   type: TilePresentationState["type"];
 }): TilePresentationState {
   return {
     type: tile.type,
     durability: tile.durability,
-    direction: tile.direction
+    direction: tile.direction,
+    faction: tile.faction
   };
 }
 
@@ -75,7 +77,8 @@ function buildTileStateTransition(
     after: {
       type: mutation.nextType,
       durability: mutation.nextDurability,
-      direction: getTileTransitionDirection(previousTile, mutation.nextType)
+      direction: getTileTransitionDirection(previousTile, mutation.nextType),
+      faction: previousTile.faction
     }
   };
 }

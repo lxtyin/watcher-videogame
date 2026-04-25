@@ -225,6 +225,7 @@ export function MapEditorApp() {
             >
               <option value="free">自由模式</option>
               <option value="race">竞速模式</option>
+              <option value="bedwars">起床战争</option>
             </select>
           </label>
 

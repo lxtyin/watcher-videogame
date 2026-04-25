@@ -1,6 +1,7 @@
-import type { Direction, TileType } from "../../types";
+import type { Direction, TeamId, TileType } from "../../types";
 
 export interface LayoutSymbolDefinition {
+  faction?: TeamId;
   type: TileType;
   direction?: Direction;
   durability?: number;
@@ -24,6 +25,12 @@ export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   "#": { type: "wall" },
   e: { type: "earthWall", durability: 2 },
   b: { type: "boxingBall" },
+  t: { type: "tower", durability: 5, faction: "white" },
+  T: { type: "tower", durability: 5, faction: "black" },
+  i: { type: "teamSpawn", faction: "white" },
+  I: { type: "teamSpawn", faction: "black" },
+  c: { type: "teamCamp", faction: "white" },
+  C: { type: "teamCamp", faction: "black" },
   p: { type: "poison" },
   o: { type: "pit" },
   H: { type: "highwall" },

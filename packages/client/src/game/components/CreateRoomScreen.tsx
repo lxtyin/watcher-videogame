@@ -12,8 +12,16 @@ interface CreateRoomScreenProps {
   onMapIdChange: (mapId: GameMapId) => void;
 }
 
-function describeMapMode(mode: "free" | "race"): string {
-  return mode === "race" ? "竞速模式" : "自由模式";
+function describeMapMode(mode: "free" | "race" | "bedwars"): string {
+  if (mode === "race") {
+    return "竞速模式";
+  }
+
+  if (mode === "bedwars") {
+    return "起床战争";
+  }
+
+  return "自由模式";
 }
 
 function getWrappedMapId(mapIds: GameMapId[], currentMapId: GameMapId, offset: number): GameMapId {
