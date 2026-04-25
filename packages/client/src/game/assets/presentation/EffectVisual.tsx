@@ -4,6 +4,8 @@ import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngin
 import { BoxingBallHitEffectAsset } from "../board/BoxingBallHitEffectAsset";
 import { EarthWallBreakEffectAsset } from "../board/EarthWallBreakEffectAsset";
 import { LuckyClaimEffectAsset } from "../board/LuckyClaimEffectAsset";
+import { StunClearEffectAsset } from "../board/StunClearEffectAsset";
+import { TowerImpactEffectAsset } from "../board/TowerImpactEffectAsset";
 import { PunchPlayerHitEffectAsset } from "../tools/punch/PunchPlayerHitEffectAsset";
 import { PunchWallHitEffectAsset } from "../tools/punch/PunchWallHitEffectAsset";
 import { RocketExplosionEffectAsset } from "../tools/rocket/RocketExplosionEffectAsset";
@@ -24,7 +26,9 @@ const EFFECT_ASSETS: Record<PresentationEffectType, EffectAssetComponent> = {
   lucky_claim: LuckyClaimEffectAsset,
   punch_player_hit: PunchPlayerHitEffectAsset,
   punch_wall_hit: PunchWallHitEffectAsset,
-  rocket_explosion: RocketExplosionEffectAsset
+  stun_clear: StunClearEffectAsset,
+  rocket_explosion: RocketExplosionEffectAsset,
+  tower_impact: TowerImpactEffectAsset
 };
 
 // Effects resolve from semantic effect ids so visuals can evolve without touching BoardScene.

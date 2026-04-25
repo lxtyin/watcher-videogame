@@ -74,7 +74,7 @@ export interface SimulationSceneDefinition {
 }
 
 export interface GamePendingAdvance {
-  kind: "race_finish";
+  kind: "presentation_settlement" | "race_finish" | "turn_skip";
   nextPlayerId: string | null;
   shouldAdvanceTurnNumber: boolean;
 }

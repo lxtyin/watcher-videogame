@@ -1,8 +1,12 @@
+import { appendDraftPresentationEvents } from "../rules/actionDraft";
+import { createEffectEvent } from "../rules/actionPresentation";
 import {
   appendTerrainTrigger,
   mutateTerrainTile
 } from "./helpers";
 import type { TerrainModule } from "./types";
+
+const TOWER_IMPACT_EFFECT_MS = 360;
 
 export const TOWER_TERRAIN_MODULE: TerrainModule = {
   accent: "#8e8ea0",
@@ -22,12 +26,24 @@ export const TOWER_TERRAIN_MODULE: TerrainModule = {
       return;
     }
 
+    appendDraftPresentationEvents(context.draft, [
+      createEffectEvent(
+        `${context.draft.sourceId}:tower-impact:${context.tile.key}`,
+        "tower_impact",
+        context.position,
+        [context.position],
+        context.startMs,
+        TOWER_IMPACT_EFFECT_MS
+      )
+    ]);
+
     const remainingDurability = Math.max(0, context.tile.durability - 1);
     mutateTerrainTile(
       context.draft,
       context.tile,
       remainingDurability > 0 ? "tower" : "floor",
-      remainingDurability
+      remainingDurability,
+      context.startMs
     );
     appendTerrainTrigger(context.draft, {
       kind: "tower",
@@ -40,4 +56,3 @@ export const TOWER_TERRAIN_MODULE: TerrainModule = {
   },
   type: "tower"
 };
-

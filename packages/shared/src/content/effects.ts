@@ -19,6 +19,10 @@ export const EFFECT_REGISTRY = defineEffectRegistry({
     label: "幸运方块消散",
     description: "幸运方块被领取时的上升与消散表现。"
   },
+  stun_clear: {
+    label: "Stun clear",
+    description: "A short reaction when stun wears off and the turn is skipped."
+  },
   punch_player_hit: {
     label: "拳击命中玩家",
     description: "拳击命中玩家时的冲击表现。"
@@ -26,6 +30,10 @@ export const EFFECT_REGISTRY = defineEffectRegistry({
   punch_wall_hit: {
     label: "拳击命中墙壁",
     description: "拳击命中墙壁时的反震表现。"
+  },
+  tower_impact: {
+    label: "Tower impact",
+    description: "Impact pulse and debris when a tower is rammed."
   },
   rocket_explosion: {
     label: "火箭爆炸",

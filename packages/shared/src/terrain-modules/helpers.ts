@@ -126,13 +126,15 @@ export function mutateTerrainTile(
   draft: ResolutionDraft,
   tile: TileDefinition,
   nextType: TileDefinition["type"],
-  nextDurability = tile.durability
+  nextDurability = tile.durability,
+  presentationStartMs?: number
 ): void {
   appendDraftTileMutations(draft, [
     {
       key: tile.key,
       nextDurability,
       nextType,
+      ...(presentationStartMs === undefined ? {} : { presentationStartMs }),
       position: clonePosition({
         x: tile.x,
         y: tile.y

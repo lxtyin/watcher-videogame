@@ -13,6 +13,7 @@ import { cloneModifierIds } from "./modifiers";
 import { clonePlayerTags } from "./playerTags";
 import {
   appendPresentationEvents,
+  createEffectEvent,
   createPresentation,
   createPlayerMotionEvent,
   createStateTransitionEvent
@@ -77,6 +78,8 @@ interface MutableGameOrchestrationState {
   runtime: GameRuntimeState;
   snapshot: GameSnapshot;
 }
+
+const STUN_SKIP_EFFECT_MS = 520;
 
 interface ToolLoadoutLike {
   charges?: number;
@@ -954,8 +957,7 @@ function enterActionPhaseWithRoll(
   }
 
   if (isBedwarsMode(state) && goalProgress.settlementComplete) {
-    enterSettlementState(state);
-    pushEvent(state, "match_finished", buildSettlementMessage(state));
+    queueSettlementAdvance(state);
     return;
   }
 
@@ -1051,11 +1053,19 @@ function queueRaceFinishAdvance(
   };
 }
 
-function finishTurn(
+function queueSettlementAdvance(state: MutableGameOrchestrationState): void {
+  state.runtime.pendingAdvance = {
+    kind: "presentation_settlement",
+    nextPlayerId: null,
+    shouldAdvanceTurnNumber: false
+  };
+}
+
+function resolveTurnEndAdvance(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
   message: string
-): void {
+): string | null {
   const phaseEnd = applyTurnEndModifiers(player.characterId, {
     id: player.id,
     modifiers: cloneModifierIds(player.modifiers),
@@ -1070,7 +1080,15 @@ function finishTurn(
   pushEvent(state, "turn_ended", message);
   state.snapshot.turnInfo.phase = "turn-end";
   clearPlayerTurnResources(player);
-  const nextPlayerId = getNextPlayerId(state, player.id);
+  return getNextPlayerId(state, player.id);
+}
+
+function finishTurn(
+  state: MutableGameOrchestrationState,
+  player: PlayerSnapshot,
+  message: string
+): void {
+  const nextPlayerId = resolveTurnEndAdvance(state, player, message);
 
   if (nextPlayerId) {
     beginTurnFor(state, nextPlayerId, true);
@@ -1078,6 +1096,62 @@ function finishTurn(
   }
 
   enterSettlementState(state);
+}
+
+function publishTurnStartPresentation(
+  state: MutableGameOrchestrationState,
+  baselineSequence: number | null,
+  playerId: string,
+  events: ActionPresentation["events"]
+): void {
+  if (!events.length) {
+    return;
+  }
+
+  const latestPresentation = state.snapshot.latestPresentation;
+
+  if (latestPresentation && latestPresentation.sequence !== baselineSequence) {
+    const mergedPresentation = appendPresentationEvents(
+      latestPresentation,
+      playerId,
+      latestPresentation.toolId,
+      events
+    );
+
+    if (mergedPresentation) {
+      state.snapshot.latestPresentation = {
+        ...mergedPresentation,
+        sequence: latestPresentation.sequence
+      };
+    }
+    return;
+  }
+
+  publishActionPresentation(state, createPresentation(playerId, "movement", events));
+}
+
+function queueTurnSkipAdvance(
+  state: MutableGameOrchestrationState,
+  player: PlayerSnapshot,
+  message: string,
+  presentationBaselineSequence: number | null
+): void {
+  const nextPlayerId = resolveTurnEndAdvance(state, player, message);
+  publishTurnStartPresentation(state, presentationBaselineSequence, player.id, [
+    createEffectEvent(
+      `turn-skip:${player.id}:${state.snapshot.turnInfo.turnNumber}`,
+      "stun_clear",
+      clonePosition(player.position),
+      [clonePosition(player.position)],
+      0,
+      STUN_SKIP_EFFECT_MS
+    )
+  ]);
+  state.runtime.pendingAdvance = {
+    kind: "turn_skip",
+    nextPlayerId,
+    shouldAdvanceTurnNumber: nextPlayerId !== null
+  };
 }
 
 function beginTurnFor(
@@ -1105,12 +1179,18 @@ function beginTurnFor(
     state.snapshot.turnInfo.turnNumber += 1;
   }
 
+  const presentationBaselineSequence = state.snapshot.latestPresentation?.sequence ?? null;
   restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
   const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
 
   if (phaseStart.skipTurn) {
-    finishTurn(state, player, `${player.name} was stunned and skipped the turn.`);
+    queueTurnSkipAdvance(
+      state,
+      player,
+      `${player.name} was stunned and skipped the turn.`,
+      presentationBaselineSequence
+    );
   }
 }
 
@@ -1122,10 +1202,16 @@ function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): 
   }
 
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
+  const presentationBaselineSequence = state.snapshot.latestPresentation?.sequence ?? null;
   const phaseStart = applyPhaseStartToPlayer(state, activePlayer, "turn-start");
 
   if (phaseStart.skipTurn) {
-    finishTurn(state, activePlayer, `${activePlayer.name} was stunned and skipped the turn.`);
+    queueTurnSkipAdvance(
+      state,
+      activePlayer,
+      `${activePlayer.name} was stunned and skipped the turn.`,
+      presentationBaselineSequence
+    );
   }
 }
 
@@ -1336,18 +1422,9 @@ function runUseToolCommand(
   }
 
   if (isBedwarsMode(state) && goalProgress.settlementComplete) {
-    enterSettlementState(state);
-    const winningTeam = state.snapshot.players.find((candidate) => candidate.boardVisible && candidate.teamId)?.teamId;
-    pushEvent(
-      state,
-      "match_finished",
-      winningTeam
-        ? `${getTeamDisplayLabel(winningTeam)}获胜。`
-        : "起床战争结束。"
-    );
+    queueSettlementAdvance(state);
     return buildOkOutcome(resolution.summary);
   }
-
   // if (resolution.phaseEffect?.rollMode) {
   //   const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
   //   state.runtime.moveDieSeed = movementRoll.nextSeed;
@@ -1506,7 +1583,9 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
 
     if (!pendingAdvance.nextPlayerId) {
       enterSettlementState(state);
-      pushEvent(state, "match_finished", buildSettlementMessage(state));
+      if (pendingAdvance.kind !== "turn_skip") {
+        pushEvent(state, "match_finished", buildSettlementMessage(state));
+      }
       return buildOkOutcome("Advanced into settlement.");
     }
 
@@ -1753,3 +1832,4 @@ export function createGameOrchestrator(
 ): GameOrchestrator {
   return new MutableGameOrchestrator(initialState);
 }
+

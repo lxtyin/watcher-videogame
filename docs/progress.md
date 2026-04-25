@@ -624,3 +624,46 @@
   - `npm.cmd run typecheck --workspace @watcher/server`
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run goldens`，`41/41` passed
+
+## 2026-04-25 Bedwars 结算延后与塔撞击特效
+
+- 塔撞击表现补充：
+  - `tower` 在 `onImpact` 时直接 author `reaction.effect(kind = "tower_impact")`
+  - client 新增 `TowerImpactEffectAsset`，用石质冲击环与碎片脉冲表现撞塔
+  - `TileMutation` 新增可选 `presentationStartMs`，用于让塔掉耐久/碎裂与撞击接触帧对齐，而不是默认落在 `0ms`
+- bedwars 最终淘汰后的结算时机调整：
+  - shared 不再在最后一名玩家死亡的同一帧立刻切入 `settlement`
+  - 改为先保留 `roomPhase = in_game`，同时写入 `pendingAdvance(kind = "presentation_settlement")`
+  - server 继续按 `latestPresentation.durationMs` 等待当前 presentation 播放完成，再通过 `advanceTurn()` 进入真正的 settlement
+  - 当前 `settlementState` 仍会在淘汰结算后立即变为 `complete`，但 client 结算覆盖层仍由 `roomPhase === "settlement"` 控制，因此不会抢在动画前弹出
+- 抽检与验证：
+  - golden runner 会自动结清 `pendingAdvance`，因此 bedwars 相关 golden 的最终态保持不变
+  - 共享层手工脚本抽检：最终淘汰的 `dispatch` 结果会停留在 `roomPhase = in_game / settlementState = complete / pendingAdvance = true`
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`41/41` passed
+  - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-25 持续状态表现与眩晕延后跳过
+
+- 持续状态表现接入：
+  - client 新增 `PlayerStatusVisuals`
+  - 眩晕持续期间，玩家头顶常驻眩晕符号
+  - 束缚持续期间，玩家身上常驻链条缠绕表现
+  - 前端直接读取 `Player.modifiers + Player.tags` 渲染状态，不额外为眩晕补一层专用 tag
+  - 束缚使用 `basis:bondage` 判定状态存在，并读取 `basis:bondage-stacks` 控制层数
+- 眩晕回合改为平滑跳过：
+  - `basis:stun` 仍在 `turn-start` 被移除
+  - 但不再立即同步切到下一个玩家
+  - shared 现在会先把当前玩家正常设为 `currentPlayerId`，触发视角切换
+  - 随后 author 一段 `stun_clear` reaction，并写入 `pendingAdvance(kind = "turn_skip")`
+  - presentation 播完后，再自动推进到下一名玩家
+- golden runner 调整：
+  - 构建 playback 时会先结清场景初始化阶段已经存在的 `pendingAdvance`
+  - 这样像 `bedwars-stun-skips-next-turn` 这类 0 step case 仍然比较稳定最终态
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens -- --case bedwars-stun-skips-next-turn`
+  - `npm.cmd run goldens`，`41/41` passed
+  - `npm.cmd run build --workspace @watcher/client`

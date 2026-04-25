@@ -191,13 +191,15 @@ export function isLandablePosition(
 export function createTileMutation(
   position: GridPosition,
   nextType: TileType,
-  nextDurability: number
+  nextDurability: number,
+  presentationStartMs?: number
 ): TileMutation {
   return {
     key: toTileKey(position),
     position,
     nextType,
-    nextDurability
+    nextDurability,
+    ...(presentationStartMs === undefined ? {} : { presentationStartMs })
   };
 }
 

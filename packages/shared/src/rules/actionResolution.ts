@@ -156,7 +156,8 @@ export function buildStateTransitionPresentationEvents(options: {
       return [];
     }
 
-    const startMs = findStateTransitionStartMs(options.activePresentation, mutation.position);
+    const startMs =
+      mutation.presentationStartMs ?? findStateTransitionStartMs(options.activePresentation, mutation.position);
     const events: ActionPresentationEvent[] = [];
     const earthWallBreakEffectMs = 320;
 

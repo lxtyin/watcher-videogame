@@ -15,6 +15,7 @@ import {
 import { CurrentTurnMarkerAsset } from "../assets/player/CurrentTurnMarkerAsset";
 import { DiceRollOverlay } from "../assets/dice/DiceRollOverlay";
 import { PlayerHaloAsset } from "../assets/player/PlayerHaloAsset";
+import { PlayerStatusVisuals } from "../assets/player/PlayerStatusVisuals";
 import { EffectVisual } from "../assets/presentation/EffectVisual";
 import { LinkReactionVisual } from "../assets/presentation/LinkReactionVisual";
 import { NumberPopupReactionVisual } from "../assets/presentation/NumberPopupReactionVisual";
@@ -1991,6 +1992,11 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
               petId={player.petId}
               position={[0, pieceBaseY + playerPose.yOffset, 0]}
               rotation={playerPose.rotation}
+            />
+            <PlayerStatusVisuals
+              modifiers={snapshotPlayer.modifiers}
+              simulationTimeMs={simulationTimeMs}
+              tags={snapshotPlayer.tags}
             />
           </group>
         );

@@ -316,6 +316,7 @@ export interface TileMutation {
   key: string;
   nextDurability: number;
   nextType: TileType;
+  presentationStartMs?: number;
   position: GridPosition;
 }
 

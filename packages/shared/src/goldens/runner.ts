@@ -546,7 +546,7 @@ function compareCaseExpectation(
 // Playback keeps the full snapshot timeline so the web runner can animate the same golden cases.
 export function buildGoldenCasePlayback(caseDefinition: GoldenCaseDefinition): GoldenCasePlayback {
   const simulation = createGameSimulation(caseDefinition.scene);
-  const initialSnapshot = simulation.getSnapshot();
+  const initialSnapshot = settlePendingTurnAdvance(simulation);
   let currentSnapshot = initialSnapshot;
   const playbackSteps: GoldenCasePlaybackStep[] = [];
 
