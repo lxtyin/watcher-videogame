@@ -667,3 +667,33 @@
   - `npm.cmd run goldens -- --case bedwars-stun-skips-next-turn`
   - `npm.cmd run goldens`，`41/41` passed
   - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-26 被动平移 impact 修复与 buffers 归档
+
+- 被动平移的 impact 结算统一收口：
+  - `movementSystem` 新增 `didDisplacementTakeEffect()`，统一判断一次位移是否真正产生了效果：`path.length > 0` 或 `impactStrength !== null`
+  - `movement / brake` 改为直接复用这条语义，而不是各自手写 `path + impactStrength` 判断
+  - `basketball / bombThrow / punch / rocket` 在消费嵌套位移 presentation 时也改为复用这条语义，因此“零路径但发生撞击”的被动平移不会再把 impact recoil 动画丢掉
+  - 新增 golden case `basketball-passive-push-adjacent-wall-still-recoils`，覆盖篮球把贴墙角色撞出 zero-step impact 的场景
+- 通用 runtime modifier 归档：
+  - 新增 `packages/shared/src/buffers/`
+  - `basis:stun` 与 `basis:bondage` 从 `skills/` 挪到 `buffers/`
+  - `skills/index.ts` 继续统一注册并对外 re-export，这样外部调用点可以平滑过渡
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run goldens`，`42/42` passed
+  - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-26 文本描述模型收口
+
+- `ToolContentDefinition` 与 `ToolDefinition` 删除顶层 `description`
+  - 工具正文描述统一只保留 `getTextDescription().description`
+  - `disabledHint` 继续保留，专门负责不可用时的说明前缀
+- `TextDescription.details` 改为可选
+  - UI 读取点统一改成按需读取，不再要求所有模块机械返回空数组
+  - 顺手清理了 `balance / deployWallet` 里原本只用于占位的空 detail
+- `SkillDefinition` 删除 `summary`
+  - 技能文本统一只保留 `getTextDescription`
+  - `Character.summary` 继续保留，仍用于角色卡与场景检查卡的短描述

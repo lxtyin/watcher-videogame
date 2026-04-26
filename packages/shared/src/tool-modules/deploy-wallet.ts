@@ -26,7 +26,6 @@ import {
 
 export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "放置钱包",
-  description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。",
   disabledHint: "当前无法在这个位置放置钱包。",
   source: "character_skill",
   interaction: createDragTileInteraction(),
@@ -37,8 +36,7 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   },
   getTextDescription: ({ params }) => ({
     title: "放置钱包",
-    description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。",
-    details: [` `]
+    description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。"
   }),
   color: "#8d7a3d",
   rollable: false,

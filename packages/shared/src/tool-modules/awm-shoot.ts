@@ -1,7 +1,7 @@
 import type { ToolContentDefinition } from "../content/schema";
 import { attachModifier } from "../modifiers";
 import { setPlayerTagValue } from "../playerTags";
-import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../skills/bondage";
+import { BONDAGE_MODIFIER_ID, BONDAGE_STACKS_TAG } from "../buffers";
 import { createDragDirectionInteraction } from "../toolInteraction";
 import type { AffectedPlayerMove } from "../types";
 import {
@@ -37,7 +37,6 @@ import {
 
 export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   label: "狙击",
-  description: "向一个方向发射子弹，命中的第一格玩家获得等同于你当前总移动点数的束缚。",
   disabledHint: "当前还不能发射这次狙击。",
   source: "character_skill",
   interaction: createDragDirectionInteraction(),

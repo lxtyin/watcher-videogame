@@ -202,7 +202,6 @@ export interface ToolDefinition {
   debugGrantable: boolean;
   defaultCharges: number;
   defaultParams: ToolParameterValueMap;
-  description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
   getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;

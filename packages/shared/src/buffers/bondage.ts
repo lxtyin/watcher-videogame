@@ -8,10 +8,8 @@ function reduceToolValue(currentValue: number, reduction: number): number {
   return Math.max(0, currentValue - reduction);
 }
 
-
 export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
   id: BONDAGE_MODIFIER_ID,
-
   hooks: {
     onGetTool: ({ tags, tool }) => {
       const bondageStacks = getPlayerTagNumber(tags, BONDAGE_STACKS_TAG);

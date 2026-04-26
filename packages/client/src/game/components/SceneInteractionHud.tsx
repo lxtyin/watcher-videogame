@@ -89,7 +89,7 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
     tools
   });
   const toolTextDescription = getToolTextDescription(tool);
-  const baseDetail = toolTextDescription.details[0] ?? toolTextDescription.description;
+  const baseDetail = toolTextDescription.details?.[0] ?? toolTextDescription.description;
 
   return availability.usable ? baseDetail : availability.reason ?? baseDetail;
 }

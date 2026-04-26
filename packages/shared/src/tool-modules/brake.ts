@@ -15,6 +15,7 @@ import {
 } from "../rules/actionResolution";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import {
+  didDisplacementTakeEffect,
   resolveDragDisplacement,
   resolveLeapDisplacement,
   resolveLinearDisplacement
@@ -38,7 +39,6 @@ export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "制动",
-  description: "先选方向，再在该方向上指定一格，立即沿该轴线移动过去。",
   disabledHint: "当前不能使用制动。",
   source: "turn",
   interaction: createDragAxisTileInteraction(),
@@ -89,7 +89,7 @@ function resolveBrakeTool(
   
   const selectedTiles = collectDirectionSelectionTiles(context.board, context.actor.position, axisTarget.direction, requestedDistance);
   
-  if (!resolution.path.length && resolution.impactStrength === null) {
+  if (!didDisplacementTakeEffect(resolution)) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,

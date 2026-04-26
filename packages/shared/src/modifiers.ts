@@ -18,7 +18,6 @@ export interface SkillDefinition {
   id: SkillId;
   label: string;
   modifierIds: readonly ModifierId[];
-  summary: string;
 }
 
 export interface ModifierContextBase {

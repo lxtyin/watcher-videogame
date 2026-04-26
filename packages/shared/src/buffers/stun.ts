@@ -11,4 +11,3 @@ export const STUN_MODIFIER_DEFINITION: ModifierDefinition = {
     })
   }
 };
-

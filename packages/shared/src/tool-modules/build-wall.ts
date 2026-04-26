@@ -27,7 +27,6 @@ import {
 
 export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "砌墙",
-  description: "在周围八格中选择一个空地，生成一面指定耐久的土墙。",
   disabledHint: "这个位置不能砌墙。",
   source: "turn",
   interaction: createDragTileInteraction(),

@@ -6,7 +6,6 @@ export const LATE_MODIFIER_ID = "late:brake-movement";
 export const LATE_SKILL_DEFINITION: SkillDefinition = {
   id: LATE_SKILL_ID,
   label: "制动替换",
-  summary: "将获得的移动改为等距离制动。",
   getTextDescription: () => ({
     title: "制动替换",
     description: "将获得的移动改为等距离制动。",

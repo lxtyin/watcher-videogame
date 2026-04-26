@@ -35,6 +35,7 @@ export function describeTileInspection(
   thumbnailUrls: Partial<Record<string, string>> = {}
 ): SceneInspectionCardData {
   const description = getTerrainTextDescription(tile);
+  const details = description.details ?? [];
   const thumbnailSymbol = resolveTerrainThumbnailSymbol(tile);
   const terrainThumbnail = {
     entry: createTerrainThumbnailEntryForTile(tile),
@@ -46,7 +47,7 @@ export function describeTileInspection(
     description: description.description,
     direction: tile.direction,
     kindLabel: "地形",
-    ...(description.details.length ? { details: description.details } : {}),
+    ...(details.length ? { details } : {}),
     subtitle: `坐标 (${tile.x}, ${tile.y})`,
     terrainThumbnail,
     thumbnailToken: description.title.slice(0, 1),

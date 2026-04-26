@@ -6,7 +6,6 @@ export const AWM_MODIFIER_ID = "awm:grant-shot";
 export const AWM_SKILL_DEFINITION: SkillDefinition = {
   id: AWM_SKILL_ID,
   label: "AWM",
-  summary: "行动阶段开始时获得一发狙击，可向命中的玩家施加束缚。",
   getTextDescription: () => ({
     title: "AWM",
     description: "行动阶段开始时获得一发狙击，可向命中的玩家施加束缚。",

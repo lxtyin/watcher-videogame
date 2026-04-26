@@ -19,7 +19,6 @@ import {
 
 export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   label: "备弹",
-  description: "跳过本回合后续阶段，并在下回合行动阶段获得投弹。",
   disabledHint: "当前无法进行备弹。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,

@@ -11,7 +11,7 @@ import {
 } from "../rules/actionDraft";
 import { createPlayerMotionEvent, createStateTransitionEvent } from "../rules/actionPresentation";
 import { getTileAfterMutations } from "../rules/spatial";
-import { STUN_MODIFIER_ID } from "../skills";
+import { STUN_MODIFIER_ID } from "../buffers";
 import { attachModifier } from "../modifiers";
 import { applyOnGetToolModifiers } from "../skills";
 import type {

@@ -945,6 +945,77 @@ export const GOLDEN_MOVEMENT_CASES = [
         }
     }),
     defineGoldenCase({
+        id: "basketball-passive-push-adjacent-wall-still-recoils",
+        title: "Basketball push still authors impact recoil when the target starts against a wall",
+        description: "Passive translate displacement from Basketball should keep the zero-step impact recoil presentation instead of dropping it as an empty move.",
+        scene: {
+            layout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "basketball",
+                            params: {
+                                projectileBounceCount: 0,
+                                projectilePushDistance: 2,
+                                projectileRange: 3
+                            }
+                        }
+                    ]
+                },
+                {
+                    id: "target",
+                    name: "Target",
+                    characterId: "late",
+                    position: { x: 3, y: 1 }
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "basketball",
+                direction: "right",
+                label: "Throw the basketball at the target pinned against the wall"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#####",
+                "#...#",
+                "#...#",
+                "#####"
+            ],
+            players: {
+                hero: {
+                    position: { x: 1, y: 1 },
+                    toolCount: 0
+                },
+                target: {
+                    position: { x: 3, y: 1 }
+                }
+            },
+            latestPresentation: {
+                toolId: "basketball",
+                eventKinds: ["motion", "motion"]
+            }
+        }
+    }),
+    defineGoldenCase({
         id: "projectile-impact-boxing-ball-triggers-hit-effect",
         title: "Projectile collision with a boxing ball triggers the impact reaction",
         description: "Projectile-owned impacts should still shake the boxing ball even though they always report impact 999.",

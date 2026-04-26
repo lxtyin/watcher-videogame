@@ -36,7 +36,7 @@ export interface ToolParameterValueMap {
 
 export interface TextDescription {
   description: string;
-  details: readonly string[];
+  details?: readonly string[];
   title: string;
 }
 
@@ -116,7 +116,6 @@ export interface ToolContentDefinition {
   defaultCharges: number;
   defaultParams: ToolParameterValueMap;
   debugGrantable: boolean;
-  description: string;
   disabledHint: string | null;
   endsTurnOnUse: boolean;
   getTextDescription: (context: ToolTextDescriptionContext) => TextDescription;

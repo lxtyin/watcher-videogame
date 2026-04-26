@@ -31,7 +31,6 @@ export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "跳跃",
-  description: "沿选择方向飞跃固定距离，忽略途中停留。",
   disabledHint: "当前不能使用跳跃。",
   source: "turn",
   interaction: createDragDirectionInteraction(),

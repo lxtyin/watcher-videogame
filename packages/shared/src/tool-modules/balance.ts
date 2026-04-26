@@ -27,7 +27,6 @@ import {
 
 export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "制衡",
-  description: "压缩本回合移动，或把本回合移动转存到下回合，二选一。",
   disabledHint: "需要保留一个有剩余点数的移动时才能使用。",
   source: "turn",
   interaction: createModalChoiceInteraction(),
@@ -58,10 +57,7 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   defaultParams: {},
   getTextDescription: () => ({
     title: "制衡",
-    description: "压缩本回合移动，或把本回合移动转存到下回合，二选一。",
-    details: [
-      " ",
-    ]
+    description: "压缩本回合移动，或把本回合移动转存到下回合，二选一。"
   }),
   color: "#8c6bda",
   rollable: false,

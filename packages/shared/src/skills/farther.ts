@@ -8,7 +8,6 @@ export const FARTHER_BANKED_MOVEMENT_TAG = "farther:banked-movement";
 export const FARTHER_SKILL_DEFINITION: SkillDefinition = {
   id: FARTHER_SKILL_ID,
   label: "制衡储存",
-  summary: "行动阶段获得制衡，并返还储存的移动。",
   getTextDescription: () => ({
     title: "制衡储存",
     description: "行动阶段获得制衡，并返还储存的移动。",

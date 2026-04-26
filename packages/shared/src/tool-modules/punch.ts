@@ -13,7 +13,10 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
-import { resolveLinearDisplacement } from "../rules/movementSystem";
+import {
+  didDisplacementTakeEffect,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 import { getOppositeDirection, traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
@@ -35,7 +38,6 @@ const PUNCH_PUSH_START_MS = 80;
 
 export const PUNCH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "拳击",
-  description: "向所选方向出拳，命中的玩家会被击退，命中墙壁时反推自身。",
   disabledHint: "当前不能使用拳击。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -132,7 +134,7 @@ function resolvePunchTool(
         trackAffectedPlayerReason: "punch"
       });
 
-      if (!pushResolution.path.length) {
+      if (!didDisplacementTakeEffect(pushResolution)) {
         continue;
       }
 
@@ -175,7 +177,7 @@ function resolvePunchTool(
       trackAffectedPlayerReason: "punch"
     });
 
-    if (pushResolution.path.length) {
+    if (didDisplacementTakeEffect(pushResolution)) {
       nestedEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
     }
   } else {

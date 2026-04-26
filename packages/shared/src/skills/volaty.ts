@@ -9,7 +9,6 @@ export const VOLATY_LEAP_TURN_TAG = "volaty:leap-turn";
 export const VOLATY_SKILL_DEFINITION: SkillDefinition = {
   id: VOLATY_SKILL_ID,
   label: "飞跃开局",
-  summary: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
   getTextDescription: () => ({
     title: "飞跃开局",
     description: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",

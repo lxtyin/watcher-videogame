@@ -15,6 +15,7 @@ import {
 import { createPresentation } from "../rules/actionPresentation";
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import {
+  didDisplacementTakeEffect,
   resolveDragDisplacement,
   resolveLeapDisplacement,
   resolveLinearDisplacement
@@ -35,7 +36,6 @@ export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
     disposition: "active"
   },
   label: "移动",
-  description: "沿选择方向前进，消耗本工具的移动点数。",
   disabledHint: "没有可用的移动点数时不能使用移动。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -98,7 +98,7 @@ function resolveMovementTool(
             startMs: 0
           });
 
-  if (!resolution.path.length && resolution.impactStrength === null) {
+  if (!didDisplacementTakeEffect(resolution)) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, resolution.stopReason, {
       path: resolution.path,

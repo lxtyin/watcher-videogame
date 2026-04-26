@@ -571,8 +571,8 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             {selectedToolDefinition && selectedTool ? (
               <div className="tool-detail" style={{ "--tool-accent": selectedToolDefinition.color } as CSSProperties}>
                 <strong>{describeToolButtonLabel(selectedTool)}</strong>
-                <p>{selectedToolTextDescription?.description ?? selectedToolDefinition.description}</p>
-                {selectedToolTextDescription?.details.length ? (
+                <p>{selectedToolTextDescription?.description ?? "等待工具描述同步。"}</p>
+                {selectedToolTextDescription?.details?.length ? (
                   <p>{selectedToolTextDescription.details.join(" · ")}</p>
                 ) : null}
                 {!selectedToolUsability?.usable ? <p>{getToolDisabledMessage(selectedTool, tools)}</p> : null}

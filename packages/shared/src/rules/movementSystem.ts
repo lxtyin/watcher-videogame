@@ -86,6 +86,12 @@ export interface MovementSystemResolution {
   stopReason: string;
 }
 
+export function didDisplacementTakeEffect(
+  resolution: Pick<MovementSystemResolution, "impactStrength" | "path">
+): boolean {
+  return resolution.path.length > 0 || resolution.impactStrength !== null;
+}
+
 interface MutableMovementState {
   direction: Direction | null;
   player: MovementSubject;

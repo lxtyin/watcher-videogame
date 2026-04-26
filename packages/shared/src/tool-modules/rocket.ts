@@ -17,7 +17,11 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
-import { resolveLeapDisplacement, resolveLinearDisplacement } from "../rules/movementSystem";
+import {
+  didDisplacementTakeEffect,
+  resolveLeapDisplacement,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 // import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
   CARDINAL_DIRECTIONS,
@@ -45,7 +49,6 @@ const ROCKET_EXPLOSION_EFFECT_MS = 420;
 
 export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "火箭",
-  description: "向所选方向发射火箭，命中后在落点爆炸并击飞周围玩家。",
   disabledHint: "当前不能使用火箭。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -219,7 +222,7 @@ export function resolveRocketCore(
         trackAffectedPlayerReason: "rocket_splash"
       });
 
-      if (!pushResolution.path.length) {
+      if (!didDisplacementTakeEffect(pushResolution)) {
         continue;
       }
     }

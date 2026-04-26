@@ -16,7 +16,10 @@ import {
   requireTileSelection
 } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
-import { resolveLinearDisplacement } from "../rules/movementSystem";
+import {
+  didDisplacementTakeEffect,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
@@ -33,7 +36,6 @@ import {
 
 export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
   label: "投弹",
-  description: "先选择一格目标，再选择一个方向，将目标格上的玩家推开。",
   disabledHint: "当前不能使用投弹。",
   source: "turn",
   interaction: createSequentialInteraction([
@@ -146,6 +148,7 @@ function resolveBombThrowTool(
   }
 
   const motionEvents: ActionPresentationEvent[] = [];
+  let pushedAnyTarget = false;
   setDraftToolInventory(draft, consumeActiveTool(context));
 
   for (const targetPlayer of targetPlayers) {
@@ -159,14 +162,15 @@ function resolveBombThrowTool(
       trackAffectedPlayerReason: "bomb_throw"
     });
 
-    if (!pushResolution.path.length) {
+    if (!didDisplacementTakeEffect(pushResolution)) {
       continue;
     }
 
+    pushedAnyTarget = true;
     motionEvents.push(...consumeDraftPresentationFrom(draft, presentationMark));
   }
 
-  if (!draft.affectedPlayers.length) {
+  if (!pushedAnyTarget) {
     setDraftToolInventory(draft, context.tools);
     setDraftBlocked(draft, "Targets cannot be displaced", {
       preview: createToolPreview(context, {

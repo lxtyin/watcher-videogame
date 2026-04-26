@@ -14,7 +14,6 @@ import {
 
 export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "冲刺",
-  description: "让本回合剩余的所有移动工具额外获得指定点数。",
   disabledHint: "当前不能使用冲刺。",
   source: "turn",
   interaction: INSTANT_TOOL_INTERACTION,

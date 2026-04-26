@@ -12,6 +12,13 @@ import {
   normalizeModifierIds
 } from "../modifiers";
 import { clonePlayerTags } from "../playerTags";
+import {
+  BONDAGE_MODIFIER_ID,
+  BONDAGE_MODIFIER_DEFINITION,
+  BONDAGE_STACKS_TAG,
+  STUN_MODIFIER_DEFINITION,
+  STUN_MODIFIER_ID
+} from "../buffers";
 import type {
   CharacterId,
   ModifierId,
@@ -32,11 +39,6 @@ import {
   BLAZE_MODIFIER_DEFINITION,
   BLAZE_SKILL_DEFINITION
 } from "./blaze";
-import {
-  BONDAGE_MODIFIER_ID,
-  BONDAGE_MODIFIER_DEFINITION,
-  BONDAGE_STACKS_TAG
-} from "./bondage";
 import {
   CHAIN_MODIFIER_DEFINITION,
   CHAIN_SKILL_DEFINITION
@@ -61,7 +63,6 @@ import {
   VOLATY_MODIFIER_DEFINITION,
   VOLATY_SKILL_DEFINITION
 } from "./volaty";
-import { STUN_MODIFIER_DEFINITION, STUN_MODIFIER_ID } from "./stun";
 
 export {
   BLAZE_BOMB_PREPARED_TAG
@@ -69,7 +70,7 @@ export {
 export {
   BONDAGE_MODIFIER_ID,
   BONDAGE_STACKS_TAG
-} from "./bondage";
+} from "../buffers";
 export {
   CHAIN_HOOK_READY_TAG,
   CHAIN_MOVED_OUT_OF_TURN_TAG
@@ -82,7 +83,7 @@ export {
 } from "./volaty";
 export {
   STUN_MODIFIER_ID
-} from "./stun";
+} from "../buffers";
 
 interface ModifierActorContext {
   id: string;

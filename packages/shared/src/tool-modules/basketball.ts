@@ -17,7 +17,10 @@ import {
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
 import { createMovementDescriptorInput } from "../rules/displacement";
-import { resolveLinearDisplacement } from "../rules/movementSystem";
+import {
+  didDisplacementTakeEffect,
+  resolveLinearDisplacement
+} from "../rules/movementSystem";
 import { traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
@@ -33,7 +36,6 @@ import {
 
 export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "篮球",
-  description: "向所选方向投出篮球，命中的玩家会被击退。",
   disabledHint: "当前不能使用篮球。",
   source: "turn",
   interaction: createDragDirectionInteraction(),
@@ -109,7 +111,7 @@ function resolveBasketballTool(
         trackAffectedPlayerReason: "basketball"
       });
 
-      if (!pushResolution.path.length) {
+      if (!didDisplacementTakeEffect(pushResolution)) {
         continue;
       }
 
