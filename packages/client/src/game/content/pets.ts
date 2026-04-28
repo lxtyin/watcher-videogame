@@ -1,7 +1,6 @@
 interface PetModelAssetDefinition {
   id: PetId;
   publicPath: string;
-  sourcePath: string;
 }
 
 const PET_MODEL_NAMES = [
@@ -28,16 +27,33 @@ const PET_MODEL_NAMES = [
   "animal-penguin",
   "animal-pig",
   "animal-polar",
-  "animal-tiger"
+  "animal-tiger",
+  "ak-amiya",
+  "ak-logos",
+  "ak-ifrit",
+  "ak-ines",
+  "ak-kal'tsit",
+  "ak-lappland",
+  "ak-logos",
+  "ak-saga",
+  "ak-saria",
+  "ak-shu",
+  "ak-silence",
+  "ak-silverash",
+  "ak-skadi",
+  "ak-suzuran",
+  "ak-tragodia",
+  "ak-vulpisfoglia",
+  "ak-w",
+  "ak-bеточки"
 ] as const;
 
 export type PetId = (typeof PET_MODEL_NAMES)[number];
 
-// Runtime asset paths stay together with their source references for future swaps or imports.
+// Pet models are fetched from client public assets, so every id here must map to an existing .glb file there.
 export const PET_MODEL_ASSETS: PetModelAssetDefinition[] = PET_MODEL_NAMES.map((modelName) => ({
   id: modelName,
-  publicPath: `/assets/cube-pets/${modelName}.glb`,
-  sourcePath: `resources/kenney_cube-pets_1.0/Models/GLB format/${modelName}.glb`
+  publicPath: `/assets/cube-pets/${modelName}.glb`
 }));
 
 export const PET_MODEL_PATHS = PET_MODEL_ASSETS.map((asset) => asset.publicPath);

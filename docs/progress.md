@@ -7,6 +7,23 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-04-28 棋子模型白屏排查
+
+- 排查新增棋子模型白屏时，确认 `PetPiece` 通过 `useGLTF()` 从 `/assets/cube-pets/<pet-id>.glb` 运行时加载资源。
+- 修复静态资源缺失：
+  - 将 `ak-amiya.glb`
+  - 将 `ak-logos.glb`
+  - 同步放入 `packages/client/public/assets/cube-pets/`
+- 结论：
+  - 这次白屏的直接原因不是 shared / server 缺少额外注册
+  - 也不是 `ak-amiya.glb` / `ak-logos.glb` 本体无法被当前 `three + GLTFLoader` 解析
+  - 而是前端运行时请求的静态 GLB 文件原先不在 `client public assets` 目录，导致模型加载失败并把界面带入白屏
+- 补充说明：
+  - `ak-amiya.glb` 与 `ak-logos.glb` 不依赖额外外部纹理文件
+  - 只要 `pets.ts` 中启用的 id 与 `packages/client/public/assets/cube-pets/` 中的实际文件保持一致即可
+- 验证：
+  - `npm.cmd run build --workspace @watcher/client`
+
 ## 2026-04-09
 
 - 新增 `/mapeditor` 地图编辑器页面：
