@@ -7,6 +7,7 @@ import {
 import { BEDWARS_BOARD_LAYOUT, BEDWARS_BOARD_SYMBOLS } from "./boards/bedwarsBoard";
 import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./boards/raceBoard";
 import { RACE_BOARD2_LAYOUT, RACE_BOARD2_SYMBOLS } from "./boards/raceBoard2";
+import { RACE_BOARD3_LAYOUT, RACE_BOARD3_SYMBOLS } from "./boards/raceBoard3";
 
 interface MapGridPosition {
   x: number;
@@ -33,6 +34,7 @@ function defineGameMapRegistry<const Registry extends Record<string, GameMapCont
 export const DEFAULT_GAME_MAP_ID = "free_default" as const;
 export const RACE_GAME_MAP_ID = "race_sprint" as const;
 export const RACE_GAME2_MAP_ID = "race_sprint2" as const;
+export const RACE_GAME3_MAP_ID = "race_sprint3" as const;
 export const BEDWARS_GAME_MAP_ID = "bedwars_test" as const;
 
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
@@ -76,6 +78,19 @@ export const GAME_MAP_REGISTRY = defineGameMapRegistry({
     },
     spawnMode: "shared",
     spawnPositions: [{ x: 2, y: 1 }]
+  },
+  [RACE_GAME3_MAP_ID]: {
+    label: "竞速模式测试地图3",
+    description: "所有玩家共享出生点，沿着加速带与机关冲向终点，先到先得。",
+    mode: "race",
+    allowDebugTools: false,
+    layout: RACE_BOARD3_LAYOUT,
+    symbols: {
+      ...DEFAULT_BOARD_SYMBOLS,
+      ...RACE_BOARD3_SYMBOLS
+    },
+    spawnMode: "shared",
+    spawnPositions: [{ x: 6, y: 1 }]
   },
   [BEDWARS_GAME_MAP_ID]: {
     label: "起床战争测试图",
