@@ -28,7 +28,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Leader",
     nativeName: "领导",
     portraitId: "leader",
-    summary: "每个行动阶段获得一个放置钱包。",
+    summary: "每个回合结束阶段获得一个放置钱包。",
     skillIds: ["leader:deploy-wallet"]
   },
   blaze: {
@@ -62,6 +62,14 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     portraitId: "farther",
     summary: "每个行动阶段获得制衡，并可把移动储存到下回合。",
     skillIds: ["farther:balance-bank"]
+  },
+  mountain: {
+    flavorText: "到此一游",
+    label: "Mountain",
+    nativeName: "莫汀",
+    portraitId: "mountain",
+    summary: "每个回合结束阶段获得一个耐久 2 的砌墙。",
+    skillIds: ["mountain:end-turn-build-wall"]
   },
   awm: {
     flavorText: "到此一游",

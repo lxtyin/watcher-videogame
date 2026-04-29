@@ -27,6 +27,7 @@ import {
   applyOnGetToolModifiers,
   applyTurnActionStartModifiers,
   applyTurnEndModifiers,
+  applyTurnEndStartModifiers,
   applyTurnStartModifiers
 } from "./skills";
 import { resolveStopSummonEffects } from "./summons";
@@ -271,6 +272,10 @@ function normalizePlayerTools(
 function clearPlayerTurnResources(player: PlayerSnapshot): void {
   player.tools = [];
   player.turnFlags = [];
+}
+
+function clearPlayerTools(player: PlayerSnapshot): void {
+  player.tools = [];
 }
 
 function applyPlayerModifiers(player: PlayerSnapshot, modifiers: readonly import("./types").ModifierId[]): void {
@@ -783,7 +788,7 @@ function applyPhaseStartToPlayer(
             tags: clonePlayerTags(player.tags),
             tools: [...player.tools]
           })
-        : applyTurnEndModifiers(player.characterId, {
+        : applyTurnEndStartModifiers(player.characterId, {
             id: player.id,
             modifiers: cloneModifierIds(player.modifiers),
             phase,
@@ -1096,6 +1101,17 @@ function finishTurn(
   }
 
   enterSettlementState(state);
+}
+
+function enterTurnEndPhase(
+  state: MutableGameOrchestrationState,
+  player: PlayerSnapshot
+): boolean {
+  state.snapshot.turnInfo.phase = "turn-end";
+  clearPlayerTools(player);
+  const phaseStart = applyPhaseStartToPlayer(state, player, "turn-end");
+
+  return phaseStart.skipTurn || player.tools.length < 1;
 }
 
 function publishTurnStartPresentation(
@@ -1451,12 +1467,25 @@ function runUseToolCommand(
   // }
 
   if (!(resolution.phaseEffect?.finishTurn || resolution.endsTurn)) {
+    if (resolution.phaseEffect?.nextPhase === "turn-end") {
+      if (enterTurnEndPhase(state, player)) {
+        finishTurn(state, player, `${player.name} ended the turn.`);
+      }
+
+      return buildOkOutcome(resolution.summary);
+    }
+
     if (resolution.phaseEffect?.nextPhase) {
       state.snapshot.turnInfo.phase = resolution.phaseEffect.nextPhase;
     }
 
     if (isBedwarsMode(state) && actorWasKnockedOut) {
       finishTurn(state, player, `${player.name} was knocked out and ended the turn.`);
+      return buildOkOutcome(resolution.summary);
+    }
+
+    if (state.snapshot.turnInfo.phase === "turn-end" && player.tools.length < 1) {
+      finishTurn(state, player, `${player.name} ended the turn.`);
     }
 
     return buildOkOutcome(resolution.summary);
@@ -1476,8 +1505,20 @@ function runEndTurnCommand(
     return buildBlockedOutcome(`Player ${actorId} cannot end the turn right now.`);
   }
 
-  if (state.snapshot.turnInfo.phase !== "turn-action") {
-    return blockCommand(state, `${player.name} can only end the turn during the action phase.`);
+  if (state.snapshot.turnInfo.phase === "turn-action") {
+    if (enterTurnEndPhase(state, player)) {
+      finishTurn(state, player, `${player.name} ended the turn.`);
+      return buildOkOutcome(`${player.name} ended the turn.`);
+    }
+
+    return buildOkOutcome(`${player.name} entered the turn-end phase.`);
+  }
+
+  if (state.snapshot.turnInfo.phase !== "turn-end") {
+    return blockCommand(
+      state,
+      `${player.name} can only end the turn during the action phase or skip the turn-end phase.`
+    );
   }
 
   finishTurn(state, player, `${player.name} ended the turn.`);

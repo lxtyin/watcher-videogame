@@ -60,6 +60,10 @@ import {
   LEADER_SKILL_DEFINITION
 } from "./leader";
 import {
+  MOUNTAIN_MODIFIER_DEFINITION,
+  MOUNTAIN_SKILL_DEFINITION
+} from "./mountain";
+import {
   VOLATY_MODIFIER_DEFINITION,
   VOLATY_SKILL_DEFINITION
 } from "./volaty";
@@ -111,6 +115,7 @@ export const SKILL_REGISTRY = defineSkillRegistry({
   [LATE_SKILL_DEFINITION.id]: LATE_SKILL_DEFINITION,
   [EHH_SKILL_DEFINITION.id]: EHH_SKILL_DEFINITION,
   [LEADER_SKILL_DEFINITION.id]: LEADER_SKILL_DEFINITION,
+  [MOUNTAIN_SKILL_DEFINITION.id]: MOUNTAIN_SKILL_DEFINITION,
   [BLAZE_SKILL_DEFINITION.id]: BLAZE_SKILL_DEFINITION,
   [VOLATY_SKILL_DEFINITION.id]: VOLATY_SKILL_DEFINITION,
   [CHAIN_SKILL_DEFINITION.id]: CHAIN_SKILL_DEFINITION,
@@ -123,6 +128,7 @@ export const MODIFIER_REGISTRY = defineModifierRegistry({
   [LATE_MODIFIER_DEFINITION.id]: LATE_MODIFIER_DEFINITION,
   [EHH_MODIFIER_DEFINITION.id]: EHH_MODIFIER_DEFINITION,
   [LEADER_MODIFIER_DEFINITION.id]: LEADER_MODIFIER_DEFINITION,
+  [MOUNTAIN_MODIFIER_DEFINITION.id]: MOUNTAIN_MODIFIER_DEFINITION,
   [BLAZE_MODIFIER_DEFINITION.id]: BLAZE_MODIFIER_DEFINITION,
   [VOLATY_MODIFIER_DEFINITION.id]: VOLATY_MODIFIER_DEFINITION,
   [CHAIN_MODIFIER_DEFINITION.id]: CHAIN_MODIFIER_DEFINITION,
@@ -202,7 +208,7 @@ function mergePhaseResult(
 function applyTurnHook(
   characterId: CharacterId,
   actor: ModifierActorContext,
-  hookName: "onTurnActionStart" | "onTurnEnd" | "onTurnStart"
+  hookName: "onTurnActionStart" | "onTurnEnd" | "onTurnEndStart" | "onTurnStart"
 ): {
   grantTools: ToolLoadoutDefinition[];
   nextModifiers: ModifierId[];
@@ -261,6 +267,18 @@ export function applyTurnEndModifiers(
   skipTurn: boolean;
 } {
   return applyTurnHook(characterId, actor, "onTurnEnd");
+}
+
+export function applyTurnEndStartModifiers(
+  characterId: CharacterId,
+  actor: ModifierActorContext
+): {
+  grantTools: ToolLoadoutDefinition[];
+  nextModifiers: ModifierId[];
+  nextTags: PlayerTagMap;
+  skipTurn: boolean;
+} {
+  return applyTurnHook(characterId, actor, "onTurnEndStart");
 }
 
 export function applyTurnStartModifiers(

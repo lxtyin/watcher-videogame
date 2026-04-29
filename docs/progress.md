@@ -7,6 +7,38 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-04-29 可交互的 turn-end 阶段、领导改版与莫汀接入
+
+- shared 回合编排调整：
+  - `turn-end` 从“立即清算的终点”改为可交互阶段
+  - `endTurn` 在 `turn-action` 时先进入 `turn-end`
+  - 若 `turn-end` 获得了可用工具，玩家可以继续使用这些工具，或再次发送 `endTurn` 跳过该阶段
+  - `turn-end` 工具全部用完时，shared 会自动结束该阶段并切到下一名玩家
+- modifier hook 语义拆分：
+  - 新增 `onTurnEndStart`
+  - `onTurnEndStart` 负责“回合结束阶段开始时”发放工具或施加效果
+  - 既有 `onTurnEnd` 保留为“真正回合结束时”的清理与收尾逻辑
+- 角色与工具更新：
+  - `Leader` 改为在回合结束阶段开始时获得 `deployWallet`
+  - `deployWallet` 不再强制结束回合
+  - 新增角色 `Mountain / 莫汀`
+  - `Mountain` 的技能会在回合结束阶段开始时授予一个耐久 2 的 `buildWall`
+  - `buildWall / deployWallet` 明确允许在 `turn-end` 使用
+- client 交互更新：
+  - HUD 与场景弧环会在 `turn-end` 显示工具栏
+  - 回合结束阶段的结束按钮文案改为“跳过”
+  - 新增莫汀立绘接入
+- 文档同步：
+  - 更新 `docs/游戏规则与内容定义.md`
+  - 更新 `docs/arch/能力系统统一模型.md`
+  - 更新 `docs/arch/房间与大厅流程.md`
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run goldens`，`45/45` passed
+  - `npm.cmd run build --workspace @watcher/client`
+
 ## 2026-04-28 棋子模型白屏排查
 
 - 排查新增棋子模型白屏时，确认 `PetPiece` 通过 `useGLTF()` 从 `/assets/cube-pets/<pet-id>.glb` 运行时加载资源。
@@ -684,6 +716,18 @@
   - `npm.cmd run goldens -- --case bedwars-stun-skips-next-turn`
   - `npm.cmd run goldens`，`41/41` passed
   - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-04-29 新增玩家向规则与内容定义文档
+
+- 新增 `docs/游戏规则与内容定义.md`：
+  - 定位为面向玩家的规则、概念与内容权威定义文档，不承载代码架构说明
+  - 第一部分集中定义当前回合、工具与技能、位移类型、撞击、玩家状态等公共概念
+  - 第二部分集中定义当前工具骰的基础六工具，以及现有全部角色技能
+  - 角色技能条目同时补足了与专属工具直接相关的用户向规则说明，避免玩家文档依赖实现文件才能读懂
+- 更新 `docs/index.md`：
+  - 将这份新文档加入开发文档索引，并放在架构文档之前，作为领域规则入口
+- 本轮验证：
+  - 文档变更，未运行代码测试
 
 ## 2026-04-26 被动平移 impact 修复与 buffers 归档
 

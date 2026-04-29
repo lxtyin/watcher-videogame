@@ -104,11 +104,11 @@ function getDefaultCaption(
   }
 
   if (!tools.length) {
-    return phase === "turn-end" ? "回合结束阶段没有可用工具" : "本回合没有可用工具了，结束回合吧";
+    return phase === "turn-end" ? "回合结束阶段没有可用工具，可以跳过本阶段" : "本回合没有可用工具了，结束回合吧";
   }
 
   if (!selectedTool) {
-    return "从弧环里选择一个工具";
+    return phase === "turn-end" ? "从弧环里选择一个回合末工具，或点击跳过" : "从弧环里选择一个工具";
   }
 
   const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
@@ -150,9 +150,10 @@ export function SceneActionRing({
   const selectedTool = tools.find((tool) => tool.instanceId === selectedToolInstanceId) ?? null;
   const actionToolIds = useMemo(() => tools.map((tool) => tool.instanceId), [tools]);
   const actionToolIdsSignature = useMemo(() => actionToolIds.join("|"), [actionToolIds]);
+  const tracksIncomingTools = phase === "turn-action" || phase === "turn-end";
 
   useEffect(() => {
-    if (phase !== "turn-action") {
+    if (!tracksIncomingTools) {
       previousActionToolIdsRef.current = [];
       setIncomingToolInstanceIds((currentIds) => (currentIds.length ? [] : currentIds));
 
@@ -200,7 +201,7 @@ export function SceneActionRing({
       setIncomingToolInstanceIds((currentIds) => (currentIds.length ? [] : currentIds));
       incomingClearTimerRef.current = null;
     }, 560);
-  }, [actionToolIdsSignature, phase]);
+  }, [actionToolIdsSignature, tracksIncomingTools]);
 
   useEffect(
     () => () => {
@@ -290,10 +291,13 @@ export function SceneActionRing({
           ...tools.map(mapToolToAction),
           {
             accent: getActionUiConfig("end").accent,
-            detail: getActionUiConfig("end").detail ?? "结束回合",
+            detail:
+              phase === "turn-end"
+                ? "跳过当前回合结束阶段"
+                : (getActionUiConfig("end").detail ?? "结束回合"),
             disabled: false,
             id: "end",
-            label: "结束",
+            label: phase === "turn-end" ? "跳过" : "结束",
             onClick: onEndTurn,
             selected: false,
             testId: "scene-end-turn-button",

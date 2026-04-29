@@ -32,6 +32,7 @@ export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   interaction: createDragTileInteraction(),
   isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
+  phases: ["turn-action", "turn-end"],
   defaultParams: {
     wallDurability: 2
   },

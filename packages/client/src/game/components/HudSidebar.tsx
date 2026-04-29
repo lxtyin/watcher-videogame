@@ -95,7 +95,11 @@ function describeInteractionHint(
   }
 
   if (!selectedTool) {
-    return localTools.length ? "从工具列表中选择一个工具。" : "当前没有可用工具，可以结束回合。";
+    if (localTools.length) {
+      return phase === "turn-end" ? "从工具列表中选择一个回合末工具，或点击跳过。" : "从工具列表中选择一个工具。";
+    }
+
+    return phase === "turn-end" ? "当前没有可用工具，可以跳过本阶段。" : "当前没有可用工具，可以结束回合。";
   }
 
   const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
@@ -188,6 +192,10 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     activePhase,
     selectedTool,
     tools
+  );
+  const endTurnButtonLabel = activePhase === "turn-end" ? "跳过" : "结束回合";
+  const canUseEndTurnButton = Boolean(
+    isMyTurn && (activePhase === "turn-action" || activePhase === "turn-end")
   );
   const isDiceRollPresentationBusy = Boolean(diceRollAnimation);
 
@@ -487,9 +495,9 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 type="button"
                 data-testid="end-turn-button"
                 onClick={() => endTurn()}
-                disabled={!isMyTurn || activePhase !== "turn-action"}
+                disabled={!canUseEndTurnButton}
               >
-                结束回合
+                {endTurnButtonLabel}
               </button>
                 {snapshot.roomPhase === "settlement" ? (
                   <button type="button" className="ghost-button" onClick={() => returnToRoom()}>

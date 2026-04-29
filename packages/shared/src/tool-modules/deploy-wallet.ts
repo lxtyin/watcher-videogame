@@ -31,17 +31,18 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   interaction: createDragTileInteraction(),
   isAvailable: isChargedToolAvailable,
   defaultCharges: 1,
+  phases: ["turn-action", "turn-end"],
   defaultParams: {
     targetRange: 2
   },
   getTextDescription: ({ params }) => ({
     title: "放置钱包",
-    description: "在 5x5 范围内选择一个可部署地块放置钱包，并立即结束当前回合。"
+    description: "放置钱包",
   }),
   color: "#8d7a3d",
   rollable: false,
   debugGrantable: false,
-  endsTurnOnUse: true
+  endsTurnOnUse: false
 };
 
 function resolveDeployWalletTool(
@@ -110,7 +111,6 @@ function resolveDeployWalletTool(
   });
   setDraftToolInventory(draft, consumeActiveTool(context));
   setDraftApplied(draft, createUsedSummary(DEPLOY_WALLET_TOOL_DEFINITION.label), {
-    endsTurn: true,
     path: [],
     preview: createToolPreview(context, {
       effectTiles: [targetPosition],

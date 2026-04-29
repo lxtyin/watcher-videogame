@@ -3,9 +3,9 @@ import { defineGoldenCase } from "../types";
 export const GOLDEN_WALLET_CASES = [
   defineGoldenCase({
     id: "leader-deploy-wallet",
-    title: "Leader wallet deploy ends the turn",
+    title: "Deploy Wallet no longer ends the turn by itself",
     description:
-      "Deploying a wallet should create a summon and immediately advance to the next turn-start phase.",
+      "Using Deploy Wallet during the action phase should create a summon but keep the player in the same phase.",
     scene: {
       layout: [
         "#####",
@@ -71,12 +71,150 @@ export const GOLDEN_WALLET_CASES = [
       ],
       turnInfo: {
         currentPlayerId: "leader",
+        phase: "turn-action",
+        turnNumber: 1
+      },
+      latestPresentation: {
+        toolId: "deployWallet",
+        eventKinds: ["state_transition"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "leader-turn-end-grants-deploy-wallet",
+    title: "Leader receives Deploy Wallet during the turn-end phase",
+    description:
+      "Ending the action phase should enter turn-end, grant Deploy Wallet, and using the last turn-end tool should finish the turn automatically.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "leader",
+          name: "Leader",
+          characterId: "leader",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 1
+              }
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "leader",
+        phase: "turn-action",
+        turnNumber: 1
+      }
+    },
+    steps: [
+      {
+        kind: "endTurn",
+        actorId: "leader",
+        label: "Leader enters the turn-end phase"
+      },
+      {
+        kind: "useTool",
+        actorId: "leader",
+        tool: {
+          toolId: "deployWallet",
+          source: "character_skill"
+        },
+        targetPosition: { x: 2, y: 1 },
+        label: "Leader deploys the turn-end wallet"
+      }
+    ],
+    expect: {
+      players: {
+        leader: {
+          position: { x: 1, y: 1 },
+          toolCount: 0
+        }
+      },
+      summonCount: 1,
+      summons: [
+        {
+          summonId: "wallet",
+          ownerId: "leader",
+          position: { x: 2, y: 1 }
+        }
+      ],
+      turnInfo: {
+        currentPlayerId: "leader",
         phase: "turn-start",
         turnNumber: 2
       },
       latestPresentation: {
         toolId: "deployWallet",
         eventKinds: ["state_transition"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "leader-can-skip-turn-end-wallet",
+    title: "Leader can skip the turn-end phase without using Deploy Wallet",
+    description:
+      "If a turn-end tool was granted, sending endTurn again should skip the remaining phase and finish the turn.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "leader",
+          name: "Leader",
+          characterId: "leader",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 1
+              }
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "leader",
+        phase: "turn-action",
+        turnNumber: 1
+      }
+    },
+    steps: [
+      {
+        kind: "endTurn",
+        actorId: "leader",
+        label: "Leader enters the turn-end phase"
+      },
+      {
+        kind: "endTurn",
+        actorId: "leader",
+        label: "Leader skips the turn-end wallet"
+      }
+    ],
+    expect: {
+      players: {
+        leader: {
+          position: { x: 1, y: 1 },
+          toolCount: 0
+        }
+      },
+      summonCount: 0,
+      turnInfo: {
+        currentPlayerId: "leader",
+        phase: "turn-start",
+        turnNumber: 2
       }
     }
   }),

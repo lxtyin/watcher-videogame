@@ -8,8 +8,8 @@ export const LEADER_SKILL_DEFINITION: SkillDefinition = {
   label: "部署钱包",
   getTextDescription: () => ({
     title: "部署钱包",
-    description: "行动阶段开始时获得一个放置钱包。",
-    details: ["行动阶段开始：获得放置钱包"]
+    description: "回合结束阶段开始时获得一个放置钱包。",
+    details: ["回合结束阶段开始：获得放置钱包"]
   }),
   modifierIds: [LEADER_MODIFIER_ID]
 };
@@ -17,8 +17,8 @@ export const LEADER_SKILL_DEFINITION: SkillDefinition = {
 export const LEADER_MODIFIER_DEFINITION: ModifierDefinition = {
   id: LEADER_MODIFIER_ID,
   hooks: {
-    onTurnActionStart: () => ({
-      grantTools: [{ toolId: "deployWallet" }]
+    onTurnEndStart: () => ({
+      grantTools: [{ toolId: "deployWallet", source: "character_skill" }]
     })
   }
 };

@@ -4,25 +4,27 @@
 
 1. [AI开发指南](./AI开发指南.md)
    - 开发约束、文档约束与测试要求
-2. [架构总览](./arch/架构总览.md)
+2. [游戏规则与内容定义](./游戏规则与内容定义.md)
+   - 面向玩家的规则、概念与现有基础内容权威定义
+3. [架构总览](./arch/架构总览.md)
    - 三层 workspace、关键入口与主数据流
-3. [共享规则层](./arch/共享规则层.md)
+4. [共享规则层](./arch/共享规则层.md)
    - shared 模块边界、draft 主链、terrain-modules 与扩展入口
-4. [能力系统统一模型](./arch/能力系统统一模型.md)
+5. [能力系统统一模型](./arch/能力系统统一模型.md)
    - `Tool / Interaction / Skill / Modifier / Character / Player.tags / Player.modifiers / Turn Phase`
-5. [交互层统一原型](./arch/交互层统一原型.md)
+6. [交互层统一原型](./arch/交互层统一原型.md)
    - `InteractionSession`、driver 与多段交互
-6. [表现层原型](./arch/表现层原型.md)
+7. [表现层原型](./arch/表现层原型.md)
    - `PreviewDescriptor / ActionPresentation / PlaybackEngine / 地形显示规则`
-7. [内容注册与资源组织](./arch/内容注册与资源组织.md)
+8. [内容注册与资源组织](./arch/内容注册与资源组织.md)
    - shared 内容注册、terrain-modules、client 资源目录
-8. [前后端联机原型](./arch/前后端联机原型.md)
+9. [前后端联机原型](./arch/前后端联机原型.md)
    - room、schema、snapshot、presentation 同步链路
-9. [地图编辑器原型](./arch/地图编辑器原型.md)
+10. [地图编辑器原型](./arch/地图编辑器原型.md)
    - `/mapeditor`、布局文本、地形库与自定义地图联机测试
-10. [房间与大厅流程](./arch/房间与大厅流程.md)
+11. [房间与大厅流程](./arch/房间与大厅流程.md)
    - room 生命周期、lobby、开局、结算、回房
-11. [progress](./progress.md)
+12. [progress](./progress.md)
    - 最近完成的结构调整与验证记录
 
 ## 说明

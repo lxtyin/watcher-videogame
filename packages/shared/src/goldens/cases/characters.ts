@@ -592,5 +592,76 @@ export const GOLDEN_CHARACTER_CASES = [
         eventKinds: ["motion"]
       }
     }
+  }),
+  defineGoldenCase({
+    id: "mountain-gains-build-wall-during-turn-end",
+    title: "Mountain receives Build Wall during the turn-end phase",
+    description:
+      "Ending the action phase should enter turn-end, grant a durability-2 Build Wall, and using it should finish the turn when no turn-end tools remain.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "mountain",
+          name: "Mountain",
+          characterId: "mountain",
+          position: { x: 2, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 1
+              }
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "mountain",
+        phase: "turn-action",
+        turnNumber: 1
+      }
+    },
+    steps: [
+      {
+        kind: "endTurn",
+        actorId: "mountain",
+        label: "Mountain enters the turn-end phase"
+      },
+      {
+        kind: "useTool",
+        actorId: "mountain",
+        tool: {
+          toolId: "buildWall",
+          source: "character_skill"
+        },
+        targetPosition: { x: 3, y: 1 },
+        label: "Mountain builds a wall before the turn ends"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "#####",
+        "#..e#",
+        "#...#",
+        "#####"
+      ],
+      players: {
+        mountain: {
+          position: { x: 2, y: 1 },
+          toolCount: 0
+        }
+      },
+      turnInfo: {
+        currentPlayerId: "mountain",
+        phase: "turn-start",
+        turnNumber: 2
+      }
+    }
   })
 ] as const;

@@ -75,6 +75,7 @@ export interface ModifierHooks {
   onToolUsed?: (context: ModifierToolHookContext) => ModifierPhaseHookResult | null;
   onTurnActionStart?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;
   onTurnEnd?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;
+  onTurnEndStart?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;
   onTurnStart?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;
 }
 
