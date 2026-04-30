@@ -16,12 +16,20 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     skillIds: ["late:brake-movement"]
   },
   ehh: {
-    flavorText: "鹅~",
+    flavorText: "鹅哈哈",
     label: "Ehh",
     nativeName: "鹅哈哈",
     portraitId: "ehh",
     summary: "每个行动阶段额外获得一个篮球。",
     skillIds: ["ehh:extra-basketball"]
+  },
+  lamp: {
+    flavorText: "到此一游",
+    label: "Lamp",
+    nativeName: "兰彭",
+    portraitId: "lamp",
+    summary: "回合开始可放弃本回合工具骰，并在行动阶段复制本轮其他玩家用过的一件工具。",
+    skillIds: ["lamp:copy-roll"]
   },
   leader: {
     flavorText: "可别再弄丢了",
@@ -36,7 +44,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Blaze",
     nativeName: "布拉泽",
     portraitId: "blaze",
-    summary: "回合开始可准备炸弹，并在下个行动阶段获得投弹。",
+    summary: "回合开始可准备炸弹，并在下一个行动阶段获得投掷。",
     skillIds: ["blaze:prepare-bomb"]
   },
   volaty: {
@@ -56,7 +64,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     skillIds: ["chain:hook-if-still"]
   },
   farther: {
-    flavorText: "还能再快一些。",
+    flavorText: "还能再快一点。",
     label: "Farther",
     nativeName: "法真",
     portraitId: "farther",

@@ -1,9 +1,8 @@
 import { Html } from "@react-three/drei";
 import {
   TOOL_DEFINITIONS,
-  getToolDisabledMessage,
   getToolTextDescription,
-  type ToolChoiceDefinition,
+  type GameSnapshot,
   type ToolId,
   type TurnPhase,
   type TurnToolSnapshot
@@ -21,11 +20,11 @@ import {
   isChoiceInteractionTool,
   isPointerDrivenInteractionTool
 } from "../interaction/toolInteraction";
+import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
 import type { SelectedToolInstanceId } from "../state/useGameStore";
 
 interface SceneActionRingProps {
   caption?: string | null;
-  choiceOptions?: readonly ToolChoiceDefinition[];
   hidden?: boolean;
   interactive?: boolean;
   phase: TurnPhase;
@@ -34,6 +33,8 @@ interface SceneActionRingProps {
   screenOffsetY?: number;
   selectedToolInstanceId: SelectedToolInstanceId;
   showArc?: boolean;
+  snapshot: GameSnapshot | null;
+  toolOwnerId: string | null;
   tools: TurnToolSnapshot[];
   onBeginPointerTool: (
     toolInstanceId: string,
@@ -41,7 +42,6 @@ interface SceneActionRingProps {
     clientY: number,
     pointerType: string
   ) => void;
-  onCommitChoice: (toolInstanceId: string, choiceId: string) => void;
   onEndTurn: () => void;
   onRollDice: () => void;
   onSelectTool: (toolInstanceId: SelectedToolInstanceId) => void;
@@ -83,11 +83,13 @@ function getRingButtonStyle(index: number, total: number): CSSProperties {
   };
 }
 
-function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
-  const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
-    tool,
-    tools
-  });
+function getToolButtonDetail(
+  tool: TurnToolSnapshot,
+  tools: TurnToolSnapshot[],
+  snapshot: GameSnapshot | null,
+  toolOwnerId: string | null
+): string {
+  const availability = getToolAvailabilityFromSnapshot(snapshot, toolOwnerId, tool, tools);
   const toolTextDescription = getToolTextDescription(tool);
   const baseDetail = toolTextDescription.details?.[0] ?? toolTextDescription.description;
 
@@ -97,7 +99,9 @@ function getToolButtonDetail(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]):
 function getDefaultCaption(
   phase: TurnPhase,
   selectedTool: TurnToolSnapshot | null,
-  tools: TurnToolSnapshot[]
+  tools: TurnToolSnapshot[],
+  snapshot: GameSnapshot | null,
+  toolOwnerId: string | null
 ): string {
   if (phase === "turn-start") {
     return tools.length ? "点击投骰开始回合，或先使用当前阶段工具" : "点击投骰开始本回合";
@@ -111,10 +115,7 @@ function getDefaultCaption(
     return phase === "turn-end" ? "从弧环里选择一个回合末工具，或点击跳过" : "从弧环里选择一个工具";
   }
 
-  const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
-    tool: selectedTool,
-    tools
-  });
+  const availability = getToolAvailabilityFromSnapshot(snapshot, toolOwnerId, selectedTool, tools);
   const label = TOOL_DEFINITIONS[selectedTool.toolId].label;
 
   if (!availability.usable) {
@@ -126,7 +127,6 @@ function getDefaultCaption(
 
 export function SceneActionRing({
   caption = null,
-  choiceOptions = [],
   hidden = false,
   interactive = true,
   phase,
@@ -135,9 +135,10 @@ export function SceneActionRing({
   screenOffsetY = 0,
   selectedToolInstanceId,
   showArc = true,
+  snapshot,
+  toolOwnerId,
   tools,
   onBeginPointerTool,
-  onCommitChoice,
   onEndTurn,
   onRollDice,
   onSelectTool,
@@ -213,10 +214,7 @@ export function SceneActionRing({
   );
 
   const mapToolToAction = (tool: TurnToolSnapshot, index: number): FloatingActionItem => {
-    const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
-      tool,
-      tools
-    });
+    const availability = getToolAvailabilityFromSnapshot(snapshot, toolOwnerId, tool, tools);
     const definition = TOOL_DEFINITIONS[tool.toolId];
     const pointerDriven = isPointerDrivenInteractionTool(tool.toolId);
     const choiceDriven = isChoiceInteractionTool(tool.toolId);
@@ -237,8 +235,8 @@ export function SceneActionRing({
     return {
       accent: getActionUiConfig(tool.toolId).accent,
       detail: availability.usable
-        ? getToolButtonDetail(tool, tools)
-        : availability.reason ?? getToolButtonDetail(tool, tools),
+        ? getToolButtonDetail(tool, tools, snapshot, toolOwnerId)
+        : availability.reason ?? getToolButtonDetail(tool, tools, snapshot, toolOwnerId),
       disabled: !availability.usable,
       id: tool.instanceId,
       label: definition.label,
@@ -250,7 +248,7 @@ export function SceneActionRing({
         if (!availability.usable) {
           onSelectTool(tool.instanceId);
           onShowUnavailableToolNotice(
-            getToolDisabledMessage(tool, tools) ?? `${definition.label} 当前不可用。`
+            availability.reason ?? `${definition.label} 当前不可用。`
           );
           return;
         }
@@ -305,11 +303,6 @@ export function SceneActionRing({
           }
         ];
 
-  const selectedChoiceTool =
-    interactive && selectedTool && isChoiceInteractionTool(selectedTool.toolId) && choiceOptions.length
-      ? selectedTool
-      : null;
-
   return (
     <Html position={position} center>
       <div
@@ -324,7 +317,7 @@ export function SceneActionRing({
       >
         {showArc ? <div className="scene-action-ring__arc" /> : null}
         {/* <div className="scene-action-ring__caption">
-          {caption ?? getDefaultCaption(phase, selectedTool, tools)}
+          {caption ?? getDefaultCaption(phase, selectedTool, tools, snapshot, toolOwnerId)}
         </div> */}
         {showArc
           ? actions.map((action, index) => (
@@ -365,28 +358,6 @@ export function SceneActionRing({
               </button>
             ))
           : null}
-        {selectedChoiceTool ? (
-          <div className="scene-choice-panel">
-            {choiceOptions.map((choice) => (
-              <button
-                key={choice.id}
-                type="button"
-                className="scene-choice-button"
-                data-testid={`scene-choice-${selectedChoiceTool.toolId}-${choice.id}`}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onCommitChoice(selectedChoiceTool.instanceId, choice.id);
-                }}
-              >
-                <span className="scene-choice-button__label">{choice.label}</span>
-                <span className="scene-choice-button__detail">{choice.description}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
     </Html>
   );

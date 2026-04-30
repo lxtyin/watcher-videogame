@@ -9,6 +9,7 @@ import {
 } from "../assets/board/terrainThumbnailCatalog";
 import { useSceneOverlayStore } from "../state/useSceneOverlayStore";
 import { BoardScene } from "./BoardScene";
+import { SceneChoiceModal, type SceneChoiceModalState } from "./SceneChoiceModal";
 import { SceneInspectionCard } from "./SceneInspectionCard";
 import { SceneToolCancelZone } from "./SceneToolCancelZone";
 
@@ -51,6 +52,7 @@ function RenderStatsProbe() {
 export function GameBoardCanvas() {
   const cameraControlMode = getCameraControlMode();
   const [terrainThumbnailUrls, setTerrainThumbnailUrls] = useState<Partial<Record<string, string>>>({});
+  const [choiceModal, setChoiceModal] = useState<SceneChoiceModalState | null>(null);
   const inspectionCard = useSceneOverlayStore((state) => state.inspectionCard);
   const resetSceneOverlays = useSceneOverlayStore((state) => state.reset);
   const toolCancelActive = useSceneOverlayStore((state) => state.toolCancelActive);
@@ -108,9 +110,14 @@ export function GameBoardCanvas() {
             }}
           />
         ) : null}
-        <BoardScene cameraControlMode={cameraControlMode} terrainThumbnailUrls={terrainThumbnailUrls} />
+        <BoardScene
+          cameraControlMode={cameraControlMode}
+          setChoiceModal={setChoiceModal}
+          terrainThumbnailUrls={terrainThumbnailUrls}
+        />
       </Canvas>
       <div className="board-shell__ui-layer">
+        <SceneChoiceModal modal={choiceModal} />
         <SceneToolCancelZone active={toolCancelActive} visible={toolCancelVisible} />
         <SceneInspectionCard inspection={inspectionCard} />
       </div>

@@ -1,1 +1,1 @@
-export { TOOL_DIE_FACES, TOOL_REGISTRY } from "../tool-modules";
+export { TOOL_CHOICE_RESOLVER_REGISTRY, TOOL_DIE_FACES, TOOL_REGISTRY } from "../tool-modules";

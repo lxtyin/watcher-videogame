@@ -2284,49 +2284,219 @@ button:disabled {
   opacity: 0.92;
 }
 
-.scene-choice-panel {
+.scene-choice-modal-overlay {
   position: absolute;
-  left: 50%;
-  top: calc(100% + 0.9rem);
-  display: grid;
-  gap: 0.6rem;
-  min-width: 18rem;
-  pointer-events: auto;
-  transform: translateX(-50%);
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  pointer-events: none;
 }
 
-.scene-choice-button {
-  display: grid;
-  gap: 0.24rem;
-  padding: 0.78rem 0.9rem;
-  border: none;
-  border-radius: 18px;
+.scene-choice-modal {
+  width: min(720px, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-radius: 8px;
+  color: #fff8ee;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(22, 28, 40, 0.97), rgba(14, 18, 28, 0.96));
+  box-shadow:
+    0 26px 52px rgba(11, 14, 20, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   pointer-events: auto;
-  touch-action: none;
+}
+
+.scene-choice-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.scene-choice-modal__header h3 {
+  margin: 0.18rem 0 0;
+  font-size: 1.28rem;
+}
+
+.scene-choice-modal__eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--choice-accent) 62%, white 38%);
+}
+
+.scene-choice-modal__description {
+  margin: 0;
+  line-height: 1.5;
+  color: rgba(255, 246, 232, 0.88);
+}
+
+.scene-choice-modal__close,
+.scene-choice-modal__ghost-action,
+.scene-choice-modal__confirm-action {
+  border-radius: 8px;
+}
+
+.scene-choice-modal__close,
+.scene-choice-modal__ghost-action {
+  color: #fff6e8;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.scene-choice-modal__close:hover,
+.scene-choice-modal__close:focus-visible,
+.scene-choice-modal__ghost-action:hover,
+.scene-choice-modal__ghost-action:focus-visible {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.scene-choice-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.scene-choice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.9rem 0.95rem;
+  border-radius: 8px;
+  pointer-events: auto;
+  text-align: left;
   color: #fff9ef;
   background:
-    linear-gradient(180deg, rgba(21, 28, 40, 0.94) 0%, rgba(15, 19, 29, 0.92) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
   box-shadow:
-    0 18px 30px rgba(12, 16, 24, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-  text-align: left;
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 12px 24px rgba(9, 11, 17, 0.18);
 }
 
-.scene-choice-button:hover,
-.scene-choice-button:focus-visible {
-  transform: scale(1.02);
+.scene-choice-card:hover,
+.scene-choice-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 18px 28px rgba(9, 11, 17, 0.24);
 }
 
-.scene-choice-button__label {
-  font-size: 0.82rem;
+.scene-choice-card.selected {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--choice-accent) 42%, rgba(255, 255, 255, 0.16)),
+      color-mix(in srgb, var(--choice-accent) 28%, rgba(255, 255, 255, 0.08))
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--choice-accent) 52%, white 48%),
+    0 18px 30px color-mix(in srgb, var(--choice-accent) 26%, rgba(9, 11, 17, 0.22) 74%);
+}
+
+.scene-choice-card__icon {
+  width: 3.35rem;
+  height: 3.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.scene-choice-card__icon img {
+  width: 2.2rem;
+  height: 2.2rem;
+  object-fit: contain;
+}
+
+.scene-choice-card__token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  border-radius: 999px;
+  font-size: 1rem;
   font-weight: 800;
+  color: #fffef9;
+  background: color-mix(in srgb, var(--choice-accent) 76%, white 24%);
 }
 
-.scene-choice-button__detail {
-  font-size: 0.68rem;
-  line-height: 1.35;
-  color: rgba(255, 247, 233, 0.82);
+.scene-choice-card__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.scene-choice-card__copy strong,
+.scene-choice-card__copy span {
+  display: block;
+}
+
+.scene-choice-card__copy strong {
+  font-size: 0.9rem;
+}
+
+.scene-choice-card__copy span {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: rgba(255, 246, 232, 0.84);
+}
+
+.scene-choice-modal__empty {
+  padding: 0.95rem 1rem;
+  border-radius: 8px;
+  line-height: 1.5;
+  color: rgba(255, 246, 232, 0.84);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.scene-choice-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.scene-choice-modal__confirm-action {
+  min-width: 7.2rem;
+}
+
+@media (max-width: 720px) {
+  .scene-choice-modal-overlay {
+    padding: 0.9rem;
+  }
+
+  .scene-choice-modal {
+    width: min(100%, 32rem);
+    padding: 1rem;
+  }
+
+  .scene-choice-modal__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-choice-modal__header,
+  .scene-choice-modal__actions {
+    flex-direction: column;
+  }
+
+  .scene-choice-modal__actions button,
+  .scene-choice-modal__close {
+    width: 100%;
+  }
 }
 
 .scene-tool-cancel-zone {

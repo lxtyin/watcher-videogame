@@ -11,7 +11,6 @@ interface ActionUiConfig {
   token: string;
 }
 
-// Scene action chips keep visual-only tokens here; tool copy comes from shared definitions.
 const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   roll: {
     token: "掷",
@@ -35,7 +34,7 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: TOOL_DEFINITIONS.dash.color
   },
   brake: {
-    token: "制",
+    token: "刹",
     accent: TOOL_DEFINITIONS.brake.color
   },
   buildWall: {
@@ -63,7 +62,7 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: TOOL_DEFINITIONS.deployWallet.color
   },
   bombThrow: {
-    token: "弹",
+    token: "爆",
     accent: TOOL_DEFINITIONS.bombThrow.color
   },
   balance: {
@@ -77,6 +76,14 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
   volatySkipToolDie: {
     token: "跃",
     accent: "#77b8ff"
+  },
+  lampPrepareCopy: {
+    token: "复",
+    accent: "#c98e44"
+  },
+  lampCopy: {
+    token: "复",
+    accent: "#c98e44"
   },
   awmShoot: {
     token: "狙",

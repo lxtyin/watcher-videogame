@@ -3,13 +3,13 @@ import type { Room } from "colyseus.js";
 import { Client } from "colyseus.js";
 import {
   WATCHER_ROOM_NAME,
-  getToolDefinition,
   type CustomMapDefinition,
   type GameMapId
 } from "@watcher/shared";
 import { getRandomPetId, resolvePetId } from "../content/pets";
 import { useGameStore } from "../state/useGameStore";
 import { deserializeRoomState } from "../utils/deserializeRoomState";
+import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
 
 interface CreateRoomInput {
   customMap?: CustomMapDefinition;
@@ -212,10 +212,7 @@ export function useWatcherConnection(roomCode: string | null): WatcherConnection
         const selectedToolStillUsable =
           snapshot.roomPhase === "in_game" &&
           selectedTool &&
-          getToolDefinition(selectedTool.toolId).isAvailable({
-            tool: selectedTool,
-            tools: me?.tools ?? []
-          }).usable;
+          getToolAvailabilityFromSnapshot(snapshot, currentState.sessionId, selectedTool, me?.tools ?? []).usable;
 
         if (!selectedToolStillUsable) {
           setSelectedToolInstanceId(null);

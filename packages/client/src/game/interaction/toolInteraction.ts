@@ -8,11 +8,13 @@ import {
   getDirectionSelection,
   getTileSelection,
   getToolChoiceDefinitions,
+  getDynamicToolChoiceDefinitions,
   getToolInteractionDefinition,
   isChoiceInteractionDefinition,
   isInstantInteractionDefinition,
   isPointerDrivenInteractionDefinition,
   type Direction,
+  type GameSnapshot,
   type GridPosition,
   type ToolChoiceDefinition,
   type ToolInteractionAnchor,
@@ -24,6 +26,7 @@ import {
   type UseToolCommandPayload
 } from "@watcher/shared";
 import { directionFromAxis, toWorldPosition } from "../utils/boardMath";
+import { buildToolActionContextFromSnapshot } from "../utils/toolRuntime";
 import {
   getDragDirection,
   resolveAxisTileAimTarget,
@@ -224,13 +227,19 @@ export function isPointerDrivenInteractionTool(toolId: ToolId): boolean {
 }
 
 export function getToolInteractionChoiceOptions(
-  session: ToolInteractionSession | null
+  session: ToolInteractionSession | null,
+  snapshot: GameSnapshot | null,
+  sessionId: string | null
 ): readonly ToolChoiceDefinition[] {
   if (!session || getCurrentStage(session)?.kind !== "modal-choice") {
     return [];
   }
 
-  return getToolChoiceDefinitions(session.toolId);
+  const actor = snapshot?.players.find((player) => player.id === sessionId) ?? null;
+  const activeTool = actor?.tools.find((tool) => tool.instanceId === session.toolInstanceId) ?? null;
+  const context = buildToolActionContextFromSnapshot(snapshot, sessionId, activeTool);
+
+  return context ? getDynamicToolChoiceDefinitions(session.toolId, context) : getToolChoiceDefinitions(session.toolId);
 }
 
 export function getToolInteractionCaption(
@@ -437,6 +446,34 @@ export function applyToolInteractionChoice(
     ...session,
     draft: setChoiceValue(session.draft, stage.choiceKey, choiceId)
   });
+}
+
+export function getToolInteractionSelectedChoiceId(
+  session: ToolInteractionSession | null
+): string | null {
+  const stage = session ? getCurrentStage(session) : null;
+
+  if (!session || !stage || stage.kind !== "modal-choice") {
+    return null;
+  }
+
+  return getChoiceSelection(mergeInteractionRecords(session.committed, session.draft), stage.choiceKey);
+}
+
+export function setToolInteractionChoiceDraft(
+  session: ToolInteractionSession,
+  choiceId: string | null
+): ToolInteractionSession {
+  const stage = getCurrentStage(session);
+
+  if (!stage || stage.kind !== "modal-choice") {
+    return session;
+  }
+
+  return {
+    ...session,
+    draft: setChoiceValue(session.draft, stage.choiceKey, choiceId)
+  };
 }
 
 export function getToolInteractionDirectionState(

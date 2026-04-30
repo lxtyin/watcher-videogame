@@ -317,7 +317,7 @@ export const GOLDEN_CHARACTER_CASES = [
         kind: "useTool",
         actorId: "farther",
         tool: "balance",
-        choiceId: "trim_and_bank",
+        choiceId: "bank:1",
         label: "Farther trims one point and banks it"
       },
       {
@@ -362,10 +362,10 @@ export const GOLDEN_CHARACTER_CASES = [
     }
   }),
   defineGoldenCase({
-    id: "farther-balance-store-all",
-    title: "Farther stores the whole movement pool for the next turn",
+    id: "farther-balance-banks-two",
+    title: "Farther banks two movement points for the next turn",
     description:
-      "Balance option two should zero this turn's movement and return the whole amount as a Movement tool next turn.",
+      "Balance option two should remove two movement points this turn and return them as a Movement 2 tool next turn.",
     scene: {
       layout: [
         "#########",
@@ -383,7 +383,7 @@ export const GOLDEN_CHARACTER_CASES = [
             {
               toolId: "movement",
               params: {
-                movePoints: 3
+                movePoints: 4
               }
             },
             {
@@ -408,8 +408,8 @@ export const GOLDEN_CHARACTER_CASES = [
         kind: "useTool",
         actorId: "farther",
         tool: "balance",
-        choiceId: "store_all",
-        label: "Farther stores the whole movement pool"
+        choiceId: "bank:2",
+        label: "Farther banks two points"
       },
       {
         kind: "endTurn",
@@ -436,19 +436,122 @@ export const GOLDEN_CHARACTER_CASES = [
         actorId: "farther",
         tool: { toolId: "movement", nth: 1 },
         direction: "right",
-        label: "Farther spends the stored Movement 3"
+        label: "Farther spends the stored Movement 2"
       }
     ],
     expect: {
       players: {
         farther: {
-          position: { x: 4, y: 1 },
+          position: { x: 3, y: 1 },
           toolIds: ["movement", "buildWall", "balance"]
         }
       },
       latestPresentation: {
         toolId: "movement",
         eventKinds: ["motion"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "lamp-skips-tool-die-and-copies-used-tool",
+    title: "Lamp skips the tool die and copies a tool used earlier this round",
+    description:
+      "Lamp should be able to give up the current turn's tool die, receive Copy, and add a tool that another player already used this round.",
+    scene: {
+      layout: [
+        "########",
+        "#......#",
+        "#......#",
+        "########"
+      ],
+      players: [
+        {
+          id: "source",
+          name: "Source",
+          characterId: "late",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "buildWall"
+            }
+          ]
+        },
+        {
+          id: "lamp",
+          name: "Lamp",
+          characterId: "lamp",
+          position: { x: 2, y: 2 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "source",
+        phase: "turn-action"
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "source",
+        tool: "buildWall",
+        targetPosition: { x: 2, y: 1 },
+        label: "Source uses Build Wall first this round"
+      },
+      {
+        kind: "endTurn",
+        actorId: "source",
+        label: "Source ends the turn"
+      },
+      {
+        kind: "useTool",
+        actorId: "lamp",
+        tool: "lampPrepareCopy",
+        label: "Lamp decides to replace the tool die with Copy"
+      },
+      {
+        kind: "rollDice",
+        actorId: "lamp",
+        label: "Lamp rolls movement only and gains Copy"
+      },
+      {
+        kind: "useTool",
+        actorId: "lamp",
+        tool: "lampCopy",
+        choiceId: "copy:buildWall|turn|wallDurability=2",
+        label: "Lamp copies Build Wall from this round's history"
+      },
+      {
+        kind: "useTool",
+        actorId: "lamp",
+        tool: "buildWall",
+        targetPosition: { x: 3, y: 2 },
+        label: "Lamp uses the copied Build Wall"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "########",
+        "#.e....#",
+        "#..e...#",
+        "########"
+      ],
+      players: {
+        lamp: {
+          position: { x: 2, y: 2 },
+          toolIds: ["movement"]
+        },
+        source: {
+          position: { x: 1, y: 1 },
+          toolCount: 0
+        }
+      },
+      turnInfo: {
+        currentPlayerId: "lamp",
+        phase: "turn-action",
+        lastRolledToolId: null
+      },
+      latestPresentation: {
+        toolId: "buildWall",
+        eventKinds: ["sound", "state_transition"]
       }
     }
   }),

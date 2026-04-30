@@ -6,7 +6,6 @@ import {
   getCharacterIds,
   getDebugGrantableToolIds,
   getNextCharacterId,
-  getToolDisabledMessage,
   getToolTextDescription,
   type CharacterId,
   type ToolId,
@@ -22,6 +21,7 @@ import { UiIcon } from "../assets/ui/icons";
 import { getCharacterPortraitUrl } from "../content/characterPortraits";
 import { findSelectedTool } from "../state/toolSelection";
 import { useGameStore } from "../state/useGameStore";
+import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
 import { PetThumbnail } from "./PetThumbnail";
 
 const CONNECTION_STATUS_LABELS = {
@@ -76,7 +76,8 @@ function describeInteractionHint(
   isMyTurn: boolean,
   phase: TurnPhase | null,
   selectedTool: TurnToolSnapshot | null,
-  localTools: TurnToolSnapshot[]
+  localTools: TurnToolSnapshot[],
+  selectedToolUsability: { reason: string | null; usable: boolean } | null
 ): string {
   if (roomPhase === "lobby") {
     return "在房间中选择角色、查看玩家状态并准备。";
@@ -102,14 +103,10 @@ function describeInteractionHint(
     return phase === "turn-end" ? "当前没有可用工具，可以跳过本阶段。" : "当前没有可用工具，可以结束回合。";
   }
 
-  const availability = TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
-    tool: selectedTool,
-    tools: localTools
-  });
   const label = TOOL_DEFINITIONS[selectedTool.toolId].label;
 
-  if (!availability.usable) {
-    return `${label} 当前不可用：${availability.reason ?? "条件不足"}。`;
+  if (!selectedToolUsability?.usable) {
+    return `${label} 当前不可用：${selectedToolUsability?.reason ?? "条件不足"}。`;
   }
 
   if (isChoiceInteractionTool(selectedTool.toolId)) {
@@ -123,8 +120,15 @@ function describeInteractionHint(
   return `点击按钮使用 ${label}。`;
 }
 
-function getBlockedToolMessage(tool: TurnToolSnapshot, tools: TurnToolSnapshot[]): string {
-  return getToolDisabledMessage(tool, tools) ?? `${TOOL_DEFINITIONS[tool.toolId].label} 当前不可用。`;
+function getBlockedToolMessage(
+  tool: TurnToolSnapshot,
+  tools: TurnToolSnapshot[],
+  snapshot: Parameters<typeof getToolAvailabilityFromSnapshot>[0],
+  actorId: string | null
+): string {
+  const availability = getToolAvailabilityFromSnapshot(snapshot, actorId, tool, tools);
+
+  return availability.reason ?? `${TOOL_DEFINITIONS[tool.toolId].label} 当前不可用。`;
 }
 
 function getCharacterOptionLabel(characterId: CharacterId): string {
@@ -170,10 +174,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const selectedToolTextDescription = selectedTool ? getToolTextDescription(selectedTool) : null;
   const selectedToolUsability =
     selectedTool && me
-      ? TOOL_DEFINITIONS[selectedTool.toolId].isAvailable({
-          tool: selectedTool,
-          tools: me.tools
-        })
+      ? getToolAvailabilityFromSnapshot(snapshot, sessionId, selectedTool, me.tools)
       : null;
   const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
   const nextCharacterId = me ? getNextCharacterId(me.characterId) : "late";
@@ -191,7 +192,8 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     isMyTurn,
     activePhase,
     selectedTool,
-    tools
+    tools,
+    selectedToolUsability
   );
   const endTurnButtonLabel = activePhase === "turn-end" ? "跳过" : "结束回合";
   const canUseEndTurnButton = Boolean(
@@ -218,15 +220,12 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   }, [clearToolNotice, toolNotice]);
 
   const handleToolClick = (tool: TurnToolSnapshot) => {
-    const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
-      tool,
-      tools
-    });
+    const availability = getToolAvailabilityFromSnapshot(snapshot, sessionId, tool, tools);
 
     setSelectedToolInstanceId(tool.instanceId);
 
     if (!availability.usable) {
-      showToolNotice(getBlockedToolMessage(tool, tools));
+      showToolNotice(getBlockedToolMessage(tool, tools, snapshot, sessionId));
       return;
     }
 
@@ -545,10 +544,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             {tools.length ? (
               <div className="tool-grid">
                 {tools.map((tool, index) => {
-                  const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
-                    tool,
-                    tools
-                  });
+                  const availability = getToolAvailabilityFromSnapshot(snapshot, sessionId, tool, tools);
 
                   return (
                     <button
@@ -583,7 +579,9 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
                 {selectedToolTextDescription?.details?.length ? (
                   <p>{selectedToolTextDescription.details.join(" · ")}</p>
                 ) : null}
-                {!selectedToolUsability?.usable ? <p>{getToolDisabledMessage(selectedTool, tools)}</p> : null}
+                {!selectedToolUsability?.usable ? (
+                  <p>{getBlockedToolMessage(selectedTool, tools, snapshot, sessionId)}</p>
+                ) : null}
               </div>
             ) : (
               <div className="tool-detail">

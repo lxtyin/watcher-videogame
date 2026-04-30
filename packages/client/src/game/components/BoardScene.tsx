@@ -4,6 +4,7 @@ import { Color, Plane, Raycaster, Vector2, Vector3, type Camera, type Perspectiv
 import {
   findToolInstance,
   getToolDefinition,
+  getToolTextDescription,
   type Direction,
   type GridPosition,
   type PlayerSnapshot,
@@ -28,7 +29,6 @@ import { evaluatePlaybackEngine } from "../animation/playbackEngine";
 import { projectClientToGround } from "../interaction/aiming";
 import { resolveScenePreviewState } from "../interaction/previewState";
 import {
-  applyToolInteractionChoice,
   beginToolInteractionPointer,
   buildToolInteractionPreviewPayload,
   clearToolInteractionDraft,
@@ -37,11 +37,13 @@ import {
   getToolInteractionCaption,
   getToolInteractionChoiceOptions,
   getToolInteractionDirectionState,
+  getToolInteractionSelectedChoiceId,
   getToolInteractionTargetPosition,
   hasToolInteractionPreviewPayload,
   isChoiceStageActive,
   isInstantInteractionTool,
   isPointerStageActive,
+  setToolInteractionChoiceDraft,
   shouldHideToolInteractionArc,
   type ToolInteractionSession,
   updateToolInteractionFromPointer
@@ -65,6 +67,8 @@ import {
   toWorldPosition
 } from "../utils/boardMath";
 import { estimateBoardShadowBounds } from "../utils/shadowCamera";
+import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
+import type { SceneChoiceModalState } from "./SceneChoiceModal";
 
 interface SceneHudOffset {
   x: number;
@@ -280,11 +284,12 @@ function isToolPointerCancelZoneHit(clientY: number, viewportRect: DOMRect): boo
 
 interface BoardSceneProps {
   cameraControlMode: CameraControlMode;
+  setChoiceModal: (modal: SceneChoiceModalState | null) => void;
   terrainThumbnailUrls: Partial<Record<string, string>>;
 }
 
 // The scene mirrors authoritative state while handling only local aiming and previews.
-export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSceneProps) {
+export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnailUrls }: BoardSceneProps) {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const snapshot = useGameStore((state) => state.snapshot);
@@ -354,10 +359,7 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
     selectedTool &&
     !isInstantInteractionTool(selectedTool.toolId) &&
     canInteract &&
-    getToolDefinition(selectedTool.toolId).isAvailable({
-      tool: selectedTool,
-      tools: myPlayer?.tools ?? []
-    }).usable
+    getToolAvailabilityFromSnapshot(snapshot, sessionId, selectedTool, myPlayer?.tools ?? []).usable
       ? selectedTool
       : null;
   const directionState =
@@ -397,8 +399,93 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
         active: false,
         visible: false
       });
+      setChoiceModal(null);
     };
-  }, [setOverlayInspectionCard, setOverlayToolCancelState]);
+  }, [setChoiceModal, setOverlayInspectionCard, setOverlayToolCancelState]);
+
+  useEffect(() => {
+    if (
+      !snapshot ||
+      !sessionId ||
+      !isMyTurn ||
+      !canInteract ||
+      !selectedInteractiveTool ||
+      !interactionSession ||
+      !isChoiceStageActive(interactionSession)
+    ) {
+      setChoiceModal(null);
+      return;
+    }
+
+    const choiceOptions = getToolInteractionChoiceOptions(interactionSession, snapshot, sessionId);
+    const selectedChoiceId = getToolInteractionSelectedChoiceId(interactionSession);
+    const toolTextDescription = getToolTextDescription(selectedInteractiveTool);
+    const availability = getToolAvailabilityFromSnapshot(
+      snapshot,
+      sessionId,
+      selectedInteractiveTool,
+      myPlayer?.tools ?? []
+    );
+
+    setChoiceModal({
+      accent: getToolDefinition(selectedInteractiveTool.toolId).color,
+      confirmDisabled: !selectedChoiceId,
+      description: toolTextDescription.description,
+      emptyMessage: choiceOptions.length ? null : availability.reason,
+      options: choiceOptions,
+      selectedChoiceId,
+      title: toolTextDescription.title,
+      onCancel: () => {
+        interactionSessionRef.current = null;
+        setInteractionSession(null);
+        setSelectedToolInstanceId(null);
+      },
+      onConfirm: () => {
+        const currentSession = interactionSessionRef.current;
+
+        if (!currentSession || !isChoiceStageActive(currentSession)) {
+          return;
+        }
+
+        const result = finalizeToolInteractionStage(currentSession);
+
+        if (result.kind === "execute" && result.payload) {
+          const didSend = useToolPayload(result.payload, currentSession.toolInstanceId);
+
+          if (didSend) {
+            interactionSessionRef.current = null;
+            setInteractionSession(null);
+            return;
+          }
+        }
+
+        interactionSessionRef.current = result.session;
+        setInteractionSession(result.session);
+      },
+      onSelectChoice: (choiceId) => {
+        const currentSession = interactionSessionRef.current;
+
+        if (!currentSession || !isChoiceStageActive(currentSession)) {
+          return;
+        }
+
+        const nextSession = setToolInteractionChoiceDraft(currentSession, choiceId);
+        interactionSessionRef.current = nextSession;
+        setInteractionSession(nextSession);
+      }
+    });
+  }, [
+    canInteract,
+    interactionSession,
+    isMyTurn,
+    myPlayer?.tools,
+    selectedInteractiveTool,
+    sessionId,
+    setChoiceModal,
+    setSelectedToolInstanceId,
+    snapshot,
+    useToolPayload
+  ]);
 
   const playbackState = useMemo(
     () =>
@@ -1907,9 +1994,10 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
             {isActive ? (
               <SceneActionRing
                 caption={isMe && selectedInteractiveTool ? getToolInteractionCaption(selectedInteractiveTool, interactionSession) : null}
-                choiceOptions={isMe ? getToolInteractionChoiceOptions(interactionSession) : []}
                 hidden={isPointerInteractionActive && isMe}
                 interactive={isMe && canInteract}
+                snapshot={snapshot}
+                toolOwnerId={player.id}
                 tools={snapshotPlayer.tools}
                 phase={snapshot.turnInfo.phase}
                 position={[0, pieceTopY + 0.7, 0]}
@@ -1927,36 +2015,6 @@ export function BoardScene({ cameraControlMode, terrainThumbnailUrls }: BoardSce
                   if (tool) {
                     startToolInteractionPointer(tool, clientX, clientY, pointerType);
                   }
-                }}
-                onCommitChoice={(toolInstanceId, choiceId) => {
-                  if (!isMe || !canInteract) {
-                    return;
-                  }
-
-                  const currentSession = interactionSessionRef.current;
-
-                  if (
-                    !currentSession ||
-                    currentSession.toolInstanceId !== toolInstanceId ||
-                    !isChoiceStageActive(currentSession)
-                  ) {
-                    return;
-                  }
-
-                  const result = applyToolInteractionChoice(currentSession, choiceId);
-
-                  if (result.kind === "execute" && result.payload) {
-                    const didSend = useToolPayload(result.payload, toolInstanceId);
-
-                    if (didSend) {
-                      interactionSessionRef.current = null;
-                      setInteractionSession(null);
-                      return;
-                    }
-                  }
-
-                  interactionSessionRef.current = result.session;
-                  setInteractionSession(result.session);
                 }}
                 onEndTurn={isMe && canInteract ? endTurn : () => {}}
                 onRollDice={isMe && canInteract ? rollDice : () => {}}

@@ -1,4 +1,5 @@
 import {
+  TOOL_CHOICE_RESOLVER_REGISTRY,
   TOOL_DIE_FACES as TOOL_DIE_FACE_REGISTRY,
   TOOL_REGISTRY
 } from "./content/tools";
@@ -11,6 +12,7 @@ import type {
   RolledToolId,
   TextDescription,
   ToolChoiceDefinition,
+  ToolActionContext,
   ToolDefinition,
   ToolInteractionDefinition,
   ToolDieFaceDefinition,
@@ -18,6 +20,7 @@ import type {
   ToolLoadoutDefinition,
   ToolParameterId,
   ToolParameterValueMap,
+  ToolUsabilityContext,
   TurnToolSnapshot
 } from "./types";
 
@@ -191,9 +194,11 @@ export function consumeToolInstance(
 // Disabled messages combine tool-specific guidance with the current blocking reason.
 export function getToolDisabledMessage(
   tool: TurnToolSnapshot,
-  tools: TurnToolSnapshot[]
+  tools: TurnToolSnapshot[],
+  options: Pick<ToolUsabilityContext, "actorId" | "roundUsedTools"> = {}
 ): string | null {
   const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
+    ...options,
     tool,
     tools
   });
@@ -233,6 +238,19 @@ export function getToolTextDescription(tool: TurnToolSnapshot): TextDescription 
 
 export function getToolChoiceDefinitions(toolId: ToolId): readonly ToolChoiceDefinition[] {
   return TOOL_DEFINITIONS[toolId].choices ?? [];
+}
+
+export function getDynamicToolChoiceDefinitions(
+  toolId: ToolId,
+  context: ToolActionContext
+): readonly ToolChoiceDefinition[] {
+  const resolveChoices = TOOL_CHOICE_RESOLVER_REGISTRY[toolId];
+
+  if (!resolveChoices) {
+    return getToolChoiceDefinitions(toolId);
+  }
+
+  return resolveChoices(context);
 }
 
 // Debug menus list every tool that can be spawned directly in the current prototype.

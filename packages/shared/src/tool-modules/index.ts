@@ -11,6 +11,8 @@ import { DASH_TOOL_MODULE } from "./dash";
 import { DEPLOY_WALLET_TOOL_MODULE } from "./deploy-wallet";
 import { HOOKSHOT_TOOL_MODULE } from "./hookshot";
 import { JUMP_TOOL_MODULE } from "./jump";
+import { LAMP_COPY_TOOL_MODULE } from "./lamp-copy";
+import { LAMP_PREPARE_COPY_TOOL_MODULE } from "./lamp-prepare-copy";
 import { MOVEMENT_TOOL_MODULE } from "./movement";
 import { PUNCH_TOOL_MODULE } from "./punch";
 import { ROCKET_TOOL_MODULE } from "./rocket";
@@ -37,6 +39,8 @@ export const TOOL_MODULES = defineToolModules([
   BOMB_THROW_TOOL_MODULE,
   BLAZE_PREPARE_BOMB_TOOL_MODULE,
   VOLATY_SKIP_TOOL_DIE_TOOL_MODULE,
+  LAMP_PREPARE_COPY_TOOL_MODULE,
+  LAMP_COPY_TOOL_MODULE,
   BALANCE_TOOL_MODULE,
   AWM_SHOOT_TOOL_MODULE
 ] as const);
@@ -48,6 +52,15 @@ export const TOOL_REGISTRY = Object.fromEntries(
 export const TOOL_EXECUTOR_REGISTRY = Object.fromEntries(
   TOOL_MODULES.map((module) => [module.id, module.execute] as const)
 ) as unknown as Record<(typeof TOOL_MODULES)[number]["id"], ToolExecutor>;
+
+export const TOOL_CHOICE_RESOLVER_REGISTRY = Object.fromEntries(
+  TOOL_MODULES.flatMap((module) => (module.getChoices ? [[module.id, module.getChoices] as const] : []))
+) as Partial<
+  Record<
+    (typeof TOOL_MODULES)[number]["id"],
+    NonNullable<(typeof TOOL_MODULES)[number]["getChoices"]>
+  >
+>;
 
 
 export const TOOL_DIE_FACES = [

@@ -1,10 +1,10 @@
 import {
   findToolInstance,
-  getToolDefinition,
   type GameSnapshot,
   type ToolUsabilityResult,
   type TurnToolSnapshot
 } from "@watcher/shared";
+import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
 
 type SelectedToolInstanceId = string | null;
 
@@ -53,10 +53,7 @@ export function getSelectedToolState(
   }
 
   return {
-    availability: getToolDefinition(tool.toolId).isAvailable({
-      tool,
-      tools: player.tools
-    }),
+    availability: getToolAvailabilityFromSnapshot(snapshot, sessionId, tool, player.tools),
     player,
     tool
   };

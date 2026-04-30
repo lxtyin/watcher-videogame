@@ -127,6 +127,7 @@ interface RoomStateShape {
   mode: GameMode;
   roomCode: string;
   roomPhase: RoomPhase;
+  roundUsedToolsJson: string;
   board: SchemaCollection<RoomTileState>;
   summons: SchemaCollection<RoomSummonState>;
   players: SchemaCollection<RoomPlayerState>;
@@ -168,6 +169,13 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return null;
     }
   };
+  const parseRoundUsedTools = () => {
+    try {
+      return JSON.parse(roomState.roundUsedToolsJson) as GameSnapshot["roundUsedTools"];
+    } catch {
+      return [];
+    }
+  };
 
   return {
     allowDebugTools: roomState.allowDebugTools,
@@ -177,6 +185,7 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
     mapId: roomState.mapId as GameSnapshot["mapId"],
     mapLabel: roomState.mapLabel,
     mode: roomState.mode,
+    roundUsedTools: parseRoundUsedTools(),
     roomCode: roomState.roomCode,
     roomPhase: roomState.roomPhase,
     tiles: Array.from(roomState.board.values()).map((tile) => ({

@@ -46,6 +46,8 @@ export interface ToolTextDescriptionContext {
 }
 
 export interface ToolUsabilityContext {
+  actorId?: string;
+  roundUsedTools?: readonly RoundUsedToolContentDefinition[];
   tool: {
     charges: number;
     params: ToolParameterValueMap;
@@ -65,9 +67,20 @@ export interface ToolUsabilityResult {
   usable: boolean;
 }
 
+export interface RoundUsedToolContentDefinition {
+  description: string;
+  label: string;
+  params: ToolParameterValueMap;
+  playerId: string;
+  source: ToolSource;
+  toolId: string;
+  usableInTurnAction: boolean;
+}
+
 export interface ToolChoiceContentDefinition {
   description: string;
   id: string;
+  iconId?: string;
   label: string;
 }
 

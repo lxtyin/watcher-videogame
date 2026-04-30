@@ -6,6 +6,7 @@ import type {
   ModifierId,
   PlayerTagMap,
   PlayerTurnFlag,
+  RoundUsedToolSnapshot,
   SequencedActionPresentation,
   TileType,
   TurnToolSnapshot
@@ -84,6 +85,14 @@ export function parseLatestPresentation(
   }
 }
 
+function parseRoundUsedTools(roundUsedToolsJson: string): RoundUsedToolSnapshot[] {
+  try {
+    return JSON.parse(roundUsedToolsJson) as RoundUsedToolSnapshot[];
+  } catch {
+    return [];
+  }
+}
+
 export function createBoardSummonsFromState(state: WatcherState): BoardSummonState[] {
   return Array.from(state.summons.values() as Iterable<SummonState>).map((entry) => ({
     instanceId: entry.instanceId,
@@ -156,6 +165,7 @@ export function createGameSnapshotFromState(state: WatcherState): GameSnapshot {
       turnFlags: Array.from(player.turnFlags) as PlayerTurnFlag[],
       tools: createPlayerToolsFromState(player)
     })),
+    roundUsedTools: parseRoundUsedTools(state.roundUsedToolsJson),
     roomCode: state.roomCode,
     roomPhase: state.roomPhase,
     settlementState: state.settlementState as GameSnapshot["settlementState"],

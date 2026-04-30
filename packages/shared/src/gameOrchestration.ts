@@ -42,7 +42,8 @@ import {
   createMovementToolInstance,
   createToolInstance,
   findToolInstance,
-  getToolDefinition
+  getToolDefinition,
+  getToolTextDescription
 } from "./tools";
 import { getAssignedPlayerColor, getSequentialTeamId, getTeamDisplayLabel } from "./teams";
 import type {
@@ -56,6 +57,7 @@ import type {
   GridPosition,
   PlayerTagMap,
   PlayerSnapshot,
+  RoundUsedToolSnapshot,
   PlayerStateTransition,
   PlayerTurnFlag,
   SummonMutation,
@@ -105,6 +107,20 @@ function clonePosition(position: GridPosition): GridPosition {
   };
 }
 
+function cloneRoundUsedTool(usedTool: RoundUsedToolSnapshot): RoundUsedToolSnapshot {
+  return {
+    description: usedTool.description,
+    label: usedTool.label,
+    playerId: usedTool.playerId,
+    toolId: usedTool.toolId,
+    source: usedTool.source,
+    usableInTurnAction: usedTool.usableInTurnAction,
+    params: {
+      ...usedTool.params
+    }
+  };
+}
+
 function cloneTurnInfo(turnInfo: TurnInfoSnapshot): TurnInfoSnapshot {
   return {
     currentPlayerId: turnInfo.currentPlayerId,
@@ -143,6 +159,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
       })),
       turnFlags: [...player.turnFlags]
     })),
+    roundUsedTools: snapshot.roundUsedTools.map(cloneRoundUsedTool),
     summons: snapshot.summons.map((summon) => ({
       ...summon,
       position: clonePosition(summon.position)
@@ -242,6 +259,26 @@ function getPlayerOrder(snapshot: GameSnapshot): string[] {
   return snapshot.players.map((player) => player.id);
 }
 
+function didTurnOrderWrap(
+  state: MutableGameOrchestrationState,
+  currentPlayerId: string,
+  nextPlayerId: string | null
+): boolean {
+  if (!nextPlayerId) {
+    return false;
+  }
+
+  const playerOrder = getPlayerOrder(state.snapshot);
+  const currentIndex = playerOrder.indexOf(currentPlayerId);
+  const nextIndex = playerOrder.indexOf(nextPlayerId);
+
+  if (currentIndex < 0 || nextIndex < 0) {
+    return false;
+  }
+
+  return nextIndex <= currentIndex;
+}
+
 function isRaceMode(state: MutableGameOrchestrationState): boolean {
   return state.snapshot.mode === "race";
 }
@@ -308,6 +345,30 @@ function clonePlayerTools(tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
       ...tool.params
     }
   }));
+}
+
+function recordRoundUsedTool(
+  snapshot: GameSnapshot,
+  playerId: string,
+  tool: TurnToolSnapshot
+): void {
+  const toolDefinition = getToolDefinition(tool.toolId);
+  const textDescription = getToolTextDescription(tool);
+
+  snapshot.roundUsedTools = [
+    ...snapshot.roundUsedTools,
+    {
+      description: textDescription.description,
+      label: toolDefinition.label,
+      playerId,
+      toolId: tool.toolId,
+      source: tool.source,
+      usableInTurnAction: canUseToolInPhase(tool.toolId, "turn-action"),
+      params: {
+        ...tool.params
+      }
+    }
+  ];
 }
 
 function applyTileMutations(snapshot: GameSnapshot, tileMutations: TileMutation[]): void {
@@ -1047,13 +1108,15 @@ function queueRaceFinishAdvance(
   settlementComplete: boolean
 ): void {
   clearPlayerTurnResources(player);
+  const nextPlayerId = settlementComplete ? null : getNextPlayerId(state, player.id);
   publishActionPresentation(
     state,
     createRaceFinishPresentation(player.id, clonePosition(player.position), presentation)
   );
   state.runtime.pendingAdvance = {
     kind: "race_finish",
-    nextPlayerId: settlementComplete ? null : getNextPlayerId(state, player.id),
+    nextPlayerId,
+    resetRoundUsedTools: didTurnOrderWrap(state, player.id, nextPlayerId),
     shouldAdvanceTurnNumber
   };
 }
@@ -1062,6 +1125,7 @@ function queueSettlementAdvance(state: MutableGameOrchestrationState): void {
   state.runtime.pendingAdvance = {
     kind: "presentation_settlement",
     nextPlayerId: null,
+    resetRoundUsedTools: false,
     shouldAdvanceTurnNumber: false
   };
 }
@@ -1096,6 +1160,10 @@ function finishTurn(
   const nextPlayerId = resolveTurnEndAdvance(state, player, message);
 
   if (nextPlayerId) {
+    if (didTurnOrderWrap(state, player.id, nextPlayerId)) {
+      state.snapshot.roundUsedTools = [];
+    }
+
     beginTurnFor(state, nextPlayerId, true);
     return;
   }
@@ -1166,6 +1234,7 @@ function queueTurnSkipAdvance(
   state.runtime.pendingAdvance = {
     kind: "turn_skip",
     nextPlayerId,
+    resetRoundUsedTools: didTurnOrderWrap(state, player.id, nextPlayerId),
     shouldAdvanceTurnNumber: nextPlayerId !== null
   };
 }
@@ -1373,6 +1442,7 @@ function runUseToolCommand(
     input: cloneToolSelectionRecord(payload.input),
     mode: state.snapshot.mode,
     phase: state.snapshot.turnInfo.phase,
+    roundUsedTools: state.snapshot.roundUsedTools.map(cloneRoundUsedTool),
     players: buildBoardPlayers(state.snapshot),
     summons: buildBoardSummons(state.snapshot),
     toolDieSeed: state.runtime.toolDieSeed,
@@ -1420,6 +1490,7 @@ function runUseToolCommand(
   pushSummonEvents(state, resolution.triggeredSummonEffects);
   const goalProgress = applyModeProgress(state, player.id, resolution.triggeredTerrainEffects);
   const actorWasKnockedOut = wasPlayerKnockedOutByTerrain(resolution.triggeredTerrainEffects, player.id);
+  recordRoundUsedTool(state.snapshot, player.id, activeTool);
 
   if (activeTool.toolId === "movement") {
     const movementDirection = getDirectionSelection(payload.input);
@@ -1630,6 +1701,10 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
       return buildOkOutcome("Advanced into settlement.");
     }
 
+    if (pendingAdvance.resetRoundUsedTools) {
+      state.snapshot.roundUsedTools = [];
+    }
+
     beginTurnFor(
       state,
       pendingAdvance.nextPlayerId,
@@ -1669,6 +1744,10 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
       enterSettlementState(state);
       pushEvent(state, "match_finished", buildSettlementMessage(state));
       return buildOkOutcome("Advanced into settlement.");
+    }
+
+    if (didTurnOrderWrap(state, currentPlayerId, nextPlayerId)) {
+      state.snapshot.roundUsedTools = [];
     }
 
     beginTurnFor(state, nextPlayerId, true);
@@ -1772,6 +1851,7 @@ export function createGameOrchestrationStateFromScene(
       mode: mapMetadata.mode,
       roomCode: sceneDefinition.mapId ?? "local-sim",
       roomPhase: "in_game",
+      roundUsedTools: [],
       settlementState: sceneDefinition.settlementState ?? resolveSettlementState(mapMetadata.mode, players),
       summons: [],
       eventLog: [],

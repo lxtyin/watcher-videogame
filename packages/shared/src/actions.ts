@@ -19,6 +19,8 @@ export {
 export function resolveToolAction(context: ToolActionContext): ActionResolution {
   const toolDefinition = getToolDefinition(context.activeTool.toolId);
   const availability = toolDefinition.isAvailable({
+    actorId: context.actor.id,
+    roundUsedTools: context.roundUsedTools,
     tool: context.activeTool,
     tools: context.tools
   });

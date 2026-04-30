@@ -1,5 +1,4 @@
 import {
-  cloneToolSelectionRecord,
   findToolInstance,
   resolveToolAction,
   type BoardDefinition,
@@ -10,6 +9,7 @@ import {
   type TurnPhase,
   type UseToolCommandPayload
 } from "@watcher/shared";
+import { buildToolActionContextFromSnapshot } from "./toolRuntime";
 
 // Board coordinates are centered in world space so the prototype camera stays symmetrical.
 export function toWorldPosition(
@@ -117,51 +117,20 @@ export function buildActionPreview(
   }
 
   const board = createBoardDefinitionFromSnapshot(snapshot);
-  const players = snapshot.players
-    .filter((player) => player.boardVisible)
-    .map((player) => ({
-      id: player.id,
-      boardVisible: player.boardVisible,
-      characterId: player.characterId,
-      modifiers: player.modifiers,
-      tags: player.tags,
-      position: player.position,
-      spawnPosition: player.spawnPosition,
-      teamId: player.teamId,
-      turnFlags: player.turnFlags
-    }));
-  const summons = snapshot.summons.map((summon) => ({
-    instanceId: summon.instanceId,
-    summonId: summon.summonId,
-    ownerId: summon.ownerId,
-    position: summon.position
-  }));
-  const actor = {
-    id: me.id,
-    characterId: me.characterId,
-    modifiers: me.modifiers,
-    tags: me.tags,
-    position: me.position,
-    spawnPosition: me.spawnPosition,
-    teamId: me.teamId,
-    turnFlags: me.turnFlags
-  };
   const activeTool = findToolInstance(me.tools, payload.toolInstanceId);
 
   if (!activeTool) {
     return null;
   }
 
+  const context = buildToolActionContextFromSnapshot(snapshot, sessionId, activeTool, payload.input);
+
+  if (!context) {
+    return null;
+  }
+
   return resolveToolAction({
-    board,
-    actor,
-    activeTool,
-    input: cloneToolSelectionRecord(payload.input),
-    mode: snapshot.mode,
-    phase: snapshot.turnInfo.phase as TurnPhase,
-    toolDieSeed: snapshot.turnInfo.toolDieSeed,
-    tools: me.tools,
-    summons,
-    players
+    ...context,
+    board
   }).preview;
 }

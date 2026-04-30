@@ -4,6 +4,7 @@
   MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
   MovementType as ContentMovementType,
+  RoundUsedToolContentDefinition,
   TeamId as ContentTeamId,
   TileType as ContentTileType,
   ToolChoiceContentDefinition,
@@ -14,6 +15,7 @@
   ToolContentDefinition as ContentToolContentDefinition,
   ToolParameterId as ContentToolParameterId,
   ToolParameterValueMap as ContentToolParameterValueMap,
+  ToolUsabilityContext as ContentToolUsabilityContext,
   ToolUsabilityResult as ContentToolUsabilityResult,
   TextDescription as ContentTextDescription,
   ToolTextDescriptionContext as ContentToolTextDescriptionContext,
@@ -48,6 +50,7 @@ export type PlayerTurnFlag = string;
 export type ToolCommonParameterId = ContentToolCommonParameterId;
 export type ToolParameterId = ContentToolParameterId;
 export type ToolParameterValueMap = ContentToolParameterValueMap;
+export type ToolUsabilityContext = ContentToolUsabilityContext;
 export type ToolUsabilityResult = ContentToolUsabilityResult;
 export type PlayerTagValue = boolean | number | string;
 export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
@@ -182,6 +185,11 @@ export interface TurnToolSnapshot {
   toolId: ToolId;
 }
 
+export interface RoundUsedToolSnapshot extends RoundUsedToolContentDefinition {
+  source: ToolSource;
+  toolId: ToolId;
+}
+
 export interface ToolChoiceDefinition extends ToolChoiceContentDefinition {}
 
 export interface ToolLoadoutDefinition {
@@ -225,6 +233,7 @@ export interface GameSnapshot {
   mapLabel: string;
   mode: GameMode;
   players: PlayerSnapshot[];
+  roundUsedTools: RoundUsedToolSnapshot[];
   roomCode: string;
   roomPhase: RoomPhase;
   settlementState: GameSettlementState;
@@ -355,6 +364,7 @@ export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
   input: ToolSelectionRecord;
   phase: TurnPhase;
+  roundUsedTools: RoundUsedToolSnapshot[];
   summons: BoardSummonState[];
   toolDieSeed: number;
   tools: TurnToolSnapshot[];
