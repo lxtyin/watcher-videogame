@@ -19,7 +19,6 @@ import {
   consumeActiveTool,
   requireDirection
 } from "../rules/actionResolution";
-import { createMovementDescriptor, createMovementDescriptorInput } from "../rules/displacement";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import { traceProjectile } from "../rules/spatial";
 import { resolveLinearDisplacement } from "../rules/movementSystem";
@@ -27,6 +26,7 @@ import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   clearMovementTools,
+  createPassiveMovementDescriptor,
   createToolPreview,
   createDraftSoundEvent,
   createPlayerAnchor,
@@ -93,12 +93,10 @@ function resolveAwmShootTool(
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
   const shotPower = getTotalMovementPoints(context.tools);
-  const bulletPushMovement = createMovementDescriptor(
+  const bulletPushMovement = createPassiveMovementDescriptor(
+    context.activeTool.toolId,
     "translate",
-    createMovementDescriptorInput("passive", {
-      tags: [`tool:${context.activeTool.toolId}`, "awm:push"],
-      timing: "out_of_turn"
-    })
+    ["awm:push"]
   );
   const affectedPlayers: AffectedPlayerMove[] = [];
 

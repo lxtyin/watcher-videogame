@@ -20,10 +20,10 @@ import type { ToolModule } from "./types";
 import {
   createDraftSoundEvent,
   createPositionAnchor,
-  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   isChargedToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -55,7 +55,7 @@ function resolveTeleportTool(
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
   const targetPosition = requireTileSelection(context);
-  const movement = createToolMovementPlan(context, TELEPORT_TOOL_DEFINITION, "landing");
+  const movement = resolveToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "landing");
 
   if (!targetPosition) {
     setDraftBlocked(draft, "Teleport needs a target tile", {
@@ -69,7 +69,7 @@ function resolveTeleportTool(
   setDraftToolInventory(draft, consumeActiveTool(context));
   const presentationMark = markDraftPresentation(draft);
   const resolution = resolveTeleportDisplacement(draft, {
-    movement: movement.descriptor,
+    movement,
     player: toMovementSubject(context.actor),
     startMs: 0,
     targetPosition

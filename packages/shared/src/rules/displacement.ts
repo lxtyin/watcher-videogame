@@ -1,52 +1,27 @@
 ﻿import type {
   GridPosition,
   MovementDescriptor,
-  MovementDescriptorInput,
   MovementDisposition,
   MovementTiming,
   MovementType,
   ResolvedPlayerMovement
 } from "../types";
-import type { MovementContentDefinition } from "../content/schema";
-
 export interface MovementDescriptorOptions {
-  tags?: string[];
+  tags?: readonly string[];
   timing?: MovementTiming;
-}
-
-// Runtime descriptor inputs carry shared metadata; concrete resolvers attach the movement type.
-export function createMovementDescriptorInput(
-  disposition: MovementDisposition,
-  options: MovementDescriptorOptions = {}
-): MovementDescriptorInput {
-  return {
-    disposition,
-    timing: options.timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
-    tags: [...(options.tags ?? [])]
-  };
 }
 
 export function createMovementDescriptor(
   type: MovementType,
-  input: MovementDescriptorInput | MovementDescriptor
+  disposition: MovementDisposition,
+  options: MovementDescriptorOptions = {}
 ): MovementDescriptor {
   return {
     type,
-    disposition: input.disposition,
-    timing: input.timing,
-    tags: [...input.tags]
+    disposition,
+    timing: options.timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
+    tags: [...(options.tags ?? [])]
   };
-}
-
-// Tool definitions provide the base type/disposition while runtime callers add timing and tags.
-export function materializeMovementDescriptor(
-  definition: MovementContentDefinition,
-  options: MovementDescriptorOptions = {}
-): MovementDescriptor {
-  return createMovementDescriptor(
-    definition.type,
-    createMovementDescriptorInput(definition.disposition, options)
-  );
 }
 
 // Resolved movement records track who moved, how they moved, and which cells were traversed.

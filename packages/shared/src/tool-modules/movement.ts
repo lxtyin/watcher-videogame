@@ -22,11 +22,11 @@ import {
 } from "../rules/movementSystem";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
   isMovePointToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -61,7 +61,7 @@ function resolveMovementTool(
 ): void {
   const direction = requireDirection(context);
   const movePoints = getToolParamValue(context.activeTool, "movePoints", 4);
-  const movement = createToolMovementPlan(context, MOVEMENT_TOOL_DEFINITION, "translate");
+  const movement = resolveToolMovementDescriptor(context, MOVEMENT_TOOL_DEFINITION, "translate");
 
   if (!direction) {
     setDraftBlocked(draft, "Movement needs a direction", {
@@ -78,7 +78,7 @@ function resolveMovementTool(
       ? resolveLeapDisplacement(draft, {
           direction,
           maxDistance: movePoints,
-          movement: movement.descriptor,
+          movement,
           player: toMovementSubject(context.actor),
           startMs: 0
         })
@@ -86,14 +86,14 @@ function resolveMovementTool(
         ? resolveDragDisplacement(draft, {
             direction,
             movePoints,
-            movement: movement.descriptor,
+            movement,
             player: toMovementSubject(context.actor),
             startMs: 0
           })
         : resolveLinearDisplacement(draft, {
             direction,
             movePoints,
-            movement: movement.descriptor,
+            movement,
             player: toMovementSubject(context.actor),
             startMs: 0
           });

@@ -29,14 +29,14 @@ import type { ToolModule } from "./types";
 import {
   createDraftSoundEvent,
   createPlayerAnchor,
-  createPassiveToolMovementPlan,
-  createToolMovementPlan,
+  createPassiveMovementDescriptor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
   getTile,
   isChargedToolAvailable,
   isWithinBoard,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -73,13 +73,13 @@ function resolveHookshotTool(
 ): void {
   const direction = requireDirection(context);
   const hookLength = getToolParamValue(context.activeTool, "hookLength", 3);
-  const actorMovement = createToolMovementPlan(
+  const actorMovement = resolveToolMovementDescriptor(
     context,
     HOOKSHOT_TOOL_DEFINITION,
     "drag",
     ["hookshot:self"]
   );
-  const pulledMovement = createPassiveToolMovementPlan(
+  const pulledMovement = createPassiveMovementDescriptor(
     context.activeTool.toolId,
     "drag",
     ["hookshot:pull"]
@@ -133,7 +133,7 @@ function resolveHookshotTool(
       const actorResolution = resolveDragDisplacement(draft, {
         direction,
         movePoints: pullDistance,
-        movement: actorMovement.descriptor,
+        movement: actorMovement,
         player: toMovementSubject(context.actor),
         startMs: pullStartMs
       });
@@ -272,7 +272,7 @@ function resolveHookshotTool(
       const pullResolution = resolveDragDisplacement(draft, {
         direction: getOppositeDirection(direction),
         movePoints: pullDistance,
-        movement: pulledMovement.descriptor,
+        movement: pulledMovement,
         player: toMovementSubject(hitPlayer),
         startMs: pullStartMs,
         trackAffectedPlayerReason: "hookshot"

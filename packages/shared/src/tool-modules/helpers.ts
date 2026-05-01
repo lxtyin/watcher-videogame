@@ -12,7 +12,8 @@ import type {
   GridPosition,
   MovementActor,
   MovementDescriptor,
-  MovementDescriptorInput,
+  MovementDisposition,
+  MovementTiming,
   MovementType,
   PresentationAnchor,
   PresentationSoundCueId,
@@ -33,7 +34,7 @@ import {
   type ResolutionDraft
 } from "../rules/actionDraft";
 import {
-  createMovementDescriptorInput
+  createMovementDescriptor
 } from "../rules/displacement";
 import {
   createPreviewDescriptor,
@@ -103,24 +104,26 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
   };
 }
 
-export interface ToolMovementPlan {
-  descriptor: MovementDescriptorInput;
-  type: MovementType;
+interface ToolMovementDescriptorOptions {
+  dispositionOverride?: MovementDisposition;
+  timingOverride?: MovementTiming;
 }
 
-export function createToolMovementPlan(
+export function resolveToolMovementDescriptor(
   context: ToolActionContext,
   definition: ToolContentDefinition,
-  fallbackType: "drag" | "leap" | "translate" | "landing",
-  extraTags: string[] = []
-): ToolMovementPlan {
+  fallbackType: MovementType,
+  extraTags: readonly string[] = [],
+  options: ToolMovementDescriptorOptions = {}
+): MovementDescriptor {
   const definitionMovement =
     definition.actorMovement ?? {
       type: fallbackType,
       disposition: "active" as const
     };
+  const disposition = options.dispositionOverride ?? definitionMovement.disposition;
   const type =
-    definitionMovement.disposition === "active"
+    disposition === "active"
       ? resolveToolMovementType(
           context.actor.characterId,
           {
@@ -138,27 +141,22 @@ export function createToolMovementPlan(
         )
       : definitionMovement.type;
 
-  return {
-    descriptor: createMovementDescriptorInput(definitionMovement.disposition, {
-      tags: [`tool:${context.activeTool.toolId}`, ...extraTags],
-      timing: "in_turn"
-    }),
-    type
-  };
+  return createMovementDescriptor(type, disposition, {
+    tags: [`tool:${context.activeTool.toolId}`, ...extraTags],
+    timing: options.timingOverride ?? (disposition === "active" ? "in_turn" : "out_of_turn")
+  });
 }
 
-export function createPassiveToolMovementPlan(
+export function createPassiveMovementDescriptor(
   toolId: ToolActionContext["activeTool"]["toolId"],
-  type: "drag" | "leap" | "translate",
-  extraTags: string[] = []
-): ToolMovementPlan {
-  return {
-    descriptor: createMovementDescriptorInput("passive", {
-      tags: [`tool:${toolId}`, ...extraTags],
-      timing: "out_of_turn"
-    }),
-    type
-  };
+  type: MovementType,
+  extraTags: readonly string[] = [],
+  timingOverride: MovementTiming = "out_of_turn"
+): MovementDescriptor {
+  return createMovementDescriptor(type, "passive", {
+    tags: [`tool:${toolId}`, ...extraTags],
+    timing: timingOverride
+  });
 }
 
 function cloneGridPosition(position: GridPosition): GridPosition {

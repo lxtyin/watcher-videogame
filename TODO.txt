@@ -35,6 +35,16 @@
 
 
 
+针对shared层的规则逻辑进行一轮全面的code review：
+ - 为所有主逻辑中的类型定义、字段、函数都加上中文注释（不包括tool, terrain和summons中的具体内容），在添加注释的过程中，你可能会发现很多冗余的、定义不清的或是为某个功能专门设计的函数、类型或字段，考虑如何合并。
+ - 我已经关注到的一些“脏点”：
+    - tool-modules外部的lamp-copy.ts（可能多余），rules下的executors
+    - createMovementDescriptorInput, createMovementDescriptor, materializeMovementDescriptor，真的需要这么多种吗？区别是什么？
+ 这轮先检查并汇报，不做修改
+
+
+
+
 房间大厅重做：
  - 创建房间后，首先进入一个独立房间页面（不要直接进地图），房间页面中所有玩家横向排成一排，每个玩家都是一张卡片，显示玩家棋子、配色、名称、准备状态、准备按钮、角色卡等；点击角色卡可以切换角色。（角色卡使用现在HUD中的角色卡即可）
  - 点击角色卡时，弹出弹窗，在弹窗中展示所有现有角色卡，点击可以切换自己的角色

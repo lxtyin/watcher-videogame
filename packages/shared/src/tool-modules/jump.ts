@@ -17,11 +17,11 @@ import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveLeapDisplacement } from "../rules/movementSystem";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
   isChargedToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -56,7 +56,7 @@ function resolveJumpTool(
 ): void {
   const direction = requireDirection(context);
   const jumpDistance = getToolParamValue(context.activeTool, "jumpDistance", 2);
-  const movement = createToolMovementPlan(context, JUMP_TOOL_DEFINITION, "leap");
+  const movement = resolveToolMovementDescriptor(context, JUMP_TOOL_DEFINITION, "leap");
   const presentationMark = markDraftPresentation(draft);
   const resolution = direction
     ? (() => {
@@ -64,7 +64,7 @@ function resolveJumpTool(
         return resolveLeapDisplacement(draft, {
           direction,
           maxDistance: jumpDistance,
-          movement: movement.descriptor,
+          movement,
           player: toMovementSubject(context.actor),
           startMs: 0
         });

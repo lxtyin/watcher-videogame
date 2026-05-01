@@ -12,7 +12,6 @@ import {
   setDraftToolInventory
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
-import { createMovementDescriptorInput } from "../rules/displacement";
 import {
   didDisplacementTakeEffect,
   resolveLinearDisplacement
@@ -21,6 +20,7 @@ import { getOppositeDirection, traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
+  createPassiveMovementDescriptor,
   createDraftSoundEvent,
   createPlayerAnchor,
   createPositionAnchor,
@@ -88,12 +88,17 @@ function resolvePunchTool(
     "projectilePushDistance",
     PUNCH_DEFAULT_PUSH_DISTANCE
   );
-  const pushedOtherMovement = createMovementDescriptorInput("passive", {
-    timing: "out_of_turn"
-  });
-  const pushedSelfMovement = createMovementDescriptorInput("passive", {
-    timing: "in_turn"
-  });
+  const pushedOtherMovement = createPassiveMovementDescriptor(
+    context.activeTool.toolId,
+    "translate",
+    ["punch:push"]
+  );
+  const pushedSelfMovement = createPassiveMovementDescriptor(
+    context.activeTool.toolId,
+    "translate",
+    ["punch:self-recoil"],
+    "in_turn"
+  );
 
   if (!direction) {
     setDraftBlocked(draft, "Punch needs a direction", {

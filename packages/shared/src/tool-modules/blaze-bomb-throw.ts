@@ -20,7 +20,6 @@ import {
   requireDirection,
   requireTileSelection
 } from "../rules/actionResolution";
-import { createMovementDescriptorInput } from "../rules/displacement";
 import {
   didDisplacementTakeEffect,
   resolveLinearDisplacement
@@ -30,6 +29,7 @@ import { collectExplosionPreviewTiles } from "../rules/spatial";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  createPassiveMovementDescriptor,
   createPlayerAnchor,
   createToolPreview,
   createDraftSoundEvent,
@@ -100,10 +100,11 @@ function resolveBlazeBombThrowTool(
   const direction = requireDirection(context);
   const targetRange = getToolParamValue(context.activeTool, "targetRange", 1);
   const pushDistance = getToolParamValue(context.activeTool, "pushDistance", 2);
-  const pushMovement = createMovementDescriptorInput("passive", {
-    tags: [`tool:${context.activeTool.toolId}`, "bomb:push"],
-    timing: "out_of_turn"
-  });
+  const pushMovement = createPassiveMovementDescriptor(
+    context.activeTool.toolId,
+    "translate",
+    ["bomb:push"]
+  );
   const selectionTiles = collectAdjacentSelectionTiles(
     context.board,
     context.actor.position,

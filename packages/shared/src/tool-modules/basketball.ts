@@ -16,7 +16,6 @@ import {
   setDraftToolInventory
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
-import { createMovementDescriptorInput } from "../rules/displacement";
 import {
   didDisplacementTakeEffect,
   resolveLinearDisplacement
@@ -25,6 +24,7 @@ import { traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
+  createPassiveMovementDescriptor,
   createToolPreview,
   createDraftSoundEvent,
   createPlayerAnchor,
@@ -69,10 +69,11 @@ function resolveBasketballTool(
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const bounceCount = getToolParamValue(context.activeTool, "projectileBounceCount", 1);
   const pushDistance = getToolParamValue(context.activeTool, "projectilePushDistance", 1);
-  const pushedMovement = createMovementDescriptorInput("passive", {
-    tags: [`tool:${context.activeTool.toolId}`, "basketball:push"],
-    timing: "out_of_turn"
-  });
+  const pushedMovement = createPassiveMovementDescriptor(
+    context.activeTool.toolId,
+    "translate",
+    ["basketball:push"]
+  );
 
   if (!direction) {
     setDraftBlocked(draft, "Basketball needs a direction", {

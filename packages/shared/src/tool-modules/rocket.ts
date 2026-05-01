@@ -16,7 +16,7 @@ import {
   type ResolutionDraft
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireDirection } from "../rules/actionResolution";
-import { createMovementDescriptorInput } from "../rules/displacement";
+import { createMovementDescriptor } from "../rules/displacement";
 import {
   didDisplacementTakeEffect,
   resolveLeapDisplacement,
@@ -95,9 +95,10 @@ export interface RocketCoreResult {
 
 function createPassiveRocketMovement(
   toolTagBase: string,
-  variant: "blast" | "splash"
+  variant: "blast" | "splash",
+  type: "leap" | "translate"
 ) {
-  return createMovementDescriptorInput("passive", {
+  return createMovementDescriptor(type, "passive", {
     tags: [toolTagBase, `rocket:${variant}`],
     timing: "out_of_turn"
   });
@@ -107,8 +108,8 @@ export function resolveRocketCore(
   draft: ResolutionDraft,
   spec: RocketCoreSpec
 ): RocketCoreResult {
-  const blastMovement = createPassiveRocketMovement(spec.tagBase, "blast");
-  const splashMovement = createPassiveRocketMovement(spec.tagBase, "splash");
+  const blastMovement = createPassiveRocketMovement(spec.tagBase, "blast", "leap");
+  const splashMovement = createPassiveRocketMovement(spec.tagBase, "splash", "translate");
   const trace = traceProjectileFromPosition(
     {
       board: draft.board,

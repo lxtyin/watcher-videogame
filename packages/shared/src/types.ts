@@ -114,12 +114,6 @@ export interface MovementDescriptor {
   type: ContentMovementType;
 }
 
-export interface MovementDescriptorInput {
-  disposition: ContentMovementDisposition;
-  tags: string[];
-  timing: MovementTiming;
-}
-
 export interface PlayerSnapshot {
   boardVisible: boolean;
   characterId: CharacterId;

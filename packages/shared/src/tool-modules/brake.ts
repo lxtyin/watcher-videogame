@@ -16,18 +16,16 @@ import {
 import { createResolvedPlayerMovement } from "../rules/displacement";
 import {
   didDisplacementTakeEffect,
-  resolveDragDisplacement,
-  resolveLeapDisplacement,
   resolveLinearDisplacement
 } from "../rules/movementSystem";
 import { normalizeAxisTarget } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
-  createToolMovementPlan,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
   isMovePointToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject,
 } from "./helpers";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
@@ -65,7 +63,7 @@ function resolveBrakeTool(
   const maxRange = getToolParamValue(context.activeTool, "movePoints", 3);
   const targetPosition = requireTileSelection(context);
   const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
-  const movement = createToolMovementPlan(context, BRAKE_TOOL_DEFINITION, "translate");
+  const movement = resolveToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");
 
   if (!axisTarget) {
     setDraftBlocked(draft, "Brake needs a target tile", {
@@ -82,7 +80,7 @@ function resolveBrakeTool(
   const resolution = resolveLinearDisplacement(draft, {
       direction: axisTarget.direction,
       movePoints: requestedDistance,
-      movement: movement.descriptor,
+      movement,
       player: toMovementSubject(context.actor),
       startMs: 0
   });

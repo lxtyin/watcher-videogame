@@ -5,7 +5,6 @@ import type {
   ModifierId,
   MovementActor,
   MovementDescriptor,
-  MovementDescriptorInput,
   MovementType,
   PlayerTagMap,
   ResolvedActorState
@@ -34,7 +33,6 @@ import {
   createSoundEvent,
   getMotionStepDurationMs
 } from "./actionPresentation";
-import { createMovementDescriptor } from "./displacement";
 import {
   createTileMutation,
   getTileAfterMutations,
@@ -55,7 +53,7 @@ interface MovementSubject {
 }
 
 interface MovementRuntimeOptions {
-  movement: MovementDescriptorInput;
+  movement: MovementDescriptor;
   player: MovementSubject;
   startMs?: number;
   trackAffectedPlayerReason?: string;
@@ -115,6 +113,17 @@ function clonePosition(position: GridPosition): GridPosition {
   return {
     x: position.x,
     y: position.y
+  };
+}
+
+function cloneMovementWithType(
+  movement: MovementDescriptor,
+  type: MovementType
+): MovementDescriptor {
+  return {
+    ...movement,
+    type,
+    tags: [...movement.tags]
   };
 }
 
@@ -424,11 +433,9 @@ function buildResolution(
 // Grounded displacement powers translate and drag style movement with immediate board triggers.
 function resolveSteppedDisplacement(
   draft: ResolutionDraft,
-  options: LinearMovementOptions,
-  movementType: Extract<MovementType, "drag" | "translate">
+  options: LinearMovementOptions
 ): MovementSystemResolution {
-  const movement = createMovementDescriptor(movementType, options.movement);
-  const movementLanding = createMovementDescriptor("landing", options.movement);
+  const movement = options.movement;
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, options.movePoints);
   const startMs = options.startMs ?? 0;
@@ -462,7 +469,7 @@ function resolveSteppedDisplacement(
     }
 
     if (tile.type === "wall" || tile.type === "boxingBall" || tile.type === "tower" || tile.type === "highwall") {
-      if (movementType === "translate" && (state.remainingMovePoints ?? 0) > 0) {
+      if (movement.type === "translate" && (state.remainingMovePoints ?? 0) > 0) {
         pendingImpact = {
           direction,
           strength: state.remainingMovePoints ?? 0,
@@ -476,7 +483,7 @@ function resolveSteppedDisplacement(
     const moveCost = tile.type === "earthWall" ? 1 + tile.durability : 1;
 
     if ((state.remainingMovePoints ?? 0) < moveCost) {
-      if (movementType === "translate" && tile.type === "earthWall" && (state.remainingMovePoints ?? 0) > 0) {
+      if (movement.type === "translate" && tile.type === "earthWall" && (state.remainingMovePoints ?? 0) > 0) {
         pendingImpact = {
           direction,
           strength: state.remainingMovePoints ?? 0,
@@ -500,7 +507,7 @@ function resolveSteppedDisplacement(
     runPassThroughTriggers(
       draft,
       state,
-      state.remainingMovePoints > 0 ? movement : movementLanding,
+      movement,
       startMs + stepsTaken * stepDurationMs
     );
   }
@@ -572,14 +579,14 @@ export function resolveLinearDisplacement(
   draft: ResolutionDraft,
   options: LinearMovementOptions
 ): MovementSystemResolution {
-  return resolveSteppedDisplacement(draft, options, "translate");
+  return resolveSteppedDisplacement(draft, options);
 }
 
 export function resolveDragDisplacement(
   draft: ResolutionDraft,
   options: LinearMovementOptions
 ): MovementSystemResolution {
-  return resolveSteppedDisplacement(draft, options, "drag");
+  return resolveSteppedDisplacement(draft, options);
 }
 
 // Leap displacement flies over intermediate cells, then resolves landing triggers as normal translate contact.
@@ -587,8 +594,8 @@ export function resolveLeapDisplacement(
   draft: ResolutionDraft,
   options: LeapMovementOptions
 ): MovementSystemResolution {
-  const movement = createMovementDescriptor("leap", options.movement);
-  const movementLanding = createMovementDescriptor("landing", options.movement);
+  const movement = options.movement;
+  const movementLanding = cloneMovementWithType(movement, "landing");
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, options.direction, null);
   const startMs = options.startMs ?? 0;
@@ -677,7 +684,7 @@ export function resolveTeleportDisplacement(
   draft: ResolutionDraft,
   options: TeleportMovementOptions
 ): MovementSystemResolution {
-  const movement = createMovementDescriptor("landing", options.movement);
+  const movement = options.movement;
   const presentationMark = markDraftPresentation(draft);
   const state = buildState(options.player, null, null);
   const startMs = options.startMs ?? 0;

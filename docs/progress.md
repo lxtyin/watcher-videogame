@@ -7,6 +7,28 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-01 MovementDescriptor 边界收口
+
+- shared 位移描述模型收口为完整 `MovementDescriptor`：
+  - `MovementDescriptor` 直接表达 `type / disposition / timing / tags`
+  - `packages/shared/src/rules/displacement.ts` 只保留完整 descriptor 构造与位移结果辅助函数
+- 工具层统一负责生成完整位移描述：
+  - 主动工具通过 `resolveToolMovementDescriptor()` 读取工具默认位移并接入 `resolveToolMovementType()`
+  - 被动推拉通过 `createPassiveMovementDescriptor()` 或等价完整构造器明确写入位移类型与标签
+- `movementSystem` 统一消费完整 `MovementDescriptor`：
+  - `resolveLinearDisplacement / resolveDragDisplacement / resolveLeapDisplacement / resolveTeleportDisplacement` 的入参直接携带最终位移语义
+  - 飞跃内部需要落点语义时，显式复制当前 descriptor 并将 `type` 写为 `landing`
+- 已迁移工具模块：
+  - `movement / jump / brake / teleport / hookshot`
+  - `basketball / punch / rocket / blazeBombThrow / awmShoot`
+- 文档同步：
+  - 更新 `docs/arch/共享规则层.md`
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run goldens -- --case leader-wallet-active-translate-pass`
+  - `npm.cmd run goldens`，`48/48` passed
+  - `npm.cmd run typecheck`
+
 ## 2026-04-29 可交互的 turn-end 阶段、领导改版与莫汀接入
 
 - shared 回合编排调整：
