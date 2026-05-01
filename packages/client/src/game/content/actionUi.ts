@@ -57,17 +57,17 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     token: "瞬",
     accent: TOOL_DEFINITIONS.teleport.color
   },
-  deployWallet: {
+  leaderDeployWallet: {
     token: "包",
-    accent: TOOL_DEFINITIONS.deployWallet.color
+    accent: TOOL_DEFINITIONS.leaderDeployWallet.color
   },
-  bombThrow: {
+  blazeBombThrow: {
     token: "爆",
-    accent: TOOL_DEFINITIONS.bombThrow.color
+    accent: TOOL_DEFINITIONS.blazeBombThrow.color
   },
-  balance: {
+  fartherBalance: {
     token: "衡",
-    accent: TOOL_DEFINITIONS.balance.color
+    accent: TOOL_DEFINITIONS.fartherBalance.color
   },
   blazePrepareBomb: {
     token: "备",
@@ -82,7 +82,7 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     accent: "#c98e44"
   },
   awmShoot: {
-    token: "狙",
+    token: "弹",
     accent: TOOL_DEFINITIONS.awmShoot.color
   },
   end: {

@@ -325,6 +325,7 @@ function runPassThroughTriggers(
     resolvePassThroughSummonEffects(draft, {
       ...(state.direction ? { direction: state.direction } : {}),
       movement,
+      phase: null,
       player: state.player,
       position: state.player.position,
       startMs,
@@ -347,6 +348,7 @@ function runStopTriggers(
 
   resolveStopSummonEffects(draft, {
     movement,
+    phase: null,
     player: state.player,
     position: state.player.position,
     startMs

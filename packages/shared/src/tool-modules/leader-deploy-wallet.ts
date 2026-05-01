@@ -24,7 +24,7 @@ import {
   isChargedToolAvailable
 } from "./helpers";
 
-export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
+export const LEADER_DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "放置钱包",
   disabledHint: "当前无法在这个位置放置钱包。",
   source: "character_skill",
@@ -45,7 +45,7 @@ export const DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveDeployWalletTool(
+function resolveLeaderDeployWalletTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
@@ -106,11 +106,11 @@ function resolveDeployWalletTool(
         targetPosition
       )
     ]);
-  appendDraftSoundEvent(draft, "tool_build", "deploy-wallet:activate", {
+  appendDraftSoundEvent(draft, "tool_build", "leader-deploy-wallet:activate", {
     anchor: createPositionAnchor(targetPosition)
   });
   setDraftToolInventory(draft, consumeActiveTool(context));
-  setDraftApplied(draft, createUsedSummary(DEPLOY_WALLET_TOOL_DEFINITION.label), {
+  setDraftApplied(draft, createUsedSummary(LEADER_DEPLOY_WALLET_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, {
       effectTiles: [targetPosition],
@@ -120,8 +120,8 @@ function resolveDeployWalletTool(
   });
 }
 
-export const DEPLOY_WALLET_TOOL_MODULE: ToolModule<"deployWallet"> = {
-  id: "deployWallet",
-  definition: DEPLOY_WALLET_TOOL_DEFINITION,
-  execute: resolveDeployWalletTool
+export const LEADER_DEPLOY_WALLET_TOOL_MODULE: ToolModule<"leaderDeployWallet"> = {
+  id: "leaderDeployWallet",
+  definition: LEADER_DEPLOY_WALLET_TOOL_DEFINITION,
+  execute: resolveLeaderDeployWalletTool
 };

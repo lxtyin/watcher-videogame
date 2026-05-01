@@ -3,9 +3,9 @@ import { defineGoldenCase } from "../types";
 export const GOLDEN_CHARACTER_CASES = [
   defineGoldenCase({
     id: "blaze-prepares-bomb-and-throws-next-turn",
-    title: "Blaze prepares a bomb and receives Bomb Throw next turn",
+    title: "Blaze skips the movement die and throws a bomb this turn",
     description:
-      "Using Blaze's turn-start action should end the turn immediately and grant Bomb Throw on the next turn.",
+      "Using Blaze's turn-start action should skip the movement die, roll only the tool die, and grant Bomb Throw this turn.",
     scene: {
       layout: [
         "########",
@@ -38,27 +38,12 @@ export const GOLDEN_CHARACTER_CASES = [
         kind: "useTool",
         actorId: "blaze",
         tool: "blazePrepareBomb",
-        label: "Blaze prepares the next-turn bomb"
-      },
-      {
-        kind: "rollDice",
-        actorId: "target",
-        label: "Target takes the intervening turn"
-      },
-      {
-        kind: "endTurn",
-        actorId: "target",
-        label: "Target ends the turn"
-      },
-      {
-        kind: "rollDice",
-        actorId: "blaze",
-        label: "Blaze rolls and receives Bomb Throw"
+        label: "Blaze skips the movement die and readies Bomb Throw"
       },
       {
         kind: "useTool",
         actorId: "blaze",
-        tool: "bombThrow",
+        tool: "blazeBombThrow",
         targetPosition: { x: 2, y: 1 },
         direction: "right",
         label: "Blaze throws the bomb at the adjacent target tile"
@@ -68,7 +53,7 @@ export const GOLDEN_CHARACTER_CASES = [
       players: {
         blaze: {
           position: { x: 1, y: 1 },
-          toolIds: ["movement", "buildWall"]
+          toolIds: ["jump"]
         },
         target: {
           position: { x: 4, y: 1 }
@@ -77,12 +62,12 @@ export const GOLDEN_CHARACTER_CASES = [
       turnInfo: {
         currentPlayerId: "blaze",
         phase: "turn-action",
-        moveRoll: 4,
-        lastRolledToolId: "buildWall"
+        moveRoll: 0,
+        lastRolledToolId: "jump"
       },
       latestPresentation: {
-        toolId: "bombThrow",
-        eventKinds: ["motion"]
+        toolId: "blazeBombThrow",
+        eventKinds: ["motion", "sound", "motion", "sound", "sound", "sound", "reaction"]
       }
     }
   }),
@@ -291,7 +276,7 @@ export const GOLDEN_CHARACTER_CASES = [
               }
             },
             {
-              toolId: "balance"
+              toolId: "fartherBalance"
             }
           ]
         },
@@ -311,7 +296,7 @@ export const GOLDEN_CHARACTER_CASES = [
       {
         kind: "useTool",
         actorId: "farther",
-        tool: "balance",
+        tool: "fartherBalance",
         choiceId: "bank:1",
         label: "Farther trims one point and banks it"
       },
@@ -347,7 +332,7 @@ export const GOLDEN_CHARACTER_CASES = [
       players: {
         farther: {
           position: { x: 2, y: 1 },
-          toolIds: ["movement", "buildWall", "balance"]
+          toolIds: ["movement", "buildWall", "fartherBalance"]
         }
       },
       latestPresentation: {
@@ -382,7 +367,7 @@ export const GOLDEN_CHARACTER_CASES = [
               }
             },
             {
-              toolId: "balance"
+              toolId: "fartherBalance"
             }
           ]
         },
@@ -402,7 +387,7 @@ export const GOLDEN_CHARACTER_CASES = [
       {
         kind: "useTool",
         actorId: "farther",
-        tool: "balance",
+        tool: "fartherBalance",
         choiceId: "bank:2",
         label: "Farther banks two points"
       },
@@ -438,7 +423,7 @@ export const GOLDEN_CHARACTER_CASES = [
       players: {
         farther: {
           position: { x: 3, y: 1 },
-          toolIds: ["movement", "buildWall", "balance"]
+          toolIds: ["movement", "buildWall", "fartherBalance"]
         }
       },
       latestPresentation: {
@@ -541,9 +526,9 @@ export const GOLDEN_CHARACTER_CASES = [
   }),
   defineGoldenCase({
     id: "awm-shoot-applies-bondage-tags",
-    title: "AWM installs bondage and writes stacks without character-specific runtime state",
+    title: "AWM consumes movement to push and apply bondage",
     description:
-      "AWM Shoot should install the base bondage modifier on the first hit player and write stacks equal to AWM's current movement pool.",
+      "AWM should consume all remaining movement points, push the first hit player by that amount, and write matching bondage stacks.",
     scene: {
       layout: [
         "########",
@@ -598,7 +583,7 @@ export const GOLDEN_CHARACTER_CASES = [
           toolIds: ["movement"]
         },
         target: {
-          position: { x: 3, y: 1 },
+          position: { x: 5, y: 1 },
           modifiers: ["basis:bondage"],
           tags: {
             "basis:bondage-stacks": 2
@@ -682,9 +667,9 @@ export const GOLDEN_CHARACTER_CASES = [
   }),
   defineGoldenCase({
     id: "mountain-gains-build-wall-during-turn-end",
-    title: "Mountain receives Build Wall during the turn-end phase",
+    title: "Mountain receives Build Wall during the action phase",
     description:
-      "Ending the action phase should enter turn-end, grant a durability-2 Build Wall, and using it should finish the turn when no turn-end tools remain.",
+      "Entering the action phase should immediately grant a durability-2 Build Wall.",
     scene: {
       layout: [
         "#####",
@@ -710,15 +695,15 @@ export const GOLDEN_CHARACTER_CASES = [
       ],
       turn: {
         currentPlayerId: "mountain",
-        phase: "turn-action",
+        phase: "turn-start",
         turnNumber: 1
       }
     },
     steps: [
       {
-        kind: "endTurn",
+        kind: "rollDice",
         actorId: "mountain",
-        label: "Mountain enters the turn-end phase"
+        label: "Mountain rolls and enters the action phase"
       },
       {
         kind: "useTool",
@@ -741,14 +726,15 @@ export const GOLDEN_CHARACTER_CASES = [
       players: {
         mountain: {
           position: { x: 2, y: 1 },
-          toolCount: 0
+          toolIds: ["movement", "jump"]
         }
       },
       turnInfo: {
         currentPlayerId: "mountain",
-        phase: "turn-start",
-        turnNumber: 2
+        phase: "turn-action",
+        turnNumber: 1
       }
     }
   })
 ] as const;
+

@@ -466,7 +466,7 @@ export type TriggeredTerrainEffect =
 export type TriggeredSummonEffect = {
   grantedTool: TurnToolSnapshot;
   kind: "wallet_pickup";
-  movement: MovementDescriptor;
+  movement: MovementDescriptor | null;
   ownerId: string;
   playerId: string;
   position: GridPosition;
@@ -643,7 +643,7 @@ export interface SequencedActionPresentation extends ActionPresentation {
 export interface ActionPhaseEffect {
   finishTurn?: boolean;
   nextPhase?: TurnPhase;
-  rollMode?: "movement_only" | "standard";
+  rollMode?: "movement_only" | "standard" | "tool_only";
 }
 
 export type ActionResolution =

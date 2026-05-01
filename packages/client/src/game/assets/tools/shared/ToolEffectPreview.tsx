@@ -10,7 +10,7 @@ type ToolEffectTileAssetComponent = ComponentType<ToolEffectTileAssetProps>;
 
 const TOOL_EFFECT_TILE_ASSETS: Partial<Record<ToolId, ToolEffectTileAssetComponent>> = {
   buildWall: BuildWallEffectPreviewAsset,
-  deployWallet: DeployWalletEffectPreviewAsset,
+  leaderDeployWallet: DeployWalletEffectPreviewAsset,
   rocket: RocketEffectPreviewTileAsset
 };
 

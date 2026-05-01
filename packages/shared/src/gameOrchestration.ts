@@ -890,8 +890,14 @@ function applyPhaseStartToPlayer(
 function applyPhaseEntryStop(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
-  phase: TurnInfoSnapshot["phase"]
+  phase: TurnInfoSnapshot["phase"],
+  options: {
+    includeSummons?: boolean;
+    includeTerrain?: boolean;
+  } = {}
 ): TriggeredTerrainEffect[] {
+  const includeSummons = options.includeSummons ?? true;
+  const includeTerrain = options.includeTerrain ?? true;
   const board = buildBoardDefinition(state.snapshot);
   const summons = buildBoardSummons(state.snapshot);
   const draft = createTurnStartResolutionDraft(
@@ -912,14 +918,17 @@ function applyPhaseEntryStop(
     "movement"
   );
 
-  resolveStopSummonEffects(draft, {
-    movement: null,
-    player: draft.actor,
-    position: draft.actor.position,
-    startMs: 0
-  });
+  if (includeSummons) {
+    resolveStopSummonEffects(draft, {
+      movement: null,
+      phase,
+      player: draft.actor,
+      position: draft.actor.position,
+      startMs: 0
+    });
+  }
 
-  const tile = getTile(draft.board, draft.actor.position);
+  const tile = includeTerrain ? getTile(draft.board, draft.actor.position) : null;
 
   if (tile) {
     resolveStopTerrainEffect(draft, {
@@ -1272,6 +1281,10 @@ function beginTurnFor(
   restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
   const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
+  applyPhaseEntryStop(state, player, "turn-start", {
+    includeSummons: true,
+    includeTerrain: false
+  });
 
   if (phaseStart.skipTurn) {
     queueTurnSkipAdvance(
@@ -1293,6 +1306,10 @@ function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): 
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   const presentationBaselineSequence = state.snapshot.latestPresentation?.sequence ?? null;
   const phaseStart = applyPhaseStartToPlayer(state, activePlayer, "turn-start");
+  applyPhaseEntryStop(state, activePlayer, "turn-start", {
+    includeSummons: true,
+    includeTerrain: false
+  });
 
   if (phaseStart.skipTurn) {
     queueTurnSkipAdvance(
@@ -1356,10 +1373,9 @@ function rollIntoActionPhase(
   player: PlayerSnapshot,
   rollMode: NonNullable<ActionPhaseEffect["rollMode"]>
 ): void {
-  const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
-  state.runtime.moveDieSeed = movementRoll.nextSeed;
-
   if (rollMode === "standard") {
+    const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
+    state.runtime.moveDieSeed = movementRoll.nextSeed;
     const toolRoll = rollToolDie(state.runtime.toolDieSeed);
     state.runtime.toolDieSeed = toolRoll.nextSeed;
     pushEvent(
@@ -1371,12 +1387,26 @@ function rollIntoActionPhase(
     return;
   }
 
+  if (rollMode === "movement_only") {
+    const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
+    state.runtime.moveDieSeed = movementRoll.nextSeed;
+    pushEvent(
+      state,
+      "dice_rolled",
+      `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
+    );
+    enterActionPhaseWithRoll(state, player, movementRoll.value, null);
+    return;
+  }
+
+  const toolRoll = rollToolDie(state.runtime.toolDieSeed);
+  state.runtime.toolDieSeed = toolRoll.nextSeed;
   pushEvent(
     state,
     "dice_rolled",
-    `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
+    `${player.name} skipped the movement die and rolled ${getToolDefinition(toolRoll.value.toolId).label}.`
   );
-  enterActionPhaseWithRoll(state, player, movementRoll.value, null);
+  enterActionPhaseWithRoll(state, player, 0, toolRoll.value);
 }
 
 function buildSettlementMessage(state: MutableGameOrchestrationState): string {

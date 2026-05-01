@@ -21,7 +21,7 @@ export const GOLDEN_WALLET_CASES = [
           position: { x: 1, y: 1 },
           tools: [
             {
-              toolId: "deployWallet",
+              toolId: "leaderDeployWallet",
               source: "character_skill",
               params: {
                 targetRange: 2
@@ -41,7 +41,7 @@ export const GOLDEN_WALLET_CASES = [
         kind: "useTool",
         actorId: "leader",
         tool: {
-          toolId: "deployWallet",
+          toolId: "leaderDeployWallet",
           source: "character_skill"
         },
         targetPosition: { x: 2, y: 1 },
@@ -75,7 +75,7 @@ export const GOLDEN_WALLET_CASES = [
         turnNumber: 1
       },
       latestPresentation: {
-        toolId: "deployWallet",
+        toolId: "leaderDeployWallet",
         eventKinds: ["state_transition"]
       }
     }
@@ -124,7 +124,7 @@ export const GOLDEN_WALLET_CASES = [
         kind: "useTool",
         actorId: "leader",
         tool: {
-          toolId: "deployWallet",
+          toolId: "leaderDeployWallet",
           source: "character_skill"
         },
         targetPosition: { x: 2, y: 1 },
@@ -152,7 +152,7 @@ export const GOLDEN_WALLET_CASES = [
         turnNumber: 2
       },
       latestPresentation: {
-        toolId: "deployWallet",
+        toolId: "leaderDeployWallet",
         eventKinds: ["state_transition"]
       }
     }
@@ -287,6 +287,158 @@ export const GOLDEN_WALLET_CASES = [
       latestPresentation: {
         toolId: "movement",
         eventKinds: ["motion", "state_transition"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "wallet-active-translate-pass-any-player",
+    title: "Any player picks up a wallet while translating",
+    description:
+      "Active grounded movement should let any player pick up a wallet while passing through it.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "ehh",
+          name: "Ehh",
+          characterId: "ehh",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 1
+              }
+            }
+          ]
+        },
+        {
+          id: "leader",
+          name: "Leader",
+          characterId: "leader",
+          position: { x: 1, y: 2 }
+        }
+      ],
+      summons: [
+        {
+          summonId: "wallet",
+          ownerId: "leader",
+          position: { x: 2, y: 1 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "ehh",
+        phase: "turn-action"
+      },
+      seeds: {
+        toolDieSeed: 1
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "ehh",
+        tool: "movement",
+        direction: "right",
+        label: "Walk through wallet as a non-owner"
+      }
+    ],
+    expect: {
+      players: {
+        ehh: {
+          position: { x: 2, y: 1 },
+          toolCount: 1
+        }
+      },
+      summonCount: 0,
+      latestPresentation: {
+        toolId: "movement",
+        eventKinds: ["motion", "state_transition"]
+      }
+    }
+  }),
+  defineGoldenCase({
+    id: "wallet-turn-start-pickup-on-stand",
+    title: "Standing on a wallet at turn start picks it up",
+    description:
+      "If the current player starts their turn while already standing on a wallet, the wallet should trigger immediately like a stop terrain effect.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "leader",
+          name: "Leader",
+          characterId: "leader",
+          position: { x: 1, y: 1 }
+        },
+        {
+          id: "dummy",
+          name: "Dummy",
+          characterId: "late",
+          position: { x: 2, y: 1 },
+          tools: [
+            {
+              toolId: "movement",
+              params: {
+                movePoints: 1
+              }
+            }
+          ]
+        }
+      ],
+      summons: [
+        {
+          summonId: "wallet",
+          ownerId: "dummy",
+          position: { x: 1, y: 1 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "dummy",
+        phase: "turn-action",
+        turnNumber: 3
+      },
+      seeds: {
+        toolDieSeed: 1
+      }
+    },
+    steps: [
+      {
+        kind: "endTurn",
+        actorId: "dummy",
+        label: "Dummy finishes the turn and passes to Leader"
+      }
+    ],
+    expect: {
+      players: {
+        leader: {
+          position: { x: 1, y: 1 },
+          toolCount: 1
+        },
+        dummy: {
+          position: { x: 2, y: 1 },
+          toolCount: 0
+        }
+      },
+      summonCount: 0,
+      turnInfo: {
+        currentPlayerId: "leader",
+        phase: "turn-start",
+        turnNumber: 4
+      },
+      latestPresentation: {
+        toolId: "movement",
+        eventKinds: ["state_transition"]
       }
     }
   }),
@@ -526,3 +678,4 @@ export const GOLDEN_WALLET_CASES = [
     }
   })
 ];
+

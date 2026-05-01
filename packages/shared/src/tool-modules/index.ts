@@ -1,17 +1,17 @@
 import type { ToolContentDefinition, ToolDieFaceContentDefinition } from "../content/schema";
 import type { ToolExecutor } from "../rules/executors/types";
 import { AWM_SHOOT_TOOL_MODULE } from "./awm-shoot";
-import { BALANCE_TOOL_MODULE } from "./balance";
 import { BASKETBALL_TOOL_MODULE } from "./basketball";
+import { BLAZE_BOMB_THROW_TOOL_MODULE } from "./blaze-bomb-throw";
 import { BLAZE_PREPARE_BOMB_TOOL_MODULE } from "./blaze-prepare-bomb";
-import { BOMB_THROW_TOOL_MODULE } from "./bomb-throw";
 import { BRAKE_TOOL_MODULE } from "./brake";
 import { BUILD_WALL_TOOL_MODULE } from "./build-wall";
 import { DASH_TOOL_MODULE } from "./dash";
-import { DEPLOY_WALLET_TOOL_MODULE } from "./deploy-wallet";
+import { FARTHER_BALANCE_TOOL_MODULE } from "./farther-balance";
 import { HOOKSHOT_TOOL_MODULE } from "./hookshot";
 import { JUMP_TOOL_MODULE } from "./jump";
 import { LAMP_COPY_TOOL_MODULE } from "./lamp-copy";
+import { LEADER_DEPLOY_WALLET_TOOL_MODULE } from "./leader-deploy-wallet";
 import { MOVEMENT_TOOL_MODULE } from "./movement";
 import { PUNCH_TOOL_MODULE } from "./punch";
 import { ROCKET_TOOL_MODULE } from "./rocket";
@@ -34,12 +34,12 @@ export const TOOL_MODULES = defineToolModules([
   ROCKET_TOOL_MODULE,
   PUNCH_TOOL_MODULE,
   TELEPORT_TOOL_MODULE,
-  DEPLOY_WALLET_TOOL_MODULE,
-  BOMB_THROW_TOOL_MODULE,
+  LEADER_DEPLOY_WALLET_TOOL_MODULE,
+  BLAZE_BOMB_THROW_TOOL_MODULE,
   BLAZE_PREPARE_BOMB_TOOL_MODULE,
   VOLATY_SKIP_TOOL_DIE_TOOL_MODULE,
   LAMP_COPY_TOOL_MODULE,
-  BALANCE_TOOL_MODULE,
+  FARTHER_BALANCE_TOOL_MODULE,
   AWM_SHOOT_TOOL_MODULE
 ] as const);
 

@@ -75,6 +75,7 @@ export interface ModifierHooks {
   onDiceRoll?: (context: ModifierDiceRollHookContext) => ModifierDiceRollHookResult | null;
   onGetTool?: (context: ModifierToolHookContext) => ModifierToolHookResult | null;
   onMovementResolved?: (context: ModifierMovementHookContext) => ModifierPhaseHookResult | null;
+  onToolPrepare?: (context: ModifierToolHookContext) => ModifierToolHookResult | null;
   onToolUsed?: (context: ModifierToolHookContext) => ModifierPhaseHookResult | null;
   onTurnActionStart?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;
   onTurnEnd?: (context: ModifierPhaseHookContext) => ModifierPhaseHookResult | null;

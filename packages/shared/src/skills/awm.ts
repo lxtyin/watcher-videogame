@@ -8,8 +8,8 @@ export const AWM_SKILL_DEFINITION: SkillDefinition = {
   label: "AWM",
   getTextDescription: () => ({
     title: "AWM",
-    description: "行动阶段开始时获得一发狙击，可向命中的玩家施加束缚。",
-    details: ["行动阶段开始：获得狙击"]
+    description: "行动阶段开始时获得一发子弹，可消耗未使用的移动点数为其充能。",
+    details: ["行动阶段开始：获得子弹", "发射时消耗全部剩余移动点数"]
   }),
   modifierIds: [AWM_MODIFIER_ID]
 };

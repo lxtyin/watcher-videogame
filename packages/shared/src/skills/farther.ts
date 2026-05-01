@@ -1,8 +1,8 @@
 import { getPlayerTagNumber, setPlayerTagValue } from "../playerTags";
 import type { ModifierDefinition, SkillDefinition } from "../modifiers";
 
-export const FARTHER_SKILL_ID = "farther:balance-bank";
-export const FARTHER_MODIFIER_ID = "farther:balance-bank";
+export const FARTHER_SKILL_ID = "farther-balance";
+export const FARTHER_MODIFIER_ID = "farther-balance";
 export const FARTHER_BANKED_MOVEMENT_TAG = "farther:banked-movement";
 
 export const FARTHER_SKILL_DEFINITION: SkillDefinition = {
@@ -24,7 +24,7 @@ export const FARTHER_MODIFIER_DEFINITION: ModifierDefinition = {
 
       return {
         grantTools: [
-          { toolId: "balance" },
+          { toolId: "fartherBalance" },
           ...(bankedMovement > 0
             ? [
                 {

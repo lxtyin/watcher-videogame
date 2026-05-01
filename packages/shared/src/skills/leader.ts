@@ -1,7 +1,7 @@
 import type { ModifierDefinition, SkillDefinition } from "../modifiers";
 
-export const LEADER_SKILL_ID = "leader:deploy-wallet";
-export const LEADER_MODIFIER_ID = "leader:deploy-wallet";
+export const LEADER_SKILL_ID = "leader-deploy-wallet";
+export const LEADER_MODIFIER_ID = "leader-deploy-wallet";
 
 export const LEADER_SKILL_DEFINITION: SkillDefinition = {
   id: LEADER_SKILL_ID,
@@ -18,7 +18,7 @@ export const LEADER_MODIFIER_DEFINITION: ModifierDefinition = {
   id: LEADER_MODIFIER_ID,
   hooks: {
     onTurnEndStart: () => ({
-      grantTools: [{ toolId: "deployWallet", source: "character_skill" }]
+      grantTools: [{ toolId: "leaderDeployWallet", source: "character_skill" }]
     })
   }
 };

@@ -28,7 +28,7 @@ export const HEAVY_GOLDEN_CASES = [
                 pushDistance: 3,
                 targetRange: 1
               },
-              toolId: "bombThrow"
+              toolId: "blazeBombThrow"
             },
             {
               instanceId: "wall-1",
@@ -70,7 +70,7 @@ export const HEAVY_GOLDEN_CASES = [
         kind: "useTool",
         label: "Bomb Throw pushes the target across the lane",
         targetPosition: { x: 10, y: 5 },
-        tool: "bombThrow"
+        tool: "blazeBombThrow"
       },
       {
         actorId: "hero",

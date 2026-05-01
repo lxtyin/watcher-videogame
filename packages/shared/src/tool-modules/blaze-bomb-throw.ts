@@ -1,7 +1,12 @@
 import type { ActionPresentationEvent } from "../types";
 import type { ToolContentDefinition } from "../content/schema";
 import { createSequentialInteraction } from "../toolInteraction";
-import { createPresentation } from "../rules/actionPresentation";
+import {
+  buildMotionPositions,
+  createEffectEvent,
+  createPresentation,
+  createProjectileEvent
+} from "../rules/actionPresentation";
 import {
   consumeDraftPresentationFrom,
   markDraftPresentation,
@@ -21,9 +26,11 @@ import {
   resolveLinearDisplacement
 } from "../rules/movementSystem";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
+import { collectExplosionPreviewTiles } from "../rules/spatial";
 import { findPlayersAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
+  createPlayerAnchor,
   createToolPreview,
   createDraftSoundEvent,
   createPositionAnchor,
@@ -34,7 +41,10 @@ import {
   toMovementSubject
 } from "./helpers";
 
-export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
+const BOMB_THROW_PROJECTILE_SPEED = 3;
+const BOMB_THROW_EXPLOSION_EFFECT_MS = 420;
+
+export const BLAZE_BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
   label: "投弹",
   disabledHint: "当前不能使用投弹。",
   source: "turn",
@@ -82,7 +92,7 @@ export const BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBombThrowTool(
+function resolveBlazeBombThrowTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
@@ -135,6 +145,7 @@ function resolveBombThrowTool(
   }
 
   const targetPlayers = findPlayersAtPosition(context.players, targetPosition, []);
+  const effectTiles = collectExplosionPreviewTiles(context.board, targetPosition);
 
   if (!targetPlayers.length) {
     setDraftBlocked(draft, "No players are standing on the target tile", {
@@ -150,6 +161,24 @@ function resolveBombThrowTool(
   const motionEvents: ActionPresentationEvent[] = [];
   let pushedAnyTarget = false;
   setDraftToolInventory(draft, consumeActiveTool(context));
+  const projectileEvent = createProjectileEvent(
+    `${context.activeTool.instanceId}:bomb-projectile`,
+    context.actor.id,
+    "rocket",
+    buildMotionPositions(context.actor.position, [targetPosition]),
+    0,
+    BOMB_THROW_PROJECTILE_SPEED
+  );
+  const explosionStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
+
+  if (projectileEvent) {
+    motionEvents.push(
+      projectileEvent,
+      createDraftSoundEvent(draft, "tool_throw", "blaze-bomb-throw:activate", {
+        anchor: createPlayerAnchor(context.actor.id)
+      })
+    );
+  }
 
   for (const targetPlayer of targetPlayers) {
     const presentationMark = markDraftPresentation(draft);
@@ -158,7 +187,7 @@ function resolveBombThrowTool(
       movePoints: pushDistance,
       movement: pushMovement,
       player: toMovementSubject(targetPlayer),
-      startMs: 0,
+      startMs: explosionStartMs,
       trackAffectedPlayerReason: "bomb_throw"
     });
 
@@ -183,27 +212,36 @@ function resolveBombThrowTool(
   }
 
   motionEvents.push(
-    createDraftSoundEvent(draft, "tool_throw", "bomb-throw:activate", {
-      anchor: createPositionAnchor(targetPosition)
-    })
+    createDraftSoundEvent(draft, "tool_explosion", "blaze-bomb-throw:explosion-sound", {
+      anchor: createPositionAnchor(targetPosition),
+      startMs: explosionStartMs
+    }),
+    createEffectEvent(
+      `${context.activeTool.instanceId}:bomb-explosion`,
+      "rocket_explosion",
+      targetPosition,
+      effectTiles,
+      explosionStartMs,
+      BOMB_THROW_EXPLOSION_EFFECT_MS
+    )
   );
   setDraftActionPresentation(
     draft,
     createPresentation(context.actor.id, context.activeTool.toolId, motionEvents)
   );
-  setDraftApplied(draft, createUsedSummary(BOMB_THROW_TOOL_DEFINITION.label), {
+  setDraftApplied(draft, createUsedSummary(BLAZE_BOMB_THROW_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, {
       affectedPlayers: draft.affectedPlayers,
-      effectTiles: [targetPosition],
+      effectTiles,
       selectionTiles,
       valid: true
     })
   });
 }
 
-export const BOMB_THROW_TOOL_MODULE: ToolModule<"bombThrow"> = {
-  id: "bombThrow",
-  definition: BOMB_THROW_TOOL_DEFINITION,
-  execute: resolveBombThrowTool
+export const BLAZE_BOMB_THROW_TOOL_MODULE: ToolModule<"blazeBombThrow"> = {
+  id: "blazeBombThrow",
+  definition: BLAZE_BOMB_THROW_TOOL_DEFINITION,
+  execute: resolveBlazeBombThrowTool
 };

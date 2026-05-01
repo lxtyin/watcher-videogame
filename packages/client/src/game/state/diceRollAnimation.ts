@@ -200,16 +200,20 @@ export function createDiceRollAnimation(
     ? toCenteredWorldPosition(rollingPlayer.position, nextSnapshot.boardWidth, nextSnapshot.boardHeight)
     : { x: 0, z: 0 };
   const diceInputs: Parameters<typeof createDieAnimation>[1][] = [
-    {
-      anchorX: diceAnchor.x,
-      anchorZ: diceAnchor.z,
-      faceIndex: getPointFaceIndex(nextSnapshot.turnInfo.lastRolledMoveDieValue),
-      index: 0,
-      kind: "point" as const,
-      label: POINT_DIE_LABEL,
-      resultLabel: String(nextSnapshot.turnInfo.lastRolledMoveDieValue),
-      total: 1
-    },
+    ...(nextSnapshot.turnInfo.lastRolledMoveDieValue > 0
+      ? [
+          {
+            anchorX: diceAnchor.x,
+            anchorZ: diceAnchor.z,
+            faceIndex: getPointFaceIndex(nextSnapshot.turnInfo.lastRolledMoveDieValue),
+            index: 0,
+            kind: "point" as const,
+            label: POINT_DIE_LABEL,
+            resultLabel: String(nextSnapshot.turnInfo.lastRolledMoveDieValue),
+            total: 1
+          }
+        ]
+      : []),
     ...(nextSnapshot.turnInfo.lastRolledToolId
       ? [
           {

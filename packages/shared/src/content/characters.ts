@@ -37,14 +37,14 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     nativeName: "领导",
     portraitId: "leader",
     summary: "每个回合结束阶段获得一个放置钱包。",
-    skillIds: ["leader:deploy-wallet"]
+    skillIds: ["leader-deploy-wallet"]
   },
   blaze: {
     flavorText: "可不要离我太近。",
     label: "Blaze",
     nativeName: "布拉泽",
     portraitId: "blaze",
-    summary: "回合开始可准备炸弹，并在下一个行动阶段获得投掷。",
+    summary: "回合开始可放弃移动骰，并在本回合行动阶段获得投弹。",
     skillIds: ["blaze:prepare-bomb"]
   },
   volaty: {
@@ -69,14 +69,14 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     nativeName: "法真",
     portraitId: "farther",
     summary: "每个行动阶段获得制衡，可扣除至多一半移动点，并在下回合取回等量移动。",
-    skillIds: ["farther:balance-bank"]
+    skillIds: ["farther-balance"]
   },
   mountain: {
     flavorText: "到此一游",
     label: "Mountain",
     nativeName: "莫汀",
     portraitId: "mountain",
-    summary: "每个回合结束阶段获得一个耐久 2 的砌墙。",
+    summary: "每个行动阶段获得一个耐久 2 的砌墙。",
     skillIds: ["mountain:end-turn-build-wall"]
   },
   awm: {
@@ -84,7 +84,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "AWM",
     nativeName: "AWM",
     portraitId: "awm",
-    summary: "行动阶段开始时获得一发狙击，命中的玩家会获得束缚。",
+    summary: "行动阶段开始时获得一发子弹，可消耗未使用移动点数充能，推动并束缚命中的玩家。",
     skillIds: ["awm:grant-shot"]
   }
 } as const);

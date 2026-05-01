@@ -1776,18 +1776,20 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
     return <></>;
   }
 
-  const canStartScenePointerInteraction = Boolean(
-    canInteract &&
-      myPlayer &&
-      interactionSession &&
-      isPointerStageActive(interactionSession) &&
-      !interactionSession.pointerActive
-  );
   const shadowBounds = estimateBoardShadowBounds(snapshot.boardWidth, snapshot.boardHeight);
 
   const handlePiecePointerDown = useCallback(
     (player: PlayerSnapshot, event: ThreeEvent<PointerEvent>) => {
-      if (canStartScenePointerInteraction) {
+      const currentSession = interactionSessionRef.current;
+      const canStartNow = Boolean(
+        canInteract &&
+          myPlayer &&
+          currentSession &&
+          isPointerStageActive(currentSession) &&
+          !currentSession.pointerActive
+      );
+
+      if (canStartNow) {
         event.stopPropagation();
         cancelInspection();
         if (
@@ -1806,9 +1808,10 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       queueInspection(describePlayerInspection(player));
     },
     [
-      canStartScenePointerInteraction,
+      canInteract,
       cancelCameraPointerGesture,
       cancelInspection,
+      myPlayer,
       queueInspection,
       startSelectedInteractionPointer
     ]
@@ -1816,7 +1819,16 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
 
   const handleTilePointerDown = useCallback(
     (tile: TileDefinition, event: ThreeEvent<PointerEvent>) => {
-      if (canStartScenePointerInteraction) {
+      const currentSession = interactionSessionRef.current;
+      const canStartNow = Boolean(
+        canInteract &&
+          myPlayer &&
+          currentSession &&
+          isPointerStageActive(currentSession) &&
+          !currentSession.pointerActive
+      );
+
+      if (canStartNow) {
         event.stopPropagation();
         cancelInspection();
         if (
@@ -1835,9 +1847,10 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       queueInspection(describeTileInspection(tile, terrainThumbnailUrls));
     },
     [
-      canStartScenePointerInteraction,
+      canInteract,
       cancelCameraPointerGesture,
       cancelInspection,
+      myPlayer,
       queueInspection,
       startSelectedInteractionPointer,
       terrainThumbnailUrls
@@ -1846,7 +1859,16 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
 
   const handleSummonPointerDown = useCallback(
     (summon: SummonSnapshot, event: ThreeEvent<PointerEvent>) => {
-      if (canStartScenePointerInteraction) {
+      const currentSession = interactionSessionRef.current;
+      const canStartNow = Boolean(
+        canInteract &&
+          myPlayer &&
+          currentSession &&
+          isPointerStageActive(currentSession) &&
+          !currentSession.pointerActive
+      );
+
+      if (canStartNow) {
         event.stopPropagation();
         cancelInspection();
         if (
@@ -1865,9 +1887,10 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       queueInspection(describeSummonInspection(summon));
     },
     [
-      canStartScenePointerInteraction,
+      canInteract,
       cancelCameraPointerGesture,
       cancelInspection,
+      myPlayer,
       queueInspection,
       startSelectedInteractionPointer
     ]

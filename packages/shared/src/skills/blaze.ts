@@ -10,8 +10,8 @@ export const BLAZE_SKILL_DEFINITION: SkillDefinition = {
   label: "炸弹准备",
   getTextDescription: () => ({
     title: "炸弹准备",
-    description: "回合开始可准备炸弹，下个行动阶段获得投弹。",
-    details: ["回合开始：可使用备弹", "下个行动阶段：获得投弹"]
+    description: "回合开始可放弃移动骰，并在本回合行动阶段获得投弹。",
+    details: ["回合开始：可使用备弹", "备弹后立即只投工具骰", "本回合行动阶段：获得投弹"]
   }),
   modifierIds: [BLAZE_MODIFIER_ID]
 };
@@ -19,11 +19,13 @@ export const BLAZE_SKILL_DEFINITION: SkillDefinition = {
 export const BLAZE_MODIFIER_DEFINITION: ModifierDefinition = {
   id: BLAZE_MODIFIER_ID,
   hooks: {
-    onTurnActionStart: ({ tags }) =>
+    onDiceRoll: ({ tags, rolledTool }) =>
       getPlayerTagBoolean(tags, BLAZE_BOMB_PREPARED_TAG)
         ? {
-            grantTools: [{ toolId: "bombThrow" }],
-            nextTags: setPlayerTagValue(tags, BLAZE_BOMB_PREPARED_TAG, undefined)
+            grantTools: [{ toolId: "blazeBombThrow" }],
+            movementRoll: 0,
+            nextTags: setPlayerTagValue(tags, BLAZE_BOMB_PREPARED_TAG, undefined),
+            rolledTool
           }
         : null,
     onTurnStart: ({ tags }) =>

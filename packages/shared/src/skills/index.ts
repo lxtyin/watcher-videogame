@@ -440,6 +440,66 @@ export function applyOnGetToolModifiers(
   };
 }
 
+export function applyToolPrepareModifiers(
+  characterId: CharacterId,
+  actor: ModifierActorContext,
+  tool: TurnToolSnapshot
+): {
+  nextModifiers: ModifierId[];
+  nextTags: PlayerTagMap;
+  tool: TurnToolSnapshot | null;
+} {
+  let nextModifiers = cloneModifierIds(actor.modifiers);
+  let nextTags = clonePlayerTags(actor.tags);
+  let nextTool: TurnToolSnapshot | null = {
+    ...tool,
+    params: {
+      ...tool.params
+    }
+  };
+
+  for (const modifier of getPlayerModifiers(characterId, nextModifiers)) {
+    if (!nextTool) {
+      break;
+    }
+
+    const result: ModifierToolHookResult | null = modifier.hooks.onToolPrepare?.({
+      actorId: actor.id,
+      characterId,
+      modifiers: nextModifiers,
+      phase: actor.phase,
+      position: actor.position,
+      tags: nextTags,
+      toolHistory: actor.toolHistory,
+      turnNumber: actor.turnNumber,
+      tools: actor.tools,
+      tool: nextTool
+    }) ?? null;
+
+    if (!result) {
+      continue;
+    }
+
+    if (result.nextModifiers) {
+      nextModifiers = cloneModifierIds(result.nextModifiers);
+    }
+
+    if (result.nextTags) {
+      nextTags = clonePlayerTags(result.nextTags);
+    }
+
+    if (result.tool !== undefined) {
+      nextTool = result.tool;
+    }
+  }
+
+  return {
+    nextModifiers,
+    nextTags,
+    tool: nextTool
+  };
+}
+
 export function resolveToolMovementType(
   characterId: CharacterId,
   actor: ModifierActorContext,

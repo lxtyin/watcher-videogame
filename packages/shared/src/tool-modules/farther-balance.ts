@@ -69,7 +69,7 @@ function getBalanceChoices(
   return Array.from({ length: bankLimit }, (_, index) => createBalanceChoiceDefinition(index + 1));
 }
 
-export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
+export const FARTHER_BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "制衡",
   disabledHint: "需要先持有【移动】，并且至少保留 2 点可分配的移动点数。",
   source: "character_skill",
@@ -102,7 +102,7 @@ export const BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   endsTurnOnUse: false
 };
 
-function resolveBalanceTool(
+function resolveFartherBalanceTool(
   draft: Parameters<ToolModule["execute"]>[0],
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
@@ -137,7 +137,7 @@ function resolveBalanceTool(
   const nextBankedMovement = currentPendingBonus + selectedMovePoints;
   const nextTools = adjustMovementTools(consumeActiveTool(context), -selectedMovePoints);
 
-  appendDraftSoundEvent(draft, "tool_buff", "balance:activate", {
+  appendDraftSoundEvent(draft, "tool_buff", "farther-balance:activate", {
     anchor: createPlayerAnchor(context.actor.id)
   });
   setDraftActorTags(
@@ -145,15 +145,15 @@ function resolveBalanceTool(
     setPlayerTagValue(context.actor.tags, FARTHER_BANKED_MOVEMENT_TAG, nextBankedMovement)
   );
   setDraftToolInventory(draft, nextTools);
-  setDraftApplied(draft, createUsedSummary(BALANCE_TOOL_DEFINITION.label), {
+  setDraftApplied(draft, createUsedSummary(FARTHER_BALANCE_TOOL_DEFINITION.label), {
     path: [],
     preview: createToolPreview(context, { valid: true })
   });
 }
 
-export const BALANCE_TOOL_MODULE: ToolModule<"balance"> = {
-  id: "balance",
-  definition: BALANCE_TOOL_DEFINITION,
+export const FARTHER_BALANCE_TOOL_MODULE: ToolModule<"fartherBalance"> = {
+  id: "fartherBalance",
+  definition: FARTHER_BALANCE_TOOL_DEFINITION,
   getChoices: getBalanceChoices,
-  execute: resolveBalanceTool
+  execute: resolveFartherBalanceTool
 };

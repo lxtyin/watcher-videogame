@@ -787,3 +787,63 @@
   - `npm.cmd run typecheck --workspace @watcher/client`
   - `npm.cmd run goldens`，`46/46` passed
   - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-05-01 Blaze / AWM / Wallet / Bondage 规则更新
+
+- `turn-start` 特殊投骰主链补齐：
+  - `ActionPhaseEffect.rollMode` 新增 `tool_only`
+  - `gameOrchestration` 统一支持三种进入行动阶段的投骰模式：`standard / movement_only / tool_only`
+  - `Blaze` 的【备弹】改为放弃本回合移动骰，立刻只投工具骰，并在本回合行动阶段获得【投弹】
+- 新增通用 `ModifierHooks.onToolPrepare`
+  - `resolveToolAction()` 在 shared 侧真正执行工具前，先统一应用 modifier 对工具的准备期改写
+  - `basis:bondage` 改为在这一步扣减主动移动工具的 `movePoints`
+  - 束缚的规则语义随之收口为“影响下一次主动移动的实际结算，并在回合结束自动清除”
+- `bombThrow` 表现升级：
+  - 复用火箭投射物与爆炸 effect
+  - 投掷起点改为施法者当前位置
+  - 允许斜线飞向目标格
+- 钱包规则调整：
+  - 钱包不再只允许领导捡取
+  - 任意玩家只要满足正常触发条件，都可以拾取钱包
+- 角色内容调整：
+  - `Leader` 技能 id 标准化为 `leader-deploy-wallet`
+  - `Farther` 技能 id 标准化为 `farther-balance`
+  - `Mountain` 改为每个行动阶段开始时获得耐久 2 的【砌墙】
+  - `AWM` 改为在行动阶段获得【子弹】，消耗全部未使用移动点数充能，按同值推动并施加同值束缚
+- 文档同步：
+  - 更新 `docs/游戏规则与内容定义.md`
+  - 更新 `docs/arch/能力系统统一模型.md`
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`47/47` passed
+  - `npm.cmd run build --workspace @watcher/client`
+
+## 2026-05-01 Leader / Farther 工具命名、钱包 turn-start 触发与 Blaze 交互修复
+
+- 角色专属工具 id 标准化：
+  - `deployWallet -> leaderDeployWallet`
+  - `balance -> fartherBalance`
+  - 同步更新 shared 工具模块、角色技能发放、client `actionUi`、预览资源映射与 golden case
+- 召唤物运行时代码按目录归档：
+  - 删除旧的 `packages/shared/src/summons.ts`
+  - 新增 `packages/shared/src/summons/`
+  - 以 `wallet.ts + index.ts + types.ts` 的方式管理召唤物定义与触发
+- 钱包触发补齐：
+  - 钱包仍会在主动经过或落地时触发
+  - 另外新增“当前玩家在 `turn-start` 阶段踩在钱包上时自动触发”
+  - shared 通过 `applyPhaseEntryStop(..., { includeSummons: true, includeTerrain: false })` 只对召唤物开放该时机，避免顺手改变地形时机
+  - 新增 golden case `wallet-turn-start-pickup-on-stand`
+- Blaze / client 交互修复：
+  - `diceRollAnimation` 不再在 `tool_only` 情况下伪造点数骰；现在 `lastRolledMoveDieValue <= 0` 时不会生成点数骰动画
+  - `BoardScene` 的多段 pointer 交互起点不再依赖 render 时的旧 `interactionSession` 布尔值，而是读取最新 `interactionSessionRef`，修复第二段偶发无法开始的问题
+- 轻量浏览器验证：
+  - 使用 `develop-web-game` 脚本对 `?mode=goldens&case=blaze-prepares-bomb-and-throws-next-turn` 做了 headless 探测
+  - 该 golden route 的自动截图在当前脚本下未形成可用画面，因此这轮最终仍以 static review + typecheck + goldens 为主
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run goldens`，`48/48` passed
+  - `npm.cmd run build --workspace @watcher/client`
