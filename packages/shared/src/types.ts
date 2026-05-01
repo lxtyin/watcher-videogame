@@ -108,10 +108,10 @@ export interface BoardDefinition {
 }
 
 export interface MovementDescriptor {
+  type: ContentMovementType;
   disposition: ContentMovementDisposition;
   tags: string[];
   timing: MovementTiming;
-  type: ContentMovementType;
 }
 
 export interface PlayerSnapshot {

@@ -6,21 +6,19 @@
   MovementType,
   ResolvedPlayerMovement
 } from "../types";
-export interface MovementDescriptorOptions {
-  tags?: readonly string[];
-  timing?: MovementTiming;
-}
+
 
 export function createMovementDescriptor(
   type: MovementType,
   disposition: MovementDisposition,
-  options: MovementDescriptorOptions = {}
+  tags?: readonly string[],
+  timing?: MovementTiming
 ): MovementDescriptor {
   return {
     type,
     disposition,
-    timing: options.timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
-    tags: [...(options.tags ?? [])]
+    timing: timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
+    tags: [...(tags ?? [])]
   };
 }
 

@@ -95,7 +95,6 @@ interface MutableMovementState {
   player: MovementSubject;
   remainingMovePoints: number | null;
   shouldContinueMovement: boolean;
-  shouldResolveStopTriggers: boolean;
 }
 
 interface PendingImpact {
@@ -150,7 +149,6 @@ function buildState(
     player: cloneSubject(player),
     remainingMovePoints,
     shouldContinueMovement: true,
-    shouldResolveStopTriggers: true
   };
 }
 
@@ -446,7 +444,7 @@ function resolveSteppedDisplacement(
   let stopReason = "Movement ended";
   let pendingImpact: PendingImpact | null = null;
 
-  while ((state.remainingMovePoints ?? 0) > 0 && state.shouldContinueMovement) {
+  while (true) {
     const direction = state.direction;
 
     if (!direction) {
@@ -504,12 +502,16 @@ function resolveSteppedDisplacement(
       draft.tileMutations.push(createTileMutation(target, "floor", 0));
     }
 
-    runPassThroughTriggers(
-      draft,
-      state,
-      movement,
-      startMs + stepsTaken * stepDurationMs
-    );
+    if ((state.remainingMovePoints ?? 0) > 0 && state.shouldContinueMovement) {
+      runPassThroughTriggers(
+        draft,
+        state,
+        movement,
+        startMs + stepsTaken * stepDurationMs
+      );
+    } else {
+      break;
+    }
   }
 
   const timing = appendMovementMotionEvent(
@@ -548,9 +550,7 @@ function resolveSteppedDisplacement(
     syncMovementStatePlayerFromDraft(draft, state.player);
   }
 
-  if (path.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, movement, impactTiming?.endMs ?? timing.motionEndMs ?? startMs);
-  }
+  runStopTriggers(draft, state, movement, impactTiming?.endMs ?? timing.motionEndMs ?? startMs);
 
   return buildResolution(
     draft,
@@ -631,12 +631,15 @@ export function resolveLeapDisplacement(
   for (const [index, position] of leap.path.entries()) {
     state.player.position = position;
     traversedPath.push(clonePosition(position));
-    runPassThroughTriggers(
-      draft,
-      state,
-      index === leap.path.length - 1 ? movementLanding : movement,
-      startMs + traversedPath.length * stepDurationMs
-    );
+
+    if (index !== leap.path.length - 1) { 
+      runPassThroughTriggers(
+        draft,
+        state,
+        index === leap.path.length - 1 ? movementLanding : movement,
+        startMs + traversedPath.length * stepDurationMs
+      );
+    }
 
     if (!state.shouldContinueMovement) {
       break;
@@ -652,9 +655,7 @@ export function resolveLeapDisplacement(
     startMs
   );
 
-  if (traversedPath.length && state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, movement, timing.motionEndMs ?? startMs);
-  }
+  runStopTriggers(draft, state, movement, timing.motionEndMs ?? startMs);
 
   return buildResolution(
     draft,
@@ -711,11 +712,8 @@ export function resolveTeleportDisplacement(
   state.player.position = clonePosition(options.targetPosition);
   const path = [clonePosition(options.targetPosition)];
 
-  runPassThroughTriggers(draft, state, movement, startMs);
-
-  if (state.shouldResolveStopTriggers) {
-    runStopTriggers(draft, state, movement, startMs);
-  }
+  // runPassThroughTriggers(draft, state, movement, startMs);
+  runStopTriggers(draft, state, movement, startMs);
 
   return buildResolution(
     draft,

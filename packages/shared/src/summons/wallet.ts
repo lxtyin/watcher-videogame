@@ -7,7 +7,7 @@ import {
   setDraftToolInventory,
   type ResolutionDraft
 } from "../rules/actionDraft";
-import { isMovementDisposition, isMovementType } from "../rules/displacement";
+import { isMovementDisposition, isMovementTiming, isMovementType } from "../rules/displacement";
 import { createRolledToolInstance } from "../tools";
 import type { BoardSummonState, GridPosition, TurnToolSnapshot } from "../types";
 import type { SummonDefinition, SummonTriggerContext } from "./types";
@@ -65,43 +65,19 @@ function grantWalletReward(context: SummonTriggerContext): void {
   ]);
 }
 
-function canWalletTriggerFromMovement(
-  context: SummonTriggerContext,
-  allowedMovementTypes: Array<NonNullable<SummonTriggerContext["movement"]>["type"]>
-): boolean {
-  return (
-    !!context.movement &&
-    isMovementDisposition(context.movement, "active") &&
-    allowedMovementTypes.some((movementType) => isMovementType(context.movement, movementType))
-  );
-}
-
-function canWalletTriggerFromTurnStart(context: SummonTriggerContext): boolean {
-  return context.movement === null && context.phase === "turn-start";
-}
 
 export const WALLET_SUMMON_DEFINITION: SummonDefinition = {
   id: "wallet",
   ...SUMMON_REGISTRY.wallet,
   onPassThrough: (context) => {
-    if (!canWalletTriggerFromMovement(context, ["translate", "drag", "landing"])) {
-      return;
+    if (isMovementTiming(context.movement, "in_turn")) {
+      grantWalletReward(context);
     }
-    if (isMovementType(context.movement, "landing")) {
-      return;
-    }
-
-    grantWalletReward(context);
   },
   onStop: (context) => {
-    if (
-      !canWalletTriggerFromTurnStart(context) &&
-      !canWalletTriggerFromMovement(context, ["leap"])
-    ) {
-      return;
+    if (isMovementTiming(context.movement, "in_turn")) {
+      grantWalletReward(context);
     }
-
-    grantWalletReward(context);
   }
 };
 

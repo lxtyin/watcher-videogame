@@ -7,6 +7,21 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-01 阶段入口停留触发收口
+
+- `applyPhaseEntryStop()` 收口为只在进入 `turn-action` 时触发当前格子的停留结算。
+- 地形与召唤物在阶段入口使用同一条 `onStop` 触发路径，不再为召唤物保留 `turn-start` 单独旁路。
+- 钱包站立拾取语义与幸运方块一致：进入 `turn-start` 时不触发，掷骰进入 `turn-action` 后触发。
+- golden 用例更新：
+  - `wallet-turn-action-pickup-on-stand`
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run goldens -- --case wallet-turn-action-pickup-on-stand`
+  - `npm.cmd run goldens -- --case turn-action-lucky-grants-post-roll-tool`
+  - `npm.cmd run goldens -- --case bedwars-stun-skips-next-turn`
+  - `npm.cmd run goldens`，`48/48` passed
+  - `npm.cmd run typecheck`
+
 ## 2026-05-01 MovementDescriptor 边界收口
 
 - shared 位移描述模型收口为完整 `MovementDescriptor`：

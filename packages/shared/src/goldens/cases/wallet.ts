@@ -363,10 +363,10 @@ export const GOLDEN_WALLET_CASES = [
     }
   }),
   defineGoldenCase({
-    id: "wallet-turn-start-pickup-on-stand",
-    title: "Standing on a wallet at turn start picks it up",
+    id: "wallet-turn-action-pickup-on-stand",
+    title: "Standing on a wallet triggers when action phase begins",
     description:
-      "If the current player starts their turn while already standing on a wallet, the wallet should trigger immediately like a stop terrain effect.",
+      "If the current player starts their turn while already standing on a wallet, the wallet should wait for the roll and then trigger with other stop effects when action phase begins.",
     scene: {
       layout: [
         "#####",
@@ -417,13 +417,18 @@ export const GOLDEN_WALLET_CASES = [
         kind: "endTurn",
         actorId: "dummy",
         label: "Dummy finishes the turn and passes to Leader"
+      },
+      {
+        kind: "rollDice",
+        actorId: "leader",
+        label: "Leader rolls into action phase and picks up the wallet"
       }
     ],
     expect: {
       players: {
         leader: {
           position: { x: 1, y: 1 },
-          toolCount: 1
+          toolCount: 3
         },
         dummy: {
           position: { x: 2, y: 1 },
@@ -433,12 +438,8 @@ export const GOLDEN_WALLET_CASES = [
       summonCount: 0,
       turnInfo: {
         currentPlayerId: "leader",
-        phase: "turn-start",
+        phase: "turn-action",
         turnNumber: 4
-      },
-      latestPresentation: {
-        toolId: "movement",
-        eventKinds: ["state_transition"]
       }
     }
   }),

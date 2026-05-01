@@ -98,10 +98,11 @@ function createPassiveRocketMovement(
   variant: "blast" | "splash",
   type: "leap" | "translate"
 ) {
-  return createMovementDescriptor(type, "passive", {
-    tags: [toolTagBase, `rocket:${variant}`],
-    timing: "out_of_turn"
-  });
+  return createMovementDescriptor(
+    type, "passive",
+    [toolTagBase, `rocket:${variant}`],
+    "out_of_turn"
+  );
 }
 
 export function resolveRocketCore(

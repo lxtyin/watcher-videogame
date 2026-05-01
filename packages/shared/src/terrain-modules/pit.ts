@@ -29,7 +29,6 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
       const playerState = context.draft.playersById.get(context.state.player.id);
       context.state.direction = null;
       context.state.remainingMovePoints = 0;
-      context.state.shouldResolveStopTriggers = false;
       appendTerrainTrigger(context.draft, {
         kind: "pit",
         movement: context.movement,
@@ -39,6 +38,31 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
         tileKey: context.tile.key
       });
     }
+  },
+
+  onStop: (context) => { 
+      const triggerPosition = {
+        x: context.player.position.x,
+        y: context.player.position.y
+      };
+
+      appendTerrainPreviewHighlight(context.draft, triggerPosition);
+      respawnPlayerOnTerrain(context.draft, {
+        eventId: `${context.draft.sourceId}:pit:${context.tile.key}`,
+        motionStyle: "spin_drop",
+        player: context.player,
+        startMs: context.startMs,
+        triggerPosition
+      });
+      const playerState = context.draft.playersById.get(context.player.id);
+      appendTerrainTrigger(context.draft, {
+        kind: "pit",
+        movement: context.movement,
+        playerId: context.player.id,
+        position: triggerPosition,
+        respawnPosition: playerState?.boardVisible ? context.player.spawnPosition : null,
+        tileKey: context.tile.key
+      });
   },
   type: "pit"
 };

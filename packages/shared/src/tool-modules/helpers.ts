@@ -104,24 +104,20 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
   };
 }
 
-interface ToolMovementDescriptorOptions {
-  dispositionOverride?: MovementDisposition;
-  timingOverride?: MovementTiming;
-}
-
 export function resolveToolMovementDescriptor(
   context: ToolActionContext,
   definition: ToolContentDefinition,
   fallbackType: MovementType,
   extraTags: readonly string[] = [],
-  options: ToolMovementDescriptorOptions = {}
+  dispositionOverride?: MovementDisposition,
+  timingOverride?: MovementTiming
 ): MovementDescriptor {
   const definitionMovement =
     definition.actorMovement ?? {
       type: fallbackType,
       disposition: "active" as const
     };
-  const disposition = options.dispositionOverride ?? definitionMovement.disposition;
+  const disposition = dispositionOverride ?? definitionMovement.disposition;
   const type =
     disposition === "active"
       ? resolveToolMovementType(
@@ -141,10 +137,12 @@ export function resolveToolMovementDescriptor(
         )
       : definitionMovement.type;
 
-  return createMovementDescriptor(type, disposition, {
-    tags: [`tool:${context.activeTool.toolId}`, ...extraTags],
-    timing: options.timingOverride ?? (disposition === "active" ? "in_turn" : "out_of_turn")
-  });
+  return createMovementDescriptor(
+    type,
+    disposition,
+    [`tool:${context.activeTool.toolId}`, ...extraTags],
+    timingOverride ?? (disposition === "active" ? "in_turn" : "out_of_turn")
+  );
 }
 
 export function createPassiveMovementDescriptor(
@@ -153,10 +151,12 @@ export function createPassiveMovementDescriptor(
   extraTags: readonly string[] = [],
   timingOverride: MovementTiming = "out_of_turn"
 ): MovementDescriptor {
-  return createMovementDescriptor(type, "passive", {
-    tags: [`tool:${toolId}`, ...extraTags],
-    timing: timingOverride
-  });
+  return createMovementDescriptor(
+    type,
+    "passive",
+    [`tool:${toolId}`, ...extraTags],
+    timingOverride
+  );
 }
 
 function cloneGridPosition(position: GridPosition): GridPosition {

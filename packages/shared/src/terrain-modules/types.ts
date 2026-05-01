@@ -13,7 +13,6 @@ export interface PassThroughTerrainState {
   direction: Direction | null;
   player: MovementActor;
   remainingMovePoints: number | null;
-  shouldResolveStopTriggers: boolean;
 }
 
 export interface TerrainPassThroughContext {

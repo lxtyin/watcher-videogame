@@ -31,7 +31,7 @@ import {
   applyTurnStartModifiers
 } from "./skills";
 import { resolveStopSummonEffects } from "./summons";
-import { resolveStopTerrainEffect } from "./terrain";
+import { resolvePassThroughTerrainEffect, resolveStopTerrainEffect } from "./terrain";
 import {
   cloneToolSelectionRecord,
   getDirectionSelection
@@ -76,6 +76,7 @@ import type {
   SimulationDispatchResult,
   SimulationSceneDefinition
 } from "./simulation/types";
+import { createMovementDescriptor } from "./rules/displacement";
 
 interface MutableGameOrchestrationState {
   runtime: GameRuntimeState;
@@ -890,14 +891,8 @@ function applyPhaseStartToPlayer(
 function applyPhaseEntryStop(
   state: MutableGameOrchestrationState,
   player: PlayerSnapshot,
-  phase: TurnInfoSnapshot["phase"],
-  options: {
-    includeSummons?: boolean;
-    includeTerrain?: boolean;
-  } = {}
+  phase: TurnInfoSnapshot["phase"]
 ): TriggeredTerrainEffect[] {
-  const includeSummons = options.includeSummons ?? true;
-  const includeTerrain = options.includeTerrain ?? true;
   const board = buildBoardDefinition(state.snapshot);
   const summons = buildBoardSummons(state.snapshot);
   const draft = createTurnStartResolutionDraft(
@@ -918,21 +913,29 @@ function applyPhaseEntryStop(
     "movement"
   );
 
-  if (includeSummons) {
-    resolveStopSummonEffects(draft, {
-      movement: null,
-      phase,
-      player: draft.actor,
-      position: draft.actor.position,
-      startMs: 0
-    });
-  }
+  resolveStopSummonEffects(draft, {
+    movement: createMovementDescriptor(
+      "landing",
+      "active",
+      [],
+      "in_turn"
+    ),
+    phase,
+    player: draft.actor,
+    position: draft.actor.position,
+    startMs: 0
+  });
 
-  const tile = includeTerrain ? getTile(draft.board, draft.actor.position) : null;
+  const tile = getTile(draft.board, draft.actor.position);
 
   if (tile) {
     resolveStopTerrainEffect(draft, {
-      movement: null,
+      movement: createMovementDescriptor(
+        "landing",
+        "active",
+        [],
+        "in_turn"
+      ),
       player: draft.actor,
       position: draft.actor.position,
       startMs: 0,
@@ -1281,10 +1284,6 @@ function beginTurnFor(
   restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
   const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
-  applyPhaseEntryStop(state, player, "turn-start", {
-    includeSummons: true,
-    includeTerrain: false
-  });
 
   if (phaseStart.skipTurn) {
     queueTurnSkipAdvance(
@@ -1306,10 +1305,6 @@ function bootstrapExistingTurnStartPhase(state: MutableGameOrchestrationState): 
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   const presentationBaselineSequence = state.snapshot.latestPresentation?.sequence ?? null;
   const phaseStart = applyPhaseStartToPlayer(state, activePlayer, "turn-start");
-  applyPhaseEntryStop(state, activePlayer, "turn-start", {
-    includeSummons: true,
-    includeTerrain: false
-  });
 
   if (phaseStart.skipTurn) {
     queueTurnSkipAdvance(
@@ -1984,4 +1979,3 @@ export function createGameOrchestrator(
 ): GameOrchestrator {
   return new MutableGameOrchestrator(initialState);
 }
-
