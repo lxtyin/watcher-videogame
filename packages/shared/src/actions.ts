@@ -20,8 +20,11 @@ export function resolveToolAction(context: ToolActionContext): ActionResolution 
   const toolDefinition = getToolDefinition(context.activeTool.toolId);
   const availability = toolDefinition.isAvailable({
     actorId: context.actor.id,
-    roundUsedTools: context.roundUsedTools,
+    actorTags: context.actor.tags,
+    phase: context.phase,
     tool: context.activeTool,
+    toolHistory: context.toolHistory,
+    turnNumber: context.turnNumber,
     tools: context.tools
   });
 

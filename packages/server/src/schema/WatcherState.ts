@@ -85,7 +85,7 @@ export class WatcherState extends Schema {
   @type("string") hostPlayerId = "";
   @type("boolean") allowDebugTools = true;
   @type("string") settlementState = "active";
-  @type("string") roundUsedToolsJson = "[]";
+  @type("string") toolHistoryJson = "[]";
   @type("number") boardWidth = BOARD_WIDTH;
   @type("number") boardHeight = BOARD_HEIGHT;
   @type({ map: TileState }) board = new MapSchema<TileState>();

@@ -758,3 +758,32 @@
 - `SkillDefinition` 删除 `summary`
   - 技能文本统一只保留 `getTextDescription`
   - `Character.summary` 继续保留，仍用于角色卡与场景检查卡的短描述
+
+## 2026-04-30 Lamp 历史复制与 turn-start 立即投骰
+
+- 通用 choice / turn-start 流程继续收口：
+  - `ActionPhaseEffect` 新增 `rollMode`
+  - `gameOrchestration` 恢复并正式接入“工具使用后立刻投骰再进入行动阶段”的主链
+  - `volatySkipToolDie` 与 `lampCopy` 都改为通过这条通用机制推进，而不是让玩家再额外点一次 `rollDice`
+- shared 核心层新增通用 `toolHistory`
+  - 用 `toolHistory` 取代旧的 `roundUsedTools`
+  - 历史记录字段统一为 `toolId / params / playerId / source / turnNumber`
+  - server schema / room mapper / client deserialize 全部同步改成 `toolHistoryJson`
+- Lamp 机制重做：
+  - 取消旧的 `lampPrepareCopy -> onDiceRoll grant lampCopy` 两段式
+  - 改为在 `turn-start` 直接授予并使用 `lampCopy`
+  - `lampCopy` 会从“自己上回合结束后到本回合开始前，其他玩家使用过的工具记录”中，确定性抽取至多 3 项供选择
+  - 选择结果只把 `toolHistory` 索引写入 tag；真正的复制工具在 `onTurnActionStart` 消耗该 tag 后发放
+  - 不再限制只能复制 `turn-action` 可用工具，也不再排除 `movement`
+- Volaty 约束补齐：
+  - `isAvailable` 现在显式要求 `turn-start`
+  - 使用后立即进入只掷移动骰的流程
+- 文档同步：
+  - 更新 `docs/游戏规则与内容定义.md`
+  - 更新 `docs/arch/能力系统统一模型.md`
+- 本轮验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`46/46` passed
+  - `npm.cmd run build --workspace @watcher/client`

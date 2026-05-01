@@ -129,6 +129,8 @@ export function createToolMovementPlan(
             phase: context.phase,
             position: context.actor.position,
             tags: context.actor.tags,
+            toolHistory: context.toolHistory,
+            turnNumber: context.turnNumber,
             tools: context.tools
           },
           context.activeTool,

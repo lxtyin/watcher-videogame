@@ -77,10 +77,6 @@ const ACTION_UI_CONFIG: Record<ActionUiId, ActionUiConfig> = {
     token: "跃",
     accent: "#77b8ff"
   },
-  lampPrepareCopy: {
-    token: "复",
-    accent: "#c98e44"
-  },
   lampCopy: {
     token: "复",
     accent: "#c98e44"

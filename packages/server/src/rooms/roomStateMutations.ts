@@ -159,7 +159,7 @@ export function applyGameSnapshotToState(
   state.roomCode = snapshot.roomCode;
   state.roomPhase = snapshot.roomPhase;
   state.settlementState = snapshot.settlementState;
-  state.roundUsedToolsJson = JSON.stringify(snapshot.roundUsedTools);
+  state.toolHistoryJson = JSON.stringify(snapshot.toolHistory);
 
   const activeTileKeys = new Set(snapshot.tiles.map((tile) => tile.key));
   for (const key of Array.from(state.board.keys())) {

@@ -1,12 +1,23 @@
-import type { RoundUsedToolContentDefinition, ToolContentDefinition } from "../content/schema";
+import type { ToolContentDefinition } from "../content/schema";
 import {
+  buildLampCopyChoiceId,
+  getLampEligibleHistoryEntries,
+  getLampCopyCandidates,
+  parseLampCopyChoiceId,
+  toLampCopiedToolLoadout,
+  LAMP_COPY_HISTORY_INDEX_TAG
+} from "../lamp-copy";
+import { setPlayerTagValue } from "../playerTags";
+import {
+  setDraftActorTags,
   setDraftApplied,
   setDraftBlocked,
   setDraftToolInventory
 } from "../rules/actionDraft";
 import { consumeActiveTool, requireChoiceSelection } from "../rules/actionResolution";
 import { createModalChoiceInteraction } from "../toolInteraction";
-import type { RoundUsedToolSnapshot, ToolChoiceDefinition, TurnToolSnapshot } from "../types";
+import { getToolDefinition, getToolTextDescription } from "../tools";
+import type { ToolChoiceDefinition } from "../types";
 import type { ToolModule } from "./types";
 import {
   appendDraftSoundEvent,
@@ -17,116 +28,92 @@ import {
   isChargedToolAvailable
 } from "./helpers";
 
-type LampCopyCandidate = Pick<
-  RoundUsedToolContentDefinition,
-  "description" | "label" | "params" | "playerId" | "source" | "toolId" | "usableInTurnAction"
->;
+function createLampCopyChoiceDefinition(
+  candidate: ReturnType<typeof getLampCopyCandidates>[number]
+): ToolChoiceDefinition {
+  const copiedTool = toLampCopiedToolLoadout(candidate);
+  const copiedToolDefinition = getToolDefinition(copiedTool.toolId);
+  const textDescription = getToolTextDescription({
+    charges: copiedToolDefinition.defaultCharges,
+    instanceId: `lamp-copy-preview:${candidate.historyIndex}`,
+    params: copiedTool.params ?? {},
+    source: copiedTool.source ?? copiedToolDefinition.source,
+    toolId: copiedTool.toolId
+  });
 
-function buildLampCopySignature(usedTool: Pick<LampCopyCandidate, "params" | "source" | "toolId">): string {
-  const paramsSignature = Object.entries(usedTool.params)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value ?? 0}`)
-    .join(",");
-
-  return `${usedTool.toolId}|${usedTool.source}|${paramsSignature}`;
-}
-
-function buildLampCopyChoiceId(usedTool: Pick<LampCopyCandidate, "params" | "source" | "toolId">): string {
-  return `copy:${buildLampCopySignature(usedTool)}`;
-}
-
-function buildLampCopiedToolInstanceId(activeToolInstanceId: string, choiceId: string): string {
-  return `${activeToolInstanceId}:${choiceId}`;
-}
-
-function isLampCopyCandidate(usedTool: LampCopyCandidate, actorId: string): boolean {
-  return (
-    usedTool.playerId !== actorId &&
-    usedTool.toolId !== "movement" &&
-    usedTool.toolId !== "lampCopy" &&
-    usedTool.usableInTurnAction
-  );
-}
-
-function getLampCopyCandidates<TCandidate extends LampCopyCandidate>(
-  actorId: string,
-  roundUsedTools: readonly TCandidate[]
-): TCandidate[] {
-  const uniqueCandidates = new Map<string, TCandidate>();
-
-  for (const usedTool of roundUsedTools) {
-    if (!isLampCopyCandidate(usedTool, actorId)) {
-      continue;
-    }
-
-    const signature = buildLampCopySignature(usedTool);
-
-    if (!uniqueCandidates.has(signature)) {
-      uniqueCandidates.set(signature, {
-        ...usedTool,
-        params: {
-          ...usedTool.params
-        }
-      } as TCandidate);
-    }
-  }
-
-  return [...uniqueCandidates.values()];
-}
-
-function createLampCopyChoiceDefinition(usedTool: LampCopyCandidate): ToolChoiceDefinition {
   return {
-    id: buildLampCopyChoiceId(usedTool),
-    iconId: `tool:${usedTool.toolId}`,
-    label: usedTool.label,
-    description: usedTool.description
+    id: buildLampCopyChoiceId(candidate.historyIndex),
+    label: textDescription.title,
+    description: textDescription.description
   };
 }
 
 function getLampCopyChoices(
   context: Parameters<NonNullable<ToolModule["getChoices"]>>[0]
 ): readonly ToolChoiceDefinition[] {
-  return getLampCopyCandidates(context.actor.id, context.roundUsedTools).map(createLampCopyChoiceDefinition);
+  return getLampCopyCandidates(
+    context.actor.id,
+    context.actor.tags,
+    context.toolHistory,
+    context.turnNumber,
+    context.toolDieSeed
+  ).map(createLampCopyChoiceDefinition);
 }
 
-function findLampCopiedTool(
-  choiceId: string,
-  actorId: string,
-  roundUsedTools: readonly RoundUsedToolSnapshot[]
-): RoundUsedToolSnapshot | null {
-  return (
-    getLampCopyCandidates(actorId, roundUsedTools).find(
-      (usedTool) => buildLampCopyChoiceId(usedTool) === choiceId
-    ) ?? null
+function getLampCopyCandidatesForContext(
+  context:
+    | Parameters<NonNullable<ToolModule["getChoices"]>>[0]
+    | Parameters<ToolModule["execute"]>[1]
+): ReturnType<typeof getLampCopyCandidates> {
+  return getLampCopyCandidates(
+    context.actor.id,
+    context.actor.tags,
+    context.toolHistory,
+    context.turnNumber,
+    context.toolDieSeed
   );
+}
+
+function isLampCopyAvailable(
+  context: Parameters<NonNullable<ToolContentDefinition["isAvailable"]>>[0]
+) {
+  const chargeAvailability = isChargedToolAvailable(context);
+
+  if (!chargeAvailability.usable) {
+    return chargeAvailability;
+  }
+
+  if (context.phase !== "turn-start") {
+    return createToolUnavailableResult("只能在回合开始阶段使用");
+  }
+
+  if (!context.actorId || !context.actorTags || !context.toolHistory || !context.turnNumber) {
+    return createToolUnavailableResult("当前缺少复制目标信息");
+  }
+
+  return getLampEligibleHistoryEntries(
+    context.actorId,
+    context.actorTags,
+    context.toolHistory,
+    context.turnNumber
+  ).length < 1
+    ? createToolUnavailableResult("当前没有可复制的工具记录")
+    : chargeAvailability;
 }
 
 export const LAMP_COPY_TOOL_DEFINITION: ToolContentDefinition = {
   label: "复制",
-  disabledHint: "本轮内需要先有其他玩家使用过可在行动阶段使用的工具。",
+  disabledHint: "当前无法替换本回合的工具骰",
   source: "character_skill",
   interaction: createModalChoiceInteraction(),
-  isAvailable: (context) => {
-    const chargeAvailability = isChargedToolAvailable(context);
-
-    if (!chargeAvailability.usable) {
-      return chargeAvailability;
-    }
-
-    if (!context.actorId) {
-      return createToolUnavailableResult("当前缺少复制目标信息。");
-    }
-
-    return getLampCopyCandidates(context.actorId, context.roundUsedTools ?? []).length < 1
-      ? createToolUnavailableResult("本轮还没有其他玩家使用过可复制的工具。")
-      : chargeAvailability;
-  },
+  isAvailable: isLampCopyAvailable,
   defaultCharges: 1,
   defaultParams: {},
+  phases: ["turn-start"],
   getTextDescription: () => ({
     title: "复制",
-    description: "放弃本回合工具骰，改为选择一件本轮其他玩家用过的工具并加入手牌。",
-    details: ["只能复制其他玩家本轮已经使用过的行动阶段工具。"]
+    description: "放弃本回合工具骰，改为在行动阶段获得一个复制工具。",
+    details: ["候选来自自己上回合结束后到本回合开始前，其他玩家使用过的至多三个工具记录。"]
   }),
   color: "#c98e44",
   rollable: false,
@@ -139,42 +126,38 @@ function resolveLampCopyTool(
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
   const choiceId = requireChoiceSelection(context);
+  const historyIndex = choiceId ? parseLampCopyChoiceId(choiceId) : null;
 
-  if (!choiceId) {
+  if (historyIndex === null) {
     setDraftBlocked(draft, "Lamp copy needs a choice", {
       preview: createToolPreview(context, { valid: false })
     });
     return;
   }
 
-  const copiedTool = findLampCopiedTool(choiceId, context.actor.id, context.roundUsedTools);
+  const candidate =
+    getLampCopyCandidatesForContext(context).find((entry) => entry.historyIndex === historyIndex) ?? null;
 
-  if (!copiedTool) {
+  if (!candidate) {
     setDraftBlocked(draft, "Lamp copy choice no longer exists", {
       preview: createToolPreview(context, { valid: false })
     });
     return;
   }
 
-  const nextTools = [
-    ...consumeActiveTool(context),
-    {
-      instanceId: buildLampCopiedToolInstanceId(context.activeTool.instanceId, choiceId),
-      toolId: copiedTool.toolId,
-      charges: 1,
-      params: {
-        ...copiedTool.params
-      },
-      source: copiedTool.source
-    } satisfies TurnToolSnapshot
-  ];
-
   appendDraftSoundEvent(draft, "tool_buff", "lamp-copy:activate", {
     anchor: createPlayerAnchor(context.actor.id)
   });
-  setDraftToolInventory(draft, nextTools);
+  setDraftActorTags(
+    draft,
+    setPlayerTagValue(context.actor.tags, LAMP_COPY_HISTORY_INDEX_TAG, candidate.historyIndex)
+  );
+  setDraftToolInventory(draft, consumeActiveTool(context));
   setDraftApplied(draft, createUsedSummary(LAMP_COPY_TOOL_DEFINITION.label), {
     path: [],
+    phaseEffect: {
+      rollMode: "movement_only"
+    },
     preview: createToolPreview(context, { valid: true })
   });
 }

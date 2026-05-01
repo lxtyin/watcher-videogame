@@ -42,11 +42,11 @@ import {
   createMovementToolInstance,
   createToolInstance,
   findToolInstance,
-  getToolDefinition,
-  getToolTextDescription
+  getToolDefinition
 } from "./tools";
 import { getAssignedPlayerColor, getSequentialTeamId, getTeamDisplayLabel } from "./teams";
 import type {
+  ActionPhaseEffect,
   ActionPresentation,
   BoardDefinition,
   BoardPlayerState,
@@ -57,8 +57,8 @@ import type {
   GridPosition,
   PlayerTagMap,
   PlayerSnapshot,
-  RoundUsedToolSnapshot,
   PlayerStateTransition,
+  ToolHistoryEntrySnapshot,
   PlayerTurnFlag,
   SummonMutation,
   TileMutation,
@@ -107,16 +107,14 @@ function clonePosition(position: GridPosition): GridPosition {
   };
 }
 
-function cloneRoundUsedTool(usedTool: RoundUsedToolSnapshot): RoundUsedToolSnapshot {
+function cloneToolHistoryEntry(entry: ToolHistoryEntrySnapshot): ToolHistoryEntrySnapshot {
   return {
-    description: usedTool.description,
-    label: usedTool.label,
-    playerId: usedTool.playerId,
-    toolId: usedTool.toolId,
-    source: usedTool.source,
-    usableInTurnAction: usedTool.usableInTurnAction,
+    playerId: entry.playerId,
+    toolId: entry.toolId,
+    source: entry.source,
+    turnNumber: entry.turnNumber,
     params: {
-      ...usedTool.params
+      ...entry.params
     }
   };
 }
@@ -159,7 +157,7 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
       })),
       turnFlags: [...player.turnFlags]
     })),
-    roundUsedTools: snapshot.roundUsedTools.map(cloneRoundUsedTool),
+    toolHistory: snapshot.toolHistory.map(cloneToolHistoryEntry),
     summons: snapshot.summons.map((summon) => ({
       ...summon,
       position: clonePosition(summon.position)
@@ -289,6 +287,7 @@ function isBedwarsMode(state: MutableGameOrchestrationState): boolean {
 
 function normalizePlayerTools(
   player: PlayerSnapshot,
+  snapshot: GameSnapshot,
   tools: TurnToolSnapshot[],
   phase: TurnInfoSnapshot["phase"]
 ): ReturnType<typeof applyOnGetToolModifiers> {
@@ -300,6 +299,8 @@ function normalizePlayerTools(
       phase,
       position: clonePosition(player.position),
       tags: clonePlayerTags(player.tags),
+      toolHistory: snapshot.toolHistory.map(cloneToolHistoryEntry),
+      turnNumber: snapshot.turnInfo.turnNumber,
       tools
     },
     tools
@@ -324,11 +325,12 @@ function applyPlayerTurnFlags(player: PlayerSnapshot, turnFlags: PlayerTurnFlag[
 }
 
 function applyToolInventory(
+  snapshot: GameSnapshot,
   player: PlayerSnapshot,
   tools: TurnToolSnapshot[],
   phase: TurnInfoSnapshot["phase"]
 ): void {
-  const normalizedTools = normalizePlayerTools(player, tools, phase);
+  const normalizedTools = normalizePlayerTools(player, snapshot, tools, phase);
   applyPlayerModifiers(player, normalizedTools.nextModifiers);
   applyPlayerTags(player, normalizedTools.nextTags);
   player.tools = normalizedTools.tools;
@@ -347,23 +349,18 @@ function clonePlayerTools(tools: TurnToolSnapshot[]): TurnToolSnapshot[] {
   }));
 }
 
-function recordRoundUsedTool(
+function recordToolHistoryEntry(
   snapshot: GameSnapshot,
   playerId: string,
   tool: TurnToolSnapshot
 ): void {
-  const toolDefinition = getToolDefinition(tool.toolId);
-  const textDescription = getToolTextDescription(tool);
-
-  snapshot.roundUsedTools = [
-    ...snapshot.roundUsedTools,
+  snapshot.toolHistory = [
+    ...snapshot.toolHistory,
     {
-      description: textDescription.description,
-      label: toolDefinition.label,
       playerId,
       toolId: tool.toolId,
       source: tool.source,
-      usableInTurnAction: canUseToolInPhase(tool.toolId, "turn-action"),
+      turnNumber: snapshot.turnInfo.turnNumber,
       params: {
         ...tool.params
       }
@@ -481,6 +478,8 @@ function applyMovementResolvedEffects(
         phase,
         position: clonePosition(player.position),
         tags: clonePlayerTags(player.tags),
+        toolHistory: snapshot.toolHistory.map(cloneToolHistoryEntry),
+        turnNumber: snapshot.turnInfo.turnNumber,
         tools: [...player.tools]
       },
       movementResult.movement,
@@ -838,6 +837,8 @@ function applyPhaseStartToPlayer(
           phase,
           position: clonePosition(player.position),
           tags: clonePlayerTags(player.tags),
+          toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
+          turnNumber: state.snapshot.turnInfo.turnNumber,
           tools: [...player.tools]
         })
       : phase === "turn-action"
@@ -847,6 +848,8 @@ function applyPhaseStartToPlayer(
             phase,
             position: clonePosition(player.position),
             tags: clonePlayerTags(player.tags),
+            toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
+            turnNumber: state.snapshot.turnInfo.turnNumber,
             tools: [...player.tools]
           })
         : applyTurnEndStartModifiers(player.characterId, {
@@ -855,6 +858,8 @@ function applyPhaseStartToPlayer(
             phase,
             position: clonePosition(player.position),
             tags: clonePlayerTags(player.tags),
+            toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
+            turnNumber: state.snapshot.turnInfo.turnNumber,
             tools: [...player.tools]
           });
 
@@ -868,6 +873,7 @@ function applyPhaseStartToPlayer(
   }
 
   applyToolInventory(
+    state.snapshot,
     player,
     [
       ...player.tools,
@@ -967,6 +973,8 @@ function enterActionPhaseWithRoll(
       phase: "turn-start",
       position: clonePosition(player.position),
       tags: clonePlayerTags(player.tags),
+      toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
+      turnNumber: state.snapshot.turnInfo.turnNumber,
       tools: [...player.tools]
     },
     moveRoll,
@@ -976,6 +984,7 @@ function enterActionPhaseWithRoll(
   applyPlayerModifiers(player, diceRollModifiers.nextModifiers);
   applyPlayerTags(player, diceRollModifiers.nextTags);
   applyToolInventory(
+    state.snapshot,
     player,
     [
       ...(diceRollModifiers.movementRoll > 0
@@ -1116,7 +1125,6 @@ function queueRaceFinishAdvance(
   state.runtime.pendingAdvance = {
     kind: "race_finish",
     nextPlayerId,
-    resetRoundUsedTools: didTurnOrderWrap(state, player.id, nextPlayerId),
     shouldAdvanceTurnNumber
   };
 }
@@ -1125,7 +1133,6 @@ function queueSettlementAdvance(state: MutableGameOrchestrationState): void {
   state.runtime.pendingAdvance = {
     kind: "presentation_settlement",
     nextPlayerId: null,
-    resetRoundUsedTools: false,
     shouldAdvanceTurnNumber: false
   };
 }
@@ -1141,6 +1148,8 @@ function resolveTurnEndAdvance(
     phase: state.snapshot.turnInfo.phase,
     position: clonePosition(player.position),
     tags: clonePlayerTags(player.tags),
+    toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
+    turnNumber: state.snapshot.turnInfo.turnNumber,
     tools: [...player.tools]
   });
 
@@ -1160,10 +1169,6 @@ function finishTurn(
   const nextPlayerId = resolveTurnEndAdvance(state, player, message);
 
   if (nextPlayerId) {
-    if (didTurnOrderWrap(state, player.id, nextPlayerId)) {
-      state.snapshot.roundUsedTools = [];
-    }
-
     beginTurnFor(state, nextPlayerId, true);
     return;
   }
@@ -1234,7 +1239,6 @@ function queueTurnSkipAdvance(
   state.runtime.pendingAdvance = {
     kind: "turn_skip",
     nextPlayerId,
-    resetRoundUsedTools: didTurnOrderWrap(state, player.id, nextPlayerId),
     shouldAdvanceTurnNumber: nextPlayerId !== null
   };
 }
@@ -1347,6 +1351,34 @@ function buildOkOutcome(message: string): SimulationCommandOutcome {
   };
 }
 
+function rollIntoActionPhase(
+  state: MutableGameOrchestrationState,
+  player: PlayerSnapshot,
+  rollMode: NonNullable<ActionPhaseEffect["rollMode"]>
+): void {
+  const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
+  state.runtime.moveDieSeed = movementRoll.nextSeed;
+
+  if (rollMode === "standard") {
+    const toolRoll = rollToolDie(state.runtime.toolDieSeed);
+    state.runtime.toolDieSeed = toolRoll.nextSeed;
+    pushEvent(
+      state,
+      "dice_rolled",
+      `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
+    );
+    enterActionPhaseWithRoll(state, player, movementRoll.value, toolRoll.value);
+    return;
+  }
+
+  pushEvent(
+    state,
+    "dice_rolled",
+    `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
+  );
+  enterActionPhaseWithRoll(state, player, movementRoll.value, null);
+}
+
 function buildSettlementMessage(state: MutableGameOrchestrationState): string {
   if (isRaceMode(state)) {
     return "All players reached the goal. Settlement is ready.";
@@ -1392,12 +1424,7 @@ function runRollDiceCommand(
     "dice_rolled",
     `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
   );
-  enterActionPhaseWithRoll(
-    state,
-    player,
-    movementRoll.value,
-    toolRoll.value
-  );
+  enterActionPhaseWithRoll(state, player, movementRoll.value, toolRoll.value);
 
   return buildOkOutcome(`${player.name} rolled successfully.`);
 }
@@ -1442,10 +1469,11 @@ function runUseToolCommand(
     input: cloneToolSelectionRecord(payload.input),
     mode: state.snapshot.mode,
     phase: state.snapshot.turnInfo.phase,
-    roundUsedTools: state.snapshot.roundUsedTools.map(cloneRoundUsedTool),
+    toolHistory: state.snapshot.toolHistory.map(cloneToolHistoryEntry),
     players: buildBoardPlayers(state.snapshot),
     summons: buildBoardSummons(state.snapshot),
     toolDieSeed: state.runtime.toolDieSeed,
+    turnNumber: state.snapshot.turnInfo.turnNumber,
     tools: [...player.tools]
   });
 
@@ -1461,7 +1489,7 @@ function runUseToolCommand(
   applyPlayerModifiers(player, resolution.actor.modifiers);
   applyPlayerTags(player, resolution.actor.tags);
   applyPlayerTurnFlags(player, resolution.actor.turnFlags);
-  applyToolInventory(player, resolution.tools, state.snapshot.turnInfo.phase);
+  applyToolInventory(state.snapshot, player, resolution.tools, state.snapshot.turnInfo.phase);
   applyTileMutations(state.snapshot, resolution.tileMutations);
   applySummonMutations(state.snapshot, resolution.summonMutations);
   applyAffectedPlayerMoves(state.snapshot, resolution.affectedPlayers);
@@ -1490,7 +1518,7 @@ function runUseToolCommand(
   pushSummonEvents(state, resolution.triggeredSummonEffects);
   const goalProgress = applyModeProgress(state, player.id, resolution.triggeredTerrainEffects);
   const actorWasKnockedOut = wasPlayerKnockedOutByTerrain(resolution.triggeredTerrainEffects, player.id);
-  recordRoundUsedTool(state.snapshot, player.id, activeTool);
+  recordToolHistoryEntry(state.snapshot, player.id, activeTool);
 
   if (activeTool.toolId === "movement") {
     const movementDirection = getDirectionSelection(payload.input);
@@ -1512,30 +1540,10 @@ function runUseToolCommand(
     queueSettlementAdvance(state);
     return buildOkOutcome(resolution.summary);
   }
-  // if (resolution.phaseEffect?.rollMode) {
-  //   const movementRoll = rollMovementDie(state.runtime.moveDieSeed);
-  //   state.runtime.moveDieSeed = movementRoll.nextSeed;
-
-  //   if (resolution.phaseEffect.rollMode === "standard") {
-  //     const toolRoll = rollToolDie(state.runtime.toolDieSeed);
-  //     state.runtime.toolDieSeed = toolRoll.nextSeed;
-  //     enterActionPhaseWithRoll(state, player, movementRoll.value, "standard", toolRoll.value);
-  //     pushEvent(
-  //       state,
-  //       "dice_rolled",
-  //       `${player.name} rolled Movement ${movementRoll.value} and ${getToolDefinition(toolRoll.value.toolId).label}.`
-  //     );
-  //   } else {
-  //     enterActionPhaseWithRoll(state, player, movementRoll.value, "movement_only", null);
-  //     pushEvent(
-  //       state,
-  //       "dice_rolled",
-  //       `${player.name} rolled Movement ${movementRoll.value} and skipped the tool die.`
-  //     );
-  //   }
-
-  //   return buildOkOutcome(resolution.summary);
-  // }
+  if (resolution.phaseEffect?.rollMode) {
+    rollIntoActionPhase(state, player, resolution.phaseEffect.rollMode);
+    return buildOkOutcome(resolution.summary);
+  }
 
   if (!(resolution.phaseEffect?.finishTurn || resolution.endsTurn)) {
     if (resolution.phaseEffect?.nextPhase === "turn-end") {
@@ -1663,7 +1671,7 @@ function runGrantDebugToolCommand(
       ? createMovementToolInstance(createToolInstanceId(state, "movement"), 4)
       : createDebugToolInstance(createToolInstanceId(state, toolId), toolId);
 
-  applyToolInventory(player, [...player.tools, grantedTool], state.snapshot.turnInfo.phase);
+  applyToolInventory(state.snapshot, player, [...player.tools, grantedTool], state.snapshot.turnInfo.phase);
   pushEvent(state, "debug_granted", `${player.name} debug gained ${definition.label}.`);
 
   return buildOkOutcome(`${player.name} gained ${definition.label}.`);
@@ -1699,10 +1707,6 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
         pushEvent(state, "match_finished", buildSettlementMessage(state));
       }
       return buildOkOutcome("Advanced into settlement.");
-    }
-
-    if (pendingAdvance.resetRoundUsedTools) {
-      state.snapshot.roundUsedTools = [];
     }
 
     beginTurnFor(
@@ -1744,10 +1748,6 @@ function runAdvanceTurn(state: MutableGameOrchestrationState): SimulationCommand
       enterSettlementState(state);
       pushEvent(state, "match_finished", buildSettlementMessage(state));
       return buildOkOutcome("Advanced into settlement.");
-    }
-
-    if (didTurnOrderWrap(state, currentPlayerId, nextPlayerId)) {
-      state.snapshot.roundUsedTools = [];
     }
 
     beginTurnFor(state, nextPlayerId, true);
@@ -1851,7 +1851,7 @@ export function createGameOrchestrationStateFromScene(
       mode: mapMetadata.mode,
       roomCode: sceneDefinition.mapId ?? "local-sim",
       roomPhase: "in_game",
-      roundUsedTools: [],
+      toolHistory: [],
       settlementState: sceneDefinition.settlementState ?? resolveSettlementState(mapMetadata.mode, players),
       summons: [],
       eventLog: [],
@@ -1879,6 +1879,7 @@ export function createGameOrchestrationStateFromScene(
     }
 
     applyToolInventory(
+      state.snapshot,
       player,
       (scenePlayer.tools ?? []).map((tool) => materializeToolLoadout(state, tool)),
       state.snapshot.turnInfo.phase

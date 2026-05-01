@@ -195,7 +195,7 @@ export function consumeToolInstance(
 export function getToolDisabledMessage(
   tool: TurnToolSnapshot,
   tools: TurnToolSnapshot[],
-  options: Pick<ToolUsabilityContext, "actorId" | "roundUsedTools"> = {}
+  options: Pick<ToolUsabilityContext, "actorId" | "phase" | "toolHistory"> = {}
 ): string | null {
   const availability = TOOL_DEFINITIONS[tool.toolId].isAvailable({
     ...options,

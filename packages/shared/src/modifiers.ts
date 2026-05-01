@@ -7,6 +7,7 @@ import type {
   MovementType,
   PlayerTagMap,
   SkillId,
+  ToolHistoryEntrySnapshot,
   ToolLoadoutDefinition,
   TurnPhase,
   TurnToolSnapshot
@@ -27,6 +28,8 @@ export interface ModifierContextBase {
   phase: TurnPhase;
   position: GridPosition;
   tags: PlayerTagMap;
+  toolHistory: readonly ToolHistoryEntrySnapshot[];
+  turnNumber: number;
   tools: readonly TurnToolSnapshot[];
 }
 

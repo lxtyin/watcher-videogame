@@ -13,16 +13,31 @@ import {
   appendDraftSoundEvent,
   createPlayerAnchor,
   createToolPreview,
+  createToolUnavailableResult,
   createUsedSummary,
   isChargedToolAvailable
 } from "./helpers";
+
+function isVolatySkipToolDieAvailable(
+  context: Parameters<NonNullable<ToolContentDefinition["isAvailable"]>>[0]
+) {
+  const chargeAvailability = isChargedToolAvailable(context);
+
+  if (!chargeAvailability.usable) {
+    return chargeAvailability;
+  }
+
+  return context.phase === "turn-start"
+    ? chargeAvailability
+    : createToolUnavailableResult("只能在回合开始阶段使用");
+}
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "飞跃",
   disabledHint: "当前无法进入飞跃模式。",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
-  isAvailable: isChargedToolAvailable,
+  isAvailable: isVolatySkipToolDieAvailable,
   defaultCharges: 1,
   defaultParams: {},
   phases: ["turn-start"],
@@ -50,6 +65,9 @@ function resolveVolatySkipToolDieTool(
   );
   setDraftToolInventory(draft, consumeActiveTool(context));
   setDraftApplied(draft, createUsedSummary(VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION.label), {
+    phaseEffect: {
+      rollMode: "movement_only"
+    },
     path: [],
     preview: createToolPreview(context, { valid: true })
   });

@@ -27,6 +27,7 @@ import type {
   PlayerTagMap,
   SkillId,
   TextDescription,
+  ToolHistoryEntrySnapshot,
   ToolLoadoutDefinition,
   TurnPhase,
   TurnToolSnapshot
@@ -99,6 +100,8 @@ interface ModifierActorContext {
   phase: TurnPhase;
   position: { x: number; y: number };
   tags: PlayerTagMap;
+  toolHistory: readonly ToolHistoryEntrySnapshot[];
+  turnNumber: number;
   tools: readonly TurnToolSnapshot[];
 }
 
@@ -234,6 +237,8 @@ function applyTurnHook(
       phase: actor.phase,
       position: actor.position,
       tags: nextTags,
+      toolHistory: actor.toolHistory,
+      turnNumber: actor.turnNumber,
       tools: actor.tools
     }) ?? null;
     const merged = mergePhaseResult(nextModifiers, nextTags, result);
@@ -326,6 +331,8 @@ export function applyDiceRollModifiers(
         phase: actor.phase,
         position: actor.position,
         tags: nextTags,
+        toolHistory: actor.toolHistory,
+        turnNumber: actor.turnNumber,
         tools: actor.tools,
         movementRoll: nextMovementRoll,
         rolledTool: nextRolledTool
@@ -398,6 +405,8 @@ export function applyOnGetToolModifiers(
         phase: actor.phase,
         position: actor.position,
         tags: nextTags,
+        toolHistory: actor.toolHistory,
+        turnNumber: actor.turnNumber,
         tools: actor.tools,
         tool: nextTool
       }) ?? null;
@@ -448,6 +457,8 @@ export function resolveToolMovementType(
         phase: actor.phase,
         position: actor.position,
         tags: actor.tags,
+        toolHistory: actor.toolHistory,
+        turnNumber: actor.turnNumber,
         tools: actor.tools,
         tool,
         movementType: nextMovementType
@@ -483,6 +494,8 @@ export function applyMovementResolvedModifiers(
         phase: actor.phase,
         position: actor.position,
         tags: nextTags,
+        toolHistory: actor.toolHistory,
+        turnNumber: actor.turnNumber,
         tools: actor.tools,
         movement,
         direction,

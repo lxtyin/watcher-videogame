@@ -47,13 +47,16 @@ export interface ToolTextDescriptionContext {
 
 export interface ToolUsabilityContext {
   actorId?: string;
-  roundUsedTools?: readonly RoundUsedToolContentDefinition[];
+  actorTags?: Partial<Record<string, boolean | number | string>>;
+  phase?: TurnPhase;
   tool: {
     charges: number;
     params: ToolParameterValueMap;
     source: ToolSource;
     toolId: string;
   };
+  toolHistory?: readonly ToolHistoryEntryContentDefinition[];
+  turnNumber?: number;
   tools: readonly {
     charges: number;
     params: ToolParameterValueMap;
@@ -67,14 +70,12 @@ export interface ToolUsabilityResult {
   usable: boolean;
 }
 
-export interface RoundUsedToolContentDefinition {
-  description: string;
-  label: string;
+export interface ToolHistoryEntryContentDefinition {
   params: ToolParameterValueMap;
   playerId: string;
   source: ToolSource;
   toolId: string;
-  usableInTurnAction: boolean;
+  turnNumber: number;
 }
 
 export interface ToolChoiceContentDefinition {

@@ -119,11 +119,6 @@ export const GOLDEN_CHARACTER_CASES = [
         label: "Volaty skips the tool die"
       },
       {
-        kind: "rollDice",
-        actorId: "volaty",
-        label: "Volaty rolls after skipping the tool die"
-      },
-      {
         kind: "useTool",
         actorId: "volaty",
         tool: "jump",
@@ -504,20 +499,9 @@ export const GOLDEN_CHARACTER_CASES = [
       {
         kind: "useTool",
         actorId: "lamp",
-        tool: "lampPrepareCopy",
-        label: "Lamp decides to replace the tool die with Copy"
-      },
-      {
-        kind: "rollDice",
-        actorId: "lamp",
-        label: "Lamp rolls movement only and gains Copy"
-      },
-      {
-        kind: "useTool",
-        actorId: "lamp",
         tool: "lampCopy",
-        choiceId: "copy:buildWall|turn|wallDurability=2",
-        label: "Lamp copies Build Wall from this round's history"
+        choiceId: "history:0",
+        label: "Lamp skips the tool die and chooses a copied tool"
       },
       {
         kind: "useTool",

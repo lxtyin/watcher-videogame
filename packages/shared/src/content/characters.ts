@@ -28,7 +28,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Lamp",
     nativeName: "兰彭",
     portraitId: "lamp",
-    summary: "回合开始可放弃本回合工具骰，并在行动阶段复制本轮其他玩家用过的一件工具。",
+    summary: "回合开始可放弃本回合工具骰，并在行动阶段复制自己上回合结束后其他玩家用过的一件工具。",
     skillIds: ["lamp:copy-roll"]
   },
   leader: {
@@ -52,7 +52,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Volaty",
     nativeName: "芙兰迪",
     portraitId: "volaty",
-    summary: "回合开始可跳过工具骰，并把本回合平移改成飞跃。",
+    summary: "回合开始可跳过工具骰，立刻投掷移动骰，并把本回合平移改成飞跃。",
     skillIds: ["volaty:leap-roll"]
   },
   chain: {
@@ -68,7 +68,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Farther",
     nativeName: "法真",
     portraitId: "farther",
-    summary: "每个行动阶段获得制衡，并可把移动储存到下回合。",
+    summary: "每个行动阶段获得制衡，可扣除至多一半移动点，并在下回合取回等量移动。",
     skillIds: ["farther:balance-bank"]
   },
   mountain: {

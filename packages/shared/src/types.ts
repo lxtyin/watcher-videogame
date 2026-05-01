@@ -4,9 +4,9 @@
   MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
   MovementType as ContentMovementType,
-  RoundUsedToolContentDefinition,
   TeamId as ContentTeamId,
   TileType as ContentTileType,
+  ToolHistoryEntryContentDefinition,
   ToolChoiceContentDefinition,
   ToolInteractionAnchorDefinition as ContentToolInteractionAnchorDefinition,
   ToolInteractionDefinition as ContentToolInteractionDefinition,
@@ -185,7 +185,7 @@ export interface TurnToolSnapshot {
   toolId: ToolId;
 }
 
-export interface RoundUsedToolSnapshot extends RoundUsedToolContentDefinition {
+export interface ToolHistoryEntrySnapshot extends ToolHistoryEntryContentDefinition {
   source: ToolSource;
   toolId: ToolId;
 }
@@ -233,12 +233,12 @@ export interface GameSnapshot {
   mapLabel: string;
   mode: GameMode;
   players: PlayerSnapshot[];
-  roundUsedTools: RoundUsedToolSnapshot[];
   roomCode: string;
   roomPhase: RoomPhase;
   settlementState: GameSettlementState;
   summons: SummonSnapshot[];
   tiles: TileDefinition[];
+  toolHistory: ToolHistoryEntrySnapshot[];
   turnInfo: TurnInfoSnapshot;
 }
 
@@ -364,9 +364,10 @@ export interface ToolActionContext extends ActionContextBase {
   activeTool: TurnToolSnapshot;
   input: ToolSelectionRecord;
   phase: TurnPhase;
-  roundUsedTools: RoundUsedToolSnapshot[];
   summons: BoardSummonState[];
   toolDieSeed: number;
+  toolHistory: ToolHistoryEntrySnapshot[];
+  turnNumber: number;
   tools: TurnToolSnapshot[];
 }
 
@@ -642,6 +643,7 @@ export interface SequencedActionPresentation extends ActionPresentation {
 export interface ActionPhaseEffect {
   finishTurn?: boolean;
   nextPhase?: TurnPhase;
+  rollMode?: "movement_only" | "standard";
 }
 
 export type ActionResolution =

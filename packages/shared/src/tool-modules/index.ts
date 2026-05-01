@@ -12,7 +12,6 @@ import { DEPLOY_WALLET_TOOL_MODULE } from "./deploy-wallet";
 import { HOOKSHOT_TOOL_MODULE } from "./hookshot";
 import { JUMP_TOOL_MODULE } from "./jump";
 import { LAMP_COPY_TOOL_MODULE } from "./lamp-copy";
-import { LAMP_PREPARE_COPY_TOOL_MODULE } from "./lamp-prepare-copy";
 import { MOVEMENT_TOOL_MODULE } from "./movement";
 import { PUNCH_TOOL_MODULE } from "./punch";
 import { ROCKET_TOOL_MODULE } from "./rocket";
@@ -39,7 +38,6 @@ export const TOOL_MODULES = defineToolModules([
   BOMB_THROW_TOOL_MODULE,
   BLAZE_PREPARE_BOMB_TOOL_MODULE,
   VOLATY_SKIP_TOOL_DIE_TOOL_MODULE,
-  LAMP_PREPARE_COPY_TOOL_MODULE,
   LAMP_COPY_TOOL_MODULE,
   BALANCE_TOOL_MODULE,
   AWM_SHOOT_TOOL_MODULE

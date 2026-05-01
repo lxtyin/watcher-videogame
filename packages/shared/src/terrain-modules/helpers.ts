@@ -157,6 +157,8 @@ export function grantTerrainRewardTool(
       phase: "turn-action",
       position: clonePosition(player.position),
       tags: { ...player.tags },
+      toolHistory: [],
+      turnNumber: 0,
       tools: [rewardedTool]
     },
     [rewardedTool]

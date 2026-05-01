@@ -15,11 +15,24 @@ export function buildToolUsabilityContextFromSnapshot(
   tool: TurnToolSnapshot,
   tools: TurnToolSnapshot[]
 ): ToolUsabilityContext {
+  const actor = actorId ? snapshot?.players.find((player) => player.id === actorId) : null;
+
   return {
-    roundUsedTools: snapshot?.roundUsedTools ?? [],
+    ...(snapshot
+      ? {
+          phase: snapshot.turnInfo.phase
+        }
+      : {}),
+    ...(actorId && actor
+      ? {
+          actorId,
+          actorTags: actor.tags,
+          turnNumber: snapshot!.turnInfo.turnNumber
+        }
+      : {}),
     tool,
-    tools,
-    ...(actorId ? { actorId } : {})
+    toolHistory: snapshot?.toolHistory ?? [],
+    tools
   };
 }
 
@@ -83,7 +96,7 @@ export function buildToolActionContextFromSnapshot(
         teamId: player.teamId,
         turnFlags: player.turnFlags
       })),
-    roundUsedTools: snapshot.roundUsedTools,
+    toolHistory: snapshot.toolHistory,
     summons: snapshot.summons.map((summon) => ({
       instanceId: summon.instanceId,
       summonId: summon.summonId,
@@ -91,6 +104,7 @@ export function buildToolActionContextFromSnapshot(
       position: summon.position
     })),
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
+    turnNumber: snapshot.turnInfo.turnNumber,
     tools: actor.tools
   };
 }
