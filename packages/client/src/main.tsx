@@ -1,5 +1,6 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
+import { AudioToggleBar } from "./game/components/AudioToggleBar";
 import "./styles.css";
 
 const App = lazy(() => import("./App"));
@@ -35,6 +36,7 @@ const RootComponent = isHeavyGoldenRunnerRoute
 
 createRoot(container).render(
   <StrictMode>
+    <AudioToggleBar />
     <Suspense fallback={<div className="route-loading-shell">页面加载中...</div>}>
       <RootComponent />
     </Suspense>

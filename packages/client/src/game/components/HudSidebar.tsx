@@ -22,6 +22,7 @@ import { UiIcon } from "../assets/ui/icons";
 import { getCharacterPortraitUrl } from "../content/characterPortraits";
 import { findSelectedTool } from "../state/toolSelection";
 import { useGameStore } from "../state/useGameStore";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { getToolAvailabilityFromSnapshot } from "../utils/toolRuntime";
 import { PetThumbnail } from "./PetThumbnail";
 
@@ -254,18 +255,13 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   }
 
   const copyRoomCode = async () => {
-    if (!navigator.clipboard?.writeText) {
-      showToolNotice("当前浏览器无法复制房间号。");
+    if (await copyTextToClipboard(snapshot.roomCode)) {
+      setCopiedRoomCode(true);
+      window.setTimeout(() => setCopiedRoomCode(false), 1400);
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(snapshot.roomCode);
-      setCopiedRoomCode(true);
-      window.setTimeout(() => setCopiedRoomCode(false), 1400);
-    } catch {
-      showToolNotice("当前浏览器无法复制房间号。");
-    }
+    showToolNotice("当前浏览器无法复制房间号。");
   };
 
   return (

@@ -43,6 +43,7 @@ const RECONNECTION_WINDOW_SECONDS = 45;
 
 export class WatcherRoom extends Room<WatcherState> {
   private customBoard: BoardDefinition | null = null;
+  private matchSeedSerial = 0;
   private pendingKickMessages = new Map<string, string>();
   private pendingRaceAdvanceTimer: Delayed | null = null;
   private runtimeState = createInitialGameRuntimeState();
@@ -259,6 +260,16 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.summons.clear();
   }
 
+  private createMatchSeed(offset: number): number {
+    const roomHash = [...this.roomId].reduce(
+      (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0,
+      2166136261
+    );
+    const timeSeed = Date.now() >>> 0;
+
+    return Math.imul(timeSeed ^ roomHash ^ this.matchSeedSerial ^ offset, 2246822519) >>> 0;
+  }
+
   private clearPendingRaceAdvanceTimer(): void {
     if (!this.pendingRaceAdvanceTimer) {
       return;
@@ -269,7 +280,14 @@ export class WatcherRoom extends Room<WatcherState> {
   }
 
   private resetMatchRuntimeState(): void {
-    this.runtimeState = createInitialGameRuntimeState();
+    const nextPresentationSequence = this.runtimeState.nextPresentationSequence;
+
+    this.matchSeedSerial += 1;
+    this.runtimeState = createInitialGameRuntimeState({
+      moveDieSeed: this.createMatchSeed(0x9e3779b9),
+      nextPresentationSequence,
+      toolDieSeed: this.createMatchSeed(0x85ebca6b)
+    });
     this.clearPendingRaceAdvanceTimer();
     this.clearSummonsState();
     this.clearPresentationState();

@@ -7,6 +7,8 @@ export type UiIconName =
   | "create-room"
   | "home"
   | "join-room"
+  | "music"
+  | "sound"
   | "return";
 
 interface UiIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {

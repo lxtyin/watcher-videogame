@@ -50,6 +50,33 @@
   - `npm.cmd run goldens`，`48/48` passed
   - `npm.cmd run typecheck`
 
+## 2026-05-01 房间多局、复制与音频开关修复
+
+- 修复同一房间第二局平移动画丢失：
+  - 服务端重置对局 runtime 时保留单调递增的 `nextPresentationSequence`
+  - 每局开局按当前时间生成新的移动骰与工具骰 seed，避免同房间多局复用固定随机数
+- 修复部署环境复制房间号失败：
+  - client 新增 `copyTextToClipboard`
+  - 大厅与 HUD 的房间号复制先走 Clipboard API，失败或不可用时回退到 textarea selection + `execCommand("copy")`
+- 调整 race 结算：
+  - 当主动完赛后只剩最后一名玩家未完赛时，最后一名自动获得下一名次
+  - 最后一名的 `finishedTurnNumber` 与倒数第二名一致
+  - 新增 golden case `race-goal-autofinishes-final-unfinished-player`
+- 新增全局音频开关：
+  - 根渲染层统一显示背景音乐与音效两个按钮，`/`、`/mapeditor`、`/goldens` 等页面都会出现
+  - 使用 `resources/icons/音乐.svg` 与 `resources/icons/音效.svg`
+  - 亮色表示开启，暗色表示关闭，并通过 localStorage 记忆状态
+- 文档同步：
+  - 更新 `docs/arch/房间与大厅流程.md`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run goldens`，`49/49` passed
+  - `npm.cmd run build`
+  - Colyseus 双人同房两局脚本：第二局 presentation sequence 继续递增，第二局 seed 与第一局不同
+  - Playwright 浏览器检查：音频按钮可切换，房间号复制可写入剪贴板，音频按钮不遮挡大厅房间号面板，无新增 console/page error
+
 ## 2026-05-01 MovementDescriptor 边界收口
 
 - shared 位移描述模型收口为完整 `MovementDescriptor`：

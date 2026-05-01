@@ -653,6 +653,43 @@ function wasPlayerKnockedOutByTerrain(
   );
 }
 
+function getLatestFinishedRacePlayer(players: PlayerSnapshot[]): PlayerSnapshot | null {
+  return players
+    .filter((player): player is PlayerSnapshot & { finishRank: number; finishedTurnNumber: number } =>
+      player.finishRank !== null && player.finishedTurnNumber !== null
+    )
+    .sort((left, right) => right.finishRank - left.finishRank)[0] ?? null;
+}
+
+function finishRacePlayer(
+  state: MutableGameOrchestrationState,
+  player: PlayerSnapshot,
+  turnNumber: number
+): void {
+  player.finishRank = getNextFinishRank(state.snapshot.players);
+  player.finishedTurnNumber = turnNumber;
+  player.boardVisible = false;
+}
+
+function finishFinalUnfinishedRacePlayer(state: MutableGameOrchestrationState): void {
+  const unfinishedPlayers = state.snapshot.players.filter((player) => player.finishRank === null);
+
+  if (unfinishedPlayers.length !== 1 || state.snapshot.players.length <= 1) {
+    return;
+  }
+
+  const finalPlayer = unfinishedPlayers[0]!;
+  const previousFinishedPlayer = getLatestFinishedRacePlayer(state.snapshot.players);
+  const finishedTurnNumber = previousFinishedPlayer?.finishedTurnNumber ?? state.snapshot.turnInfo.turnNumber;
+
+  finishRacePlayer(state, finalPlayer, finishedTurnNumber);
+  pushEvent(
+    state,
+    "player_finished",
+    `${finalPlayer.name} finished #${finalPlayer.finishRank} as the final remaining racer.`
+  );
+}
+
 function applyModeProgress(
   state: MutableGameOrchestrationState,
   actorId: string,
@@ -684,15 +721,17 @@ function applyModeProgress(
       continue;
     }
 
-    player.finishRank = getNextFinishRank(state.snapshot.players);
-    player.finishedTurnNumber = state.snapshot.turnInfo.turnNumber;
-    player.boardVisible = false;
+    finishRacePlayer(state, player, state.snapshot.turnInfo.turnNumber);
     actorFinished = actorFinished || player.id === actorId;
     pushEvent(
       state,
       "player_finished",
       `${player.name} reached the goal on turn ${state.snapshot.turnInfo.turnNumber} and finished #${player.finishRank}.`
     );
+  }
+
+  if (goalPlayerIds.length > 0) {
+    finishFinalUnfinishedRacePlayer(state);
   }
 
   return {
