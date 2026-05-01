@@ -16,7 +16,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     skillIds: ["late:brake-movement"]
   },
   ehh: {
-    flavorText: "鹅哈哈",
+    flavorText: "e~",
     label: "Ehh",
     nativeName: "鹅哈哈",
     portraitId: "ehh",

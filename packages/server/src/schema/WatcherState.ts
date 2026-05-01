@@ -2,6 +2,7 @@ import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
+  DEFAULT_CHARACTER_ID,
   type CharacterId,
   type GameMode,
   type RoomPhase,
@@ -35,7 +36,7 @@ export class PlayerState extends Schema {
   @type("string") petId = "";
   @type("string") color = "";
   @type("boolean") boardVisible = true;
-  @type("string") characterId: CharacterId = "late";
+  @type("string") characterId: CharacterId = DEFAULT_CHARACTER_ID;
   @type("string") tagsJson = "{}";
   @type(["string"]) modifiers = new ArraySchema<string>();
   @type("number") finishRank = 0;

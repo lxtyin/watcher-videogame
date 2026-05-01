@@ -4,10 +4,10 @@ import blazePortraitUrl from "../assets/characters/portraits/blaze.jpg";
 import chainPortraitUrl from "../assets/characters/portraits/chain.jpg";
 import ehhPortraitUrl from "../assets/characters/portraits/ehh.jpg";
 import fartherPortraitUrl from "../assets/characters/portraits/farther.jpg";
-import lampPortraitUrl from "../assets/characters/portraits/lamp.png";
+import lampPortraitUrl from "../assets/characters/portraits/lamp.jpg";
 import latePortraitUrl from "../assets/characters/portraits/late.jpg";
 import leaderPortraitUrl from "../assets/characters/portraits/leader.jpg";
-import mountainPortraitUrl from "../assets/characters/portraits/mountain.png";
+import mountainPortraitUrl from "../assets/characters/portraits/mountain.jpg";
 import volatyPortraitUrl from "../assets/characters/portraits/volaty.jpg";
 
 const CHARACTER_PORTRAIT_URLS: Record<string, string> = {

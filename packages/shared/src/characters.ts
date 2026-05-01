@@ -1,6 +1,8 @@
 import { CHARACTER_REGISTRY } from "./content/characters";
 import type { CharacterId } from "./types";
 
+export const DEFAULT_CHARACTER_ID = "ehh" as const satisfies CharacterId;
+
 export interface CharacterDefinition {
   flavorText: string;
   id: CharacterId;
@@ -43,7 +45,7 @@ export function getNextCharacterId(characterId: CharacterId): CharacterId {
   const currentIndex = characterIds.indexOf(characterId);
 
   if (currentIndex < 0) {
-    return characterIds[0] ?? "late";
+    return characterIds[0] ?? DEFAULT_CHARACTER_ID;
   }
 
   return characterIds[(currentIndex + 1) % characterIds.length] ?? characterId;

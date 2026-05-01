@@ -1,5 +1,5 @@
 import { getTile } from "./board";
-import { getCharacterDefinition, getCharacterIds } from "./characters";
+import { DEFAULT_CHARACTER_ID, getCharacterDefinition, getCharacterIds } from "./characters";
 import { rollMovementDie, rollToolDie } from "./dice";
 import {
   buildGameMapRuntimeMetadata,
@@ -1828,7 +1828,7 @@ export function createGameOrchestrationStateFromScene(
       petId: player.petId ?? "",
       color: player.color ?? getAssignedPlayerColor(mapMetadata.mode, index, teamId),
       boardVisible: player.boardVisible ?? player.finishRank == null,
-      characterId: player.characterId ?? "late",
+      characterId: player.characterId ?? DEFAULT_CHARACTER_ID,
       finishRank: player.finishRank ?? null,
       finishedTurnNumber: player.finishedTurnNumber ?? null,
       isConnected: true,

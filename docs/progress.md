@@ -7,6 +7,34 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-01 房间大厅重做
+
+- client 新增独立 `LobbyScreen`：
+  - `roomPhase === "lobby"` 时不挂载对局地图与对局 HUD
+  - 玩家以四列卡片网格展示，卡片内包含角色卡、棋子、配色、名称、在线状态、准备状态与可用操作
+  - 点击自己的角色卡打开选角弹窗，弹窗按四列角色卡网格展示全部角色并直接切换
+- 默认角色收口为 `DEFAULT_CHARACTER_ID = "ehh"`，新加入房间的玩家默认使用鹅哈哈。
+- 文档同步：
+  - 更新 `docs/arch/房间与大厅流程.md`
+- 本轮验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`，`48/48` passed
+  - `npm.cmd run build --workspace @watcher/client`
+  - Playwright 创建房间与大厅交互烟测：确认进入 lobby、不挂载 `.scene-panel`、默认角色为 `ehh`、选角弹窗有 10 张角色卡、切换角色与准备状态同步、无新增 console/page error。
+- 追加微调：
+  - 大厅与选角弹窗中的角色卡改为复用 HUD 角色卡的内部布局，只在外层按固定比例整体缩放。
+  - 玩家卡网格改为固定窄列，不再按四等分拉满整行；准备按钮改为正常按钮宽度。
+  - 追加验证：`npm.cmd run typecheck --workspace @watcher/client`、`npm.cmd run build --workspace @watcher/client`、Playwright 截图与 DOM 尺寸检查。
+- 高分辨率适配：
+  - 大厅与选角弹窗角色卡在 1440px、1800px 以上视口按阶梯 scale 放大，内部布局仍保持 HUD 卡比例。
+  - 本地玩家准备按钮移动到底部操作区，与“开始游戏”并排；玩家卡底部不再重复展示房主标志。
+  - 追加验证：`npm.cmd run typecheck --workspace @watcher/client`、`npm.cmd run build --workspace @watcher/client`、1280/1920 视口 Playwright 截图与 DOM 尺寸检查。
+- 角色卡比例收口：
+  - 新增通用 `character-card-frame`，HUD、房间大厅、选角弹窗中的角色卡都由外层 4:5 容器控制尺寸。
+  - `.character-card` 内部字号、说明区高度、内边距与边框宽度改为基于卡片宽度的容器单位，取消大厅角色卡的手写 scale 断点。
+  - 房间玩家网格宽度改为 `clamp()`，1280x720 下避免玩家卡贴住底栏，1920x1080 下仍能自然放大。
+  - 追加验证：`npm.cmd run typecheck --workspace @watcher/client`、`npm.cmd run build --workspace @watcher/client`、develop-web-game 创建房间冒烟、1280x720/1920x1080 Playwright 截图与 DOM 尺寸检查；房间、弹窗、HUD 角色卡均为 4:5，无新增 console/page error。
+
 ## 2026-05-01 阶段入口停留触发收口
 
 - `applyPhaseEntryStop()` 收口为只在进入 `turn-action` 时触发当前格子的停留结算。

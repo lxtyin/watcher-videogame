@@ -5,6 +5,7 @@ import { BedwarsSettlementOverlay } from "./game/components/BedwarsSettlementOve
 import { CreateRoomScreen } from "./game/components/CreateRoomScreen";
 import { HomeScreen } from "./game/components/HomeScreen";
 import { HudSidebar } from "./game/components/HudSidebar";
+import { LobbyScreen } from "./game/components/LobbyScreen";
 import { MobilePwaPrompt } from "./game/components/MobilePwaPrompt";
 import { RaceSettlementOverlay } from "./game/components/RaceSettlementOverlay";
 import { RoomEntryScreen } from "./game/components/RoomEntryScreen";
@@ -127,7 +128,8 @@ export default function App() {
     snapshot.mode !== "free" &&
     snapshot.roomPhase === "settlement" &&
     snapshot.settlementState === "complete";
-  const bgmTrackId = route.roomCode !== null && snapshot ? "gameplay" : "menu";
+  const bgmTrackId =
+    route.roomCode !== null && snapshot && snapshot.roomPhase !== "lobby" ? "gameplay" : "menu";
 
   if (!route.roomCode) {
     if (route.screen === "create") {
@@ -218,6 +220,22 @@ export default function App() {
             }
           }}
           roomCode={roomCode}
+        />
+        <MobilePwaPrompt />
+      </>
+    );
+  }
+
+  if (snapshot.roomPhase === "lobby") {
+    return (
+      <>
+        <GameAudioDirector bgmTrackId={bgmTrackId} />
+        <LobbyScreen
+          onLeaveRoom={() => {
+            void leaveRoom().finally(() => {
+              navigateHome();
+            });
+          }}
         />
         <MobilePwaPrompt />
       </>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   TOOL_DEFINITIONS,
+  DEFAULT_CHARACTER_ID,
   describeToolButtonLabel,
   getCharacterDefinition,
   getCharacterIds,
@@ -158,7 +159,9 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const grantDebugTool = useGameStore((state) => state.grantDebugTool);
   const useToolPayload = useGameStore((state) => state.useToolPayload);
   const [debugToolId, setDebugToolId] = useState<ToolId>(DEBUG_TOOL_OPTIONS[0] ?? "movement");
-  const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(CHARACTER_OPTIONS[0] ?? "late");
+  const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(
+    CHARACTER_OPTIONS[0] ?? DEFAULT_CHARACTER_ID
+  );
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
 
   const me = snapshot?.players.find((player) => player.id === sessionId) ?? null;
@@ -177,7 +180,7 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       ? getToolAvailabilityFromSnapshot(snapshot, sessionId, selectedTool, me.tools)
       : null;
   const roleDefinition = me ? getCharacterDefinition(me.characterId) : null;
-  const nextCharacterId = me ? getNextCharacterId(me.characterId) : "late";
+  const nextCharacterId = me ? getNextCharacterId(me.characterId) : DEFAULT_CHARACTER_ID;
   const rolePortraitUrl = roleDefinition ? getCharacterPortraitUrl(roleDefinition.portraitId) : null;
   const tools = useMemo(() => me?.tools ?? [], [me]);
   const otherPlayers = snapshot?.players.filter((player) => player.id !== sessionId) ?? [];
@@ -416,26 +419,28 @@ export function HudSidebar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       ) : (
           <>
             
-          <section className="character-card">
-            {rolePortraitUrl ? (
-              <img
-                className="character-card__portrait"
-                src={rolePortraitUrl}
-                alt={`${roleDefinition?.nativeName ?? "角色"}立绘`}
-              />
-            ) : (
-              <div className="character-card__portrait-fallback" />
-            )}
-            <div className="character-card__copy">
-              {/* <p className="character-card__eyebrow">角色</p> */}
-              <div className="character-card__name-row">
-                <strong>{roleDefinition?.nativeName ?? "--"}</strong>
-                <span> / {roleDefinition?.label ?? "--"}</span>
+          <div className="character-card-frame hud-character-frame">
+            <section className="character-card">
+              {rolePortraitUrl ? (
+                <img
+                  className="character-card__portrait"
+                  src={rolePortraitUrl}
+                  alt={`${roleDefinition?.nativeName ?? "角色"}立绘`}
+                />
+              ) : (
+                <div className="character-card__portrait-fallback" />
+              )}
+              <div className="character-card__copy">
+                {/* <p className="character-card__eyebrow">角色</p> */}
+                <div className="character-card__name-row">
+                  <strong>{roleDefinition?.nativeName ?? "--"}</strong>
+                  <span> / {roleDefinition?.label ?? "--"}</span>
+                </div>
+                <p className="character-card__summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
+                <p className="character-card__flavor">“{roleDefinition?.flavorText ?? "到此一游"}”</p>
               </div>
-              <p className="character-card__summary">{roleDefinition?.summary ?? "等待角色数据同步。"}</p>
-              <p className="character-card__flavor">“{roleDefinition?.flavorText ?? "到此一游"}”</p>
-            </div>
-          </section>
+            </section>
+          </div>
           <div className="character-switch-row character-switch-row--detached">
             <select
               value={selectedCharacterId}

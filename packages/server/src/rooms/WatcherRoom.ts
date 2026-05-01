@@ -4,6 +4,7 @@ import {
   buildGameMapRuntimeMetadata,
   createBoardDefinitionFromLayout,
   createBoardDefinition,
+  DEFAULT_CHARACTER_ID,
   createGameOrchestrator,
   createInitialGameRuntimeState,
   getBoardSpawnPosition,
@@ -127,14 +128,13 @@ export class WatcherRoom extends Room<WatcherState> {
     }
 
     const spawnIndex = this.state.players.size;
-    const characterIds = getCharacterIds();
     const player = new PlayerState();
 
     player.id = client.sessionId;
     player.name = options.requestedPlayerName?.trim() || `Player ${this.state.players.size + 1}`;
     player.petId = options.requestedPetId?.trim() || "";
     player.boardVisible = true;
-    player.characterId = characterIds[spawnIndex % characterIds.length] ?? "late";
+    player.characterId = DEFAULT_CHARACTER_ID;
     player.tagsJson = "{}";
     while (player.modifiers.length > 0) {
       player.modifiers.pop();
