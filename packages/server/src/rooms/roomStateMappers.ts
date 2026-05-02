@@ -7,6 +7,7 @@ import type {
   PlayerTagMap,
   PlayerTurnFlag,
   SequencedActionPresentation,
+  SummonStateMap,
   TileType,
   ToolHistoryEntrySnapshot,
   TurnToolSnapshot
@@ -93,6 +94,14 @@ function parseToolHistory(toolHistoryJson: string): ToolHistoryEntrySnapshot[] {
   }
 }
 
+function parseSummonState(stateJson: string): SummonStateMap {
+  try {
+    return JSON.parse(stateJson) as SummonStateMap;
+  } catch {
+    return {};
+  }
+}
+
 export function createBoardSummonsFromState(state: WatcherState): BoardSummonState[] {
   return Array.from(state.summons.values() as Iterable<SummonState>).map((entry) => ({
     instanceId: entry.instanceId,
@@ -101,7 +110,8 @@ export function createBoardSummonsFromState(state: WatcherState): BoardSummonSta
     position: {
       x: entry.x,
       y: entry.y
-    }
+    },
+    state: parseSummonState(entry.stateJson)
   }));
 }
 

@@ -1,58 +1,125 @@
+import { Clone, useGLTF } from "@react-three/drei";
+import {
+  getDicePigCarryCode,
+  type DicePigCarryCode,
+  type RolledToolId,
+  type SummonSnapshot
+} from "@watcher/shared";
+import { useEffect } from "react";
+import { Mesh, Object3D } from "three";
+import {
+  POINT_DIE_FACE_ORDER,
+  POINT_DIE_FACE_TOP_ORIENTATIONS,
+  TOOL_DIE_FACE_ORDER,
+  TOOL_DIE_FACE_TOP_ORIENTATIONS
+} from "../../state/diceRollAnimation";
+import { PetPiece } from "../player/PetPiece";
+
+const pointDiceModelUrl = new URL("../dice/models/pointDice.glb", import.meta.url).href;
+const randomDiceModelUrl = new URL("../dice/models/randomDice.glb", import.meta.url).href;
+const toolDiceModelUrl = new URL("../dice/models/toolDice.glb", import.meta.url).href;
+
+const DICE_OFFSET: [number, number, number] = [0, 1.0, -0.5];
+const DICE_SCALE = 1.4;
+
+function enableShadows(scene: Object3D): void {
+  scene.traverse((object) => {
+    const mesh = object as Mesh;
+
+    if (!mesh.isMesh) {
+      return;
+    }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  });
+}
+
+function getPointFaceIndex(carryCode: DicePigCarryCode): number {
+  if (!carryCode.startsWith("point:")) {
+    return 0;
+  }
+
+  const value = Number.parseInt(carryCode.slice("point:".length), 10);
+  const faceIndex = POINT_DIE_FACE_ORDER.indexOf(
+    value as (typeof POINT_DIE_FACE_ORDER)[number]
+  );
+
+  return faceIndex >= 0 ? faceIndex : 0;
+}
+
+function getToolFaceIndex(carryCode: DicePigCarryCode): number {
+  if (!carryCode.startsWith("tool:")) {
+    return 0;
+  }
+
+  const toolId = carryCode.slice("tool:".length) as RolledToolId;
+  const faceIndex = TOOL_DIE_FACE_ORDER.indexOf(toolId);
+
+  return faceIndex >= 0 ? faceIndex : 0;
+}
+
+function getDiceRotation(carryCode: DicePigCarryCode): [number, number, number] {
+  if (carryCode.startsWith("point:")) {
+    return POINT_DIE_FACE_TOP_ORIENTATIONS[getPointFaceIndex(carryCode)] ?? [0, 0, 0];
+  }
+
+  if (carryCode.startsWith("tool:")) {
+    return TOOL_DIE_FACE_TOP_ORIENTATIONS[getToolFaceIndex(carryCode)] ?? [0, 0, 0];
+  }
+
+  return [0, 0, 0];
+}
+
 export function DicePigSummonAsset({
   color,
-  opacity = 1
+  opacity = 1,
+  summon
 }: {
   color: string;
   opacity?: number;
+  summon: SummonSnapshot;
 }) {
+  const pointDice = useGLTF(pointDiceModelUrl);
+  const randomDice = useGLTF(randomDiceModelUrl);
+  const toolDice = useGLTF(toolDiceModelUrl);
+  const carryCode = getDicePigCarryCode(summon.state);
   const transparent = opacity < 1;
+
+  useEffect(() => {
+    enableShadows(pointDice.scene);
+    enableShadows(randomDice.scene);
+    enableShadows(toolDice.scene);
+  }, [pointDice.scene, randomDice.scene, toolDice.scene]);
+
+  const diceObject =
+    carryCode === "none"
+      ? null
+      : carryCode === "random_tool"
+        ? randomDice.scene
+        : carryCode.startsWith("point:")
+          ? pointDice.scene
+          : toolDice.scene;
 
   return (
     <group>
-      <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.2, 0.31, 28]} />
+      {/* <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.22, 0.34, 28]} />
         <meshBasicMaterial color={color} transparent={transparent} opacity={opacity * 0.78} />
-      </mesh>
-      <mesh position={[0, 0.04, 0]} castShadow scale={[1.18, 0.84, 0.88]}>
-        <sphereGeometry args={[0.24, 24, 18]} />
-        <meshStandardMaterial color="#f3a1b7" roughness={0.54} transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.26, 0.07, 0]} castShadow scale={[0.85, 0.75, 0.75]}>
-        <sphereGeometry args={[0.15, 20, 16]} />
-        <meshStandardMaterial color="#f6b0c2" roughness={0.5} transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.39, 0.08, 0]} castShadow rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.045, 0.055, 0.05, 16]} />
-        <meshStandardMaterial color="#ef8fa8" roughness={0.5} transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.39, 0.12, 0.04]}>
-        <sphereGeometry args={[0.016, 8, 8]} />
-        <meshBasicMaterial color="#4b2b37" transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.39, 0.12, -0.04]}>
-        <sphereGeometry args={[0.016, 8, 8]} />
-        <meshBasicMaterial color="#4b2b37" transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.22, 0.22, 0.09]} rotation={[0.55, 0, -0.25]} castShadow>
-        <coneGeometry args={[0.055, 0.12, 3]} />
-        <meshStandardMaterial color="#f6b0c2" roughness={0.52} transparent={transparent} opacity={opacity} />
-      </mesh>
-      <mesh position={[0.22, 0.22, -0.09]} rotation={[-0.55, 0, -0.25]} castShadow>
-        <coneGeometry args={[0.055, 0.12, 3]} />
-        <meshStandardMaterial color="#f6b0c2" roughness={0.52} transparent={transparent} opacity={opacity} />
-      </mesh>
-      {[-0.13, 0.11].map((xOffset) =>
-        [-0.11, 0.11].map((zOffset) => (
-          <mesh key={`${xOffset}:${zOffset}`} position={[xOffset, -0.14, zOffset]} castShadow>
-            <boxGeometry args={[0.055, 0.13, 0.055]} />
-            <meshStandardMaterial color="#cb6f88" roughness={0.58} transparent={transparent} opacity={opacity} />
-          </mesh>
-        ))
-      )}
-      <mesh position={[-0.28, 0.1, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <torusGeometry args={[0.06, 0.012, 8, 18]} />
-        <meshStandardMaterial color="#e58aa3" roughness={0.44} transparent={transparent} opacity={opacity} />
-      </mesh>
+      </mesh> */}
+      <PetPiece petId="animal-pig" position={[0, 0, 0]} rotation={[0, 0, 0]}>
+        {diceObject ? (
+          <group position={DICE_OFFSET} scale={DICE_SCALE}>
+            <group rotation={getDiceRotation(carryCode)}>
+              <Clone object={diceObject} castShadow receiveShadow />
+            </group>
+          </group>
+        ) : null}
+      </PetPiece>
     </group>
   );
 }
+
+useGLTF.preload(pointDiceModelUrl);
+useGLTF.preload(randomDiceModelUrl);
+useGLTF.preload(toolDiceModelUrl);

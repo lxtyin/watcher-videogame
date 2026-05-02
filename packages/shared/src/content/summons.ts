@@ -15,7 +15,7 @@ export const SUMMON_REGISTRY = defineSummonRegistry({
   },
   dicePig: {
     label: "骰子猪",
-    description: "一种可被工具推动的生物。死亡时会让当前玩家获得一次工具骰奖励。",
+    description: "一种可被工具推动的生物。死亡时会按携带的骰子给予当前玩家奖励。",
     kind: "creature",
     triggerMode: "movement_trigger"
   }

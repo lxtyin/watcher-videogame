@@ -147,7 +147,8 @@ function clonePlayer(player: PlayerSnapshot): PlayerSnapshot {
 function cloneSummon(summon: SummonSnapshot): SummonSnapshot {
   return {
     ...summon,
-    position: clonePosition(summon.position)
+    position: clonePosition(summon.position),
+    state: { ...summon.state }
   };
 }
 

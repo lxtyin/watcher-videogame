@@ -1,13 +1,13 @@
 import type { LayoutSymbolDefinition } from "./defaultBoard";
 
 export const BEDWARS_BOARD_LAYOUT = [
-  "###############",
-  "#.t.c.........#",
-  "#i......p.....#",
-  "#.c..###......#",
-  "#........C...T#",
-  "#.....p.....I.#",
-  "###############"
+  "#	#	#	#	#	#	#	#	#	#	#	#	#	#	#",
+  "#	.	TowerW	.	CampW	.	.	.	.	.	.	.	.	.	#",
+  "#	SpawnW	.	.	.	.	.	.	Poison	.	.	.	.	.	#",
+  "#	.	CampW	.	.	#	#	#	.	.	.	.	.	.	#",
+  "#	.	.	.	.	.	.	.	.	CampB	.	.	.	TowerB	#",
+  "#	.	.	.	.	.	Poison	.	.	.	.	.	SpawnB	.	#",
+  "#	#	#	#	#	#	#	#	#	#	#	#	#	#	#"
 ] as const;
 
 export const BEDWARS_BOARD_SYMBOLS: Partial<Record<string, LayoutSymbolDefinition>> = {};

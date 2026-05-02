@@ -1,4 +1,5 @@
 import {
+  createBoardDefinitionFromLayout,
   DEFAULT_BOARD_SYMBOLS,
   getTerrainTextDescription,
   toTileKey,
@@ -13,22 +14,18 @@ export interface TerrainThumbnailEntry {
 }
 
 export function createTerrainThumbnailTile(symbol: string): TileDefinition {
-  const definition = DEFAULT_BOARD_SYMBOLS[symbol];
+  const board = createBoardDefinitionFromLayout([`${symbol}\t.`]);
+  const tile = board.tiles[0];
 
-  if (!definition) {
+  if (!tile) {
     throw new Error(`Unknown terrain symbol "${symbol}".`);
   }
 
-  const position = { x: 0, y: 0 };
-
   return {
-    key: toTileKey(position),
-    x: position.x,
-    y: position.y,
-    type: definition.type,
-    durability: definition.durability ?? 0,
-    direction: definition.direction ?? null,
-    faction: definition.faction ?? null
+    ...tile,
+    key: toTileKey({ x: 0, y: 0 }),
+    x: 0,
+    y: 0
   };
 }
 
@@ -49,20 +46,20 @@ function createTerrainThumbnailEntry(
 export const TERRAIN_THUMBNAIL_ENTRIES: TerrainThumbnailEntry[] = [
   createTerrainThumbnailEntry("."),
   createTerrainThumbnailEntry("#"),
-  createTerrainThumbnailEntry("e"),
-  createTerrainThumbnailEntry("b"),
-  createTerrainThumbnailEntry("t", ["t", "T"]),
-  createTerrainThumbnailEntry("i", ["i", "I"]),
-  createTerrainThumbnailEntry("c", ["c", "C"]),
-  createTerrainThumbnailEntry("H"),
-  createTerrainThumbnailEntry("p"),
-  createTerrainThumbnailEntry("o"),
-  createTerrainThumbnailEntry("l"),
-  createTerrainThumbnailEntry("x"),
-  createTerrainThumbnailEntry("s"),
-  createTerrainThumbnailEntry("g"),
-  createTerrainThumbnailEntry("^", ["^", ">", "v", "<"]),
-  createTerrainThumbnailEntry("U", ["U", "R", "D", "L"])
+  createTerrainThumbnailEntry("E2"),
+  createTerrainThumbnailEntry("Box"),
+  createTerrainThumbnailEntry("TowerW", ["TowerW", "TowerB"]),
+  createTerrainThumbnailEntry("SpawnW", ["SpawnW", "SpawnB"]),
+  createTerrainThumbnailEntry("CampW", ["CampW", "CampB"]),
+  createTerrainThumbnailEntry("High"),
+  createTerrainThumbnailEntry("Poison"),
+  createTerrainThumbnailEntry("Pit"),
+  createTerrainThumbnailEntry("Lucky"),
+  createTerrainThumbnailEntry("Lucky0"),
+  createTerrainThumbnailEntry("Start"),
+  createTerrainThumbnailEntry("Goal"),
+  createTerrainThumbnailEntry("V^", ["V^", "V>", "Vv", "V<"]),
+  createTerrainThumbnailEntry("C^", ["C^", "C>", "Cv", "C<"])
 ];
 
 export function findTerrainThumbnailEntry(symbol: string | null): TerrainThumbnailEntry | null {
@@ -105,6 +102,7 @@ function matchesTileSymbol(symbol: string, tile: TileDefinition): boolean {
 
   return (
     (definition.direction ?? null) === tile.direction &&
+    (definition.durability ?? 0) === tile.durability &&
     (definition.faction ?? null) === tile.faction
   );
 }

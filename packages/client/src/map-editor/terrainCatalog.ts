@@ -1,4 +1,8 @@
 import {
+  getDicePigCarryVariants,
+  getToolDefinition
+} from "@watcher/shared";
+import {
   createTerrainThumbnailTile,
   expandTerrainThumbnailEntriesForCapture,
   findTerrainThumbnailEntry,
@@ -10,29 +14,68 @@ export type TerrainLibraryEntry = TerrainThumbnailEntry;
 
 export const createTerrainCatalogTile = createTerrainThumbnailTile;
 
-export const TERRAIN_LIBRARY_ENTRIES: TerrainLibraryEntry[] = TERRAIN_THUMBNAIL_ENTRIES;
+function getDicePigVariantLabel(code: ReturnType<typeof getDicePigCarryVariants>[number]["code"]): string {
+  if (code === "none") {
+    return "骰子猪 无奖励";
+  }
 
-export function findTerrainLibraryEntry(symbol: string | null): TerrainLibraryEntry | null {
-  return findTerrainThumbnailEntry(symbol);
+  if (code === "random_tool") {
+    return "骰子猪 随机工具";
+  }
+
+  if (code.startsWith("point:")) {
+    return `骰子猪 移动${code.slice("point:".length)}`;
+  }
+
+  return `骰子猪 ${getToolDefinition(code.slice("tool:".length) as Parameters<typeof getToolDefinition>[0]).label}`;
 }
 
-const CLOCKWISE_ROTATION: Readonly<Record<string, string>> = {
-  "^": ">",
-  ">": "v",
-  v: "<",
-  "<": "^",
-  U: "R",
-  R: "D",
-  D: "L",
-  L: "U"
+const DICE_PIG_SYMBOLS = getDicePigCarryVariants().map((variant) => `.|${variant.token}`);
+
+const DICE_PIG_LIBRARY_ENTRY: TerrainLibraryEntry = {
+  label: "骰子猪",
+  selectableSymbols: DICE_PIG_SYMBOLS,
+  symbol: DICE_PIG_SYMBOLS[0] ?? ".|p1",
+  tile: createTerrainCatalogTile(DICE_PIG_SYMBOLS[0] ?? ".|p1")
 };
 
-export function rotateTerrainSymbolClockwise(symbol: string | null): string | null {
+const DICE_PIG_VARIANT_LABELS = Object.fromEntries(
+  getDicePigCarryVariants().map((variant) => [
+    `.|${variant.token}`,
+    getDicePigVariantLabel(variant.code)
+  ])
+) as Record<string, string>;
+
+export const TERRAIN_LIBRARY_ENTRIES: TerrainLibraryEntry[] = [
+  ...TERRAIN_THUMBNAIL_ENTRIES,
+  DICE_PIG_LIBRARY_ENTRY
+];
+
+export function findTerrainLibraryEntry(symbol: string | null): TerrainLibraryEntry | null {
   if (!symbol) {
+    return null;
+  }
+
+  return (
+    TERRAIN_LIBRARY_ENTRIES.find(
+      (entry) => entry.symbol === symbol || entry.selectableSymbols?.includes(symbol)
+    ) ??
+    findTerrainThumbnailEntry(symbol)
+  );
+}
+
+export function cycleTerrainSymbolVariant(symbol: string | null): string | null {
+  const entry = findTerrainLibraryEntry(symbol);
+  const variants = entry?.selectableSymbols ?? (entry ? [entry.symbol] : []);
+
+  if (!symbol || variants.length <= 1) {
     return symbol;
   }
 
-  return CLOCKWISE_ROTATION[symbol] ?? symbol;
+  const currentIndex = variants.indexOf(symbol);
+  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % variants.length;
+
+  return variants[nextIndex] ?? symbol;
 }
 
 export function resolveTerrainEntrySelectionSymbol(
@@ -66,6 +109,7 @@ export function resolveSelectedTerrain(symbol: string | null): TerrainLibraryEnt
 
   return {
     ...entry,
+    label: DICE_PIG_VARIANT_LABELS[symbol] ?? entry.label,
     symbol,
     tile: createTerrainCatalogTile(symbol)
   };

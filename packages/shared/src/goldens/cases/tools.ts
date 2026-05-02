@@ -7,10 +7,10 @@ export const GOLDEN_TOOL_CASES = [
     description: "Punching toward a player within range should push that player three tiles away.",
     scene: {
       layout: [
-        "########",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -47,10 +47,10 @@ export const GOLDEN_TOOL_CASES = [
     ],
     expect: {
       boardLayout: [
-        "########",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: {
         boxer: {
@@ -73,10 +73,10 @@ export const GOLDEN_TOOL_CASES = [
     description: "Punching a wall within range should push the boxer three tiles backward.",
     scene: {
       layout: [
-        "#########",
-        "#....#..#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	#	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -107,10 +107,10 @@ export const GOLDEN_TOOL_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#########",
-        "#....#..#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	#	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: {
         boxer: {

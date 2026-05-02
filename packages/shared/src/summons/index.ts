@@ -1,6 +1,7 @@
 import { getDraftSummons, type ResolutionDraft } from "../rules/actionDraft";
 import { getMovementTimingForPlayer } from "../rules/displacement";
-import type { GridPosition, SummonId, SummonMutation } from "../types";
+import { cloneSummonState } from "../summonState";
+import type { GridPosition, SummonId, SummonMutation, SummonStateMap } from "../types";
 import { DICE_PIG_SUMMON_DEFINITION } from "./dice-pig";
 import { collectSummonsAtPosition, hasSummonAtPosition, WALLET_SUMMON_DEFINITION } from "./wallet";
 import type { SummonDeathContext, SummonDefinition, SummonPhaseContext } from "./types";
@@ -20,13 +21,15 @@ export function createSummonUpsertMutation(
   instanceId: string,
   summonId: SummonId,
   ownerId: string,
-  position: GridPosition
+  position: GridPosition,
+  state: SummonStateMap = {}
 ): SummonMutation {
   return {
     instanceId,
     kind: "upsert",
     ownerId,
     position,
+    state: cloneSummonState(state),
     summonId
   };
 }

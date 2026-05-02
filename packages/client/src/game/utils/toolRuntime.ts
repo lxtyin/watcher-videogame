@@ -101,7 +101,8 @@ export function buildToolActionContextFromSnapshot(
       instanceId: summon.instanceId,
       summonId: summon.summonId,
       ownerId: summon.ownerId,
-      position: summon.position
+      position: summon.position,
+      state: { ...summon.state }
     })),
     toolDieSeed: snapshot.turnInfo.toolDieSeed,
     turnNumber: snapshot.turnInfo.turnNumber,

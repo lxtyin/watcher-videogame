@@ -7,10 +7,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "A simple grounded move should consume the movement tool and land on the next floor tile.",
         scene: {
             layout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -44,10 +44,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -68,10 +68,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Ground movement into an earth wall should remove the wall and attach a delayed state transition event.",
         scene: {
             layout: [
-                "#####",
-                "#.e.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	E2	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -104,10 +104,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -123,10 +123,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Starting a turn on a lucky tile should wait for the roll to finish, then grant one extra tool as action phase begins.",
         scene: {
             layout: [
-                "#####",
-                "#.l.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Lucky	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -160,10 +160,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#.x.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Lucky0	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -184,10 +184,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Lucky tiles claimed on the previous turn should restore as the next turn begins.",
         scene: {
             layout: [
-                "#####",
-                "#.l.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Lucky	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -226,10 +226,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#.l.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Lucky	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -255,10 +255,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Starting a turn on poison should wait for the roll to finish, then respawn the player as action phase begins.",
         scene: {
             layout: [
-                "#####",
-                "#.p.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Poison	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -289,10 +289,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#.p.#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	Poison	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -314,10 +314,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Pit should trigger while moving through it, stop the move, and respawn the player to spawn.",
         scene: {
             layout: [
-                "######",
-                "#.o..#",
-                "#....#",
-                "######"
+                "#	#	#	#	#	#",
+                "#	.	Pit	.	.	#",
+                "#	.	.	.	.	#",
+                "#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -352,10 +352,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "######",
-                "#.o..#",
-                "#....#",
-                "######"
+                "#	#	#	#	#	#",
+                "#	.	Pit	.	.	#",
+                "#	.	.	.	.	#",
+                "#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -375,10 +375,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Jump cannot leap over a highwall and must settle before it if a landing tile exists.",
         scene: {
             layout: [
-                "#######",
-                "#..H..#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	High	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -412,10 +412,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#######",
-                "#..H..#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	High	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -431,10 +431,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Leap should fly over intermediate cells, but the landing tile should trigger contact terrain as translate movement.",
         scene: {
             layout: [
-                "######",
-                "#..o.#",
-                "#....#",
-                "######"
+                "#	#	#	#	#	#",
+                "#	.	.	Pit	.	#",
+                "#	.	.	.	.	#",
+                "#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -469,10 +469,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "######",
-                "#..o.#",
-                "#....#",
-                "######"
+                "#	#	#	#	#	#",
+                "#	.	.	Pit	.	#",
+                "#	.	.	.	.	#",
+                "#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -489,11 +489,11 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Build Wall should stay blocked when the target tile contains a player or a summon.",
         scene: {
             layout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -550,11 +550,11 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 builder: {
@@ -581,12 +581,12 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Landing on a cannon should reuse the shared rocket resolution core and knock the first hit player away.",
         scene: {
             layout: [
-                "#########",
-                "#D.....L#",
-                "#.......#",
-                "#.......#",
-                "#R.....U#",
-                "#########"
+                "#	#	#	#	#	#	#	#	#",
+                "#	Cv	.	.	.	.	.	C<	#",
+                "#	.	.	.	.	.	.	.	#",
+                "#	.	.	.	.	.	.	.	#",
+                "#	C>	.	.	.	.	.	C^	#",
+                "#	#	#	#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -641,12 +641,12 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#########",
-                "#D.....L#",
-                "#.......#",
-                "#.......#",
-                "#R.....U#",
-                "#########"
+                "#	#	#	#	#	#	#	#	#",
+                "#	Cv	.	.	.	.	.	C<	#",
+                "#	.	.	.	.	.	.	.	#",
+                "#	.	.	.	.	.	.	.	#",
+                "#	C>	.	.	.	.	.	C^	#",
+                "#	#	#	#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -674,10 +674,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "When a cannon explodes on its own tile, the player who just stopped there should be treated as the blast target.",
         scene: {
             layout: [
-                "#####",
-                "#.R##",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	C>	#	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -711,10 +711,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#.R##",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	C>	#	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -734,10 +734,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Ground translate should append an impact recoil motion when a player still has move points but the next tile is solid.",
         scene: {
             layout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -771,10 +771,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -794,13 +794,13 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "An in-turn translate impact should wobble the boxing ball, pop the impact value, and grant a punch whose push distance matches the remaining move points.",
         scene: {
             layout: [
-                "#######",
-                "#.....#",
-                "#..b..#",
-                "#.....#",
-                "#.....#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	Box	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -847,13 +847,13 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#######",
-                "#.....#",
-                "#..b..#",
-                "#.....#",
-                "#.....#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	Box	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -872,13 +872,13 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Even if translate movement is blocked on the first tile, an in-turn impact should still consume the tool, trigger the boxing ball, and grant the scaled punch.",
         scene: {
             layout: [
-                "#######",
-                "#.....#",
-                "#..b..#",
-                "#.....#",
-                "#.....#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	Box	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -925,13 +925,13 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#######",
-                "#.....#",
-                "#..b..#",
-                "#.....#",
-                "#.....#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	Box	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -950,10 +950,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Passive translate displacement from Basketball should keep the zero-step impact recoil presentation instead of dropping it as an empty move.",
         scene: {
             layout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: [
                 {
@@ -995,10 +995,10 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#####",
-                "#...#",
-                "#...#",
-                "#####"
+                "#	#	#	#	#",
+                "#	.	.	.	#",
+                "#	.	.	.	#",
+                "#	#	#	#	#"
             ],
             players: {
                 hero: {
@@ -1021,11 +1021,11 @@ export const GOLDEN_MOVEMENT_CASES = [
         description: "Projectile-owned impacts should still shake the boxing ball even though they always report impact 999.",
         scene: {
             layout: [
-                "#######",
-                "#.....#",
-                "#...b.#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	Box	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: [
                 {
@@ -1052,11 +1052,11 @@ export const GOLDEN_MOVEMENT_CASES = [
         ],
         expect: {
             boardLayout: [
-                "#######",
-                "#.....#",
-                "#...b.#",
-                "#.....#",
-                "#######"
+                "#	#	#	#	#	#	#",
+                "#	.	.	.	.	.	#",
+                "#	.	.	.	Box	.	#",
+                "#	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#"
             ],
             players: {
                 hero: {

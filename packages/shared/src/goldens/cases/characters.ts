@@ -8,11 +8,11 @@ export const GOLDEN_CHARACTER_CASES = [
       "Using Blaze's turn-start action should skip the movement die, roll only the tool die, and grant Bomb Throw this turn.",
     scene: {
       layout: [
-        "########",
-        "#......#",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -78,10 +78,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Volaty's turn-start action should roll only movement and resolve the turn's Movement tool as a leap.",
     scene: {
       layout: [
-        "#######",
-        "#..#..#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	#	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -137,10 +137,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "If Chain was not moved between turns, the next roll should include a Hookshot with length 2.",
     scene: {
       layout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -182,10 +182,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Any out-of-turn movement should clear Chain's next-turn Hookshot reward.",
     scene: {
       layout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -257,10 +257,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Balance option one should reduce this turn's movement by 1 and grant a Movement 1 tool next turn.",
     scene: {
       layout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -348,10 +348,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Balance option two should remove two movement points this turn and return them as a Movement 2 tool next turn.",
     scene: {
       layout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -439,10 +439,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Lamp should be able to give up the current turn's tool die, receive Copy, and add a tool that another player already used this round.",
     scene: {
       layout: [
-        "########",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -498,10 +498,10 @@ export const GOLDEN_CHARACTER_CASES = [
     ],
     expect: {
       boardLayout: [
-        "########",
-        "#.e....#",
-        "#..e...#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	E2	.	.	.	.	#",
+        "#	.	.	E2	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: {
         lamp: {
@@ -531,10 +531,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "AWM should consume all remaining movement points, push the first hit player by that amount, and write matching bondage stacks.",
     scene: {
       layout: [
-        "########",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -599,10 +599,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "A player with an installed bondage modifier should receive reduced movement-derived tools on roll, then lose both the modifier and its stacks at turn end.",
     scene: {
       layout: [
-        "########",
-        "#......#",
-        "#......#",
-        "########"
+        "#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -672,10 +672,10 @@ export const GOLDEN_CHARACTER_CASES = [
       "Entering the action phase should immediately grant a durability-2 Build Wall.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -718,10 +718,10 @@ export const GOLDEN_CHARACTER_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#..e#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	E2	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         mountain: {

@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import { isWithinBoard } from "../board";
 import { clonePlayerTags } from "../playerTags";
+import { cloneSummonState } from "../summonState";
 import { resolvePassThroughSummonEffects, resolveStopSummonEffects } from "../summons";
 import {
   resolveImpactTerrainEffect,
@@ -361,6 +362,7 @@ function applyMovementSubjectStateToDraft(
     ...existingSummon,
     ownerId: subject.ownerId ?? existingSummon.ownerId,
     position: clonePosition(subject.position),
+    state: cloneSummonState(existingSummon.state),
     summonId: subject.summonId ?? existingSummon.summonId
   };
 
@@ -371,6 +373,7 @@ function applyMovementSubjectStateToDraft(
         kind: "upsert",
         ownerId: nextSummon.ownerId,
         position: nextSummon.position,
+        state: cloneSummonState(nextSummon.state),
         summonId: nextSummon.summonId
       }
     ]);
@@ -634,6 +637,7 @@ function resolveSteppedDisplacement(
                 instanceId: state.player.id,
                 ownerId: state.player.ownerId ?? "",
                 position: clonePosition(state.player.position),
+                state: {},
                 summonId: state.player.summonId!
               }
             },

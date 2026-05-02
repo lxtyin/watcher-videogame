@@ -12,6 +12,7 @@ import type {
   PlayerTurnFlag,
   SetCharacterCommandPayload,
   SummonId,
+  SummonStateMap,
   ToolId,
   ToolSource,
   TurnInfoSnapshot,
@@ -49,6 +50,7 @@ export interface SimulationSummonDefinition {
   instanceId?: string;
   ownerId: string;
   position: GridPosition;
+  state?: SummonStateMap;
   summonId: SummonId;
 }
 

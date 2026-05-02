@@ -1,5 +1,7 @@
 import { DEFAULT_BOARD_SYMBOLS, type LayoutSymbolDefinition } from "./content/boards/defaultBoard";
 import { DEFAULT_GAME_MAP_ID, getGameMapDefinition } from "./content/maps";
+import { createDicePigState, parseDicePigCarryToken } from "./dicePig";
+import { cloneSummonState } from "./summonState";
 import type {
   BoardDefinition,
   BoardSummonState,
@@ -13,35 +15,178 @@ export function toTileKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
 }
 
+interface ParsedLayoutCell {
+  descriptor: string;
+  featureSymbols: string[];
+  tileSymbol: string;
+}
+
+interface ResolvedInitialSummon {
+  ownerId: string;
+  state: BoardSummonState["state"];
+  summonId: BoardSummonState["summonId"];
+}
+
+interface ResolvedLayoutCell {
+  initialSummons: ResolvedInitialSummon[];
+  tile: LayoutSymbolDefinition;
+}
+
+type LayoutSymbolMap = Record<string, LayoutSymbolDefinition>;
+
+function normalizeLayoutDescriptor(descriptor: string): string {
+  return descriptor.trim() || ".";
+}
+
+export function splitLayoutRow(row: string): string[] {
+  if (row.includes("\t")) {
+    return row.split("\t").map(normalizeLayoutDescriptor);
+  }
+
+  if (/\s/.test(row)) {
+    return row.trim().split(/\s+/).map(normalizeLayoutDescriptor);
+  }
+
+  return row.split("").map(normalizeLayoutDescriptor);
+}
+
+export function joinLayoutRow(descriptors: readonly string[]): string {
+  return descriptors.map(normalizeLayoutDescriptor).join("\t");
+}
+
+export function getLayoutWidth(layout: readonly string[]): number {
+  return splitLayoutRow(layout[0] ?? "").length;
+}
+
+export function getLayoutCellDescriptor(
+  layout: readonly string[],
+  position: GridPosition
+): string {
+  return splitLayoutRow(layout[position.y] ?? "")[position.x] ?? ".";
+}
+
+export function setLayoutCellDescriptor(
+  layout: readonly string[],
+  position: GridPosition,
+  descriptor: string
+): string[] {
+  return layout.map((row, rowIndex) => {
+    if (rowIndex !== position.y) {
+      return row;
+    }
+
+    const descriptors = splitLayoutRow(row);
+    descriptors[position.x] = normalizeLayoutDescriptor(descriptor);
+    return joinLayoutRow(descriptors);
+  });
+}
+
+function parseLayoutCellDescriptor(descriptor: string): ParsedLayoutCell {
+  const normalizedDescriptor = normalizeLayoutDescriptor(descriptor);
+  const [tileSymbol = ".", ...featureSymbols] = normalizedDescriptor
+    .split("|")
+    .map(normalizeLayoutDescriptor);
+
+  return {
+    descriptor: normalizedDescriptor,
+    featureSymbols,
+    tileSymbol
+  };
+}
+
+function resolveInitialSummonFromSymbol(
+  symbolDefinition: LayoutSymbolDefinition | undefined
+): ResolvedInitialSummon | null {
+  const initialSummon = symbolDefinition?.initialSummon;
+
+  if (!initialSummon) {
+    return null;
+  }
+
+  return {
+    ownerId: initialSummon.ownerId ?? "",
+    state: cloneSummonState(initialSummon.state),
+    summonId: initialSummon.summonId
+  };
+}
+
+function resolveInitialSummonFromFeature(featureSymbol: string): ResolvedInitialSummon | null {
+  const dicePigCarry = parseDicePigCarryToken(featureSymbol);
+
+  if (!dicePigCarry) {
+    return null;
+  }
+
+  return {
+    ownerId: "",
+    state: createDicePigState(dicePigCarry),
+    summonId: "dicePig"
+  };
+}
+
+function resolveLayoutCell(
+  descriptor: string,
+  symbols: LayoutSymbolMap
+): ResolvedLayoutCell {
+  const directDefinition = symbols[normalizeLayoutDescriptor(descriptor)];
+
+  if (directDefinition) {
+    return {
+      initialSummons: [
+        resolveInitialSummonFromSymbol(directDefinition)
+      ].filter((summon): summon is ResolvedInitialSummon => summon !== null),
+      tile: directDefinition
+    };
+  }
+
+  const parsedCell = parseLayoutCellDescriptor(descriptor);
+  const tileDefinition =
+    symbols[parsedCell.tileSymbol] ??
+    (parseDicePigCarryToken(parsedCell.tileSymbol) ? symbols["."] : undefined);
+
+  if (!tileDefinition) {
+    throw new Error(`Unknown board layout symbol "${parsedCell.tileSymbol}".`);
+  }
+
+  const featureSymbols = [
+    ...(parseDicePigCarryToken(parsedCell.tileSymbol) ? [parsedCell.tileSymbol] : []),
+    ...parsedCell.featureSymbols
+  ];
+  const initialSummons = [
+    resolveInitialSummonFromSymbol(tileDefinition),
+    ...featureSymbols.map((featureSymbol) =>
+      resolveInitialSummonFromSymbol(symbols[featureSymbol]) ??
+      resolveInitialSummonFromFeature(featureSymbol)
+    )
+  ].filter((summon): summon is ResolvedInitialSummon => summon !== null);
+
+  return {
+    initialSummons,
+    tile: tileDefinition
+  };
+}
+
 function buildBoardFromLayout(
   layout: readonly string[],
-  symbols: Record<
-    string,
-    {
-      faction?: TileDefinition["faction"];
-      direction?: TileDefinition["direction"];
-      durability?: number;
-      type: TileDefinition["type"];
-    }
-  >
+  symbols: LayoutSymbolMap
 ): BoardDefinition {
   if (!layout.length) {
     throw new Error("Board layout must include at least one row.");
   }
 
-  const width = layout[0]?.length ?? 0;
+  const rows = layout.map(splitLayoutRow);
+  const width = rows[0]?.length ?? 0;
 
-  if (!width || layout.some((row) => row.length !== width)) {
+  if (!width || rows.some((row) => row.length !== width)) {
     throw new Error("Board layout rows must all exist and share the same width.");
   }
 
   const tiles: TileDefinition[] = [];
 
-  for (let y = 0; y < layout.length; y += 1) {
+  for (let y = 0; y < rows.length; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      // Character lookup keeps the board editable without changing runtime code.
-      const symbol = layout[y]?.[x] ?? ".";
-      const tileConfig = symbols[symbol] ?? symbols["."]!;
+      const descriptor = rows[y]?.[x] ?? ".";
+      const tileConfig = resolveLayoutCell(descriptor, symbols).tile;
 
       tiles.push({
         key: toTileKey({ x, y }),
@@ -57,7 +202,7 @@ function buildBoardFromLayout(
 
   return {
     width,
-    height: layout.length,
+    height: rows.length,
     tiles
   };
 }
@@ -71,15 +216,7 @@ export function createBoardDefinitionFromLayout(
     {
       ...DEFAULT_BOARD_SYMBOLS,
       ...symbols
-    } as Record<
-      string,
-      {
-        faction?: TileDefinition["faction"];
-        direction?: TileDefinition["direction"];
-        durability?: number;
-        type: TileDefinition["type"];
-      }
-    >
+    } as LayoutSymbolMap
   );
 }
 
@@ -90,30 +227,41 @@ export function createInitialSummonsFromLayout(
   const normalizedSymbols = {
     ...DEFAULT_BOARD_SYMBOLS,
     ...symbols
-  } as Record<string, LayoutSymbolDefinition>;
+  } as LayoutSymbolMap;
   const summons: BoardSummonState[] = [];
 
   for (let y = 0; y < layout.length; y += 1) {
-    const row = layout[y] ?? "";
+    const row = splitLayoutRow(layout[y] ?? "");
 
     for (let x = 0; x < row.length; x += 1) {
-      const symbol = row[x] ?? ".";
-      const initialSummon = normalizedSymbols[symbol]?.initialSummon;
+      const descriptor = row[x] ?? ".";
+      const initialSummons = resolveLayoutCell(descriptor, normalizedSymbols).initialSummons;
 
-      if (!initialSummon) {
-        continue;
+      for (const initialSummon of initialSummons) {
+        summons.push({
+          instanceId: `layout:${initialSummon.summonId}:${x},${y}:${summons.length + 1}`,
+          ownerId: initialSummon.ownerId,
+          position: { x, y },
+          state: cloneSummonState(initialSummon.state),
+          summonId: initialSummon.summonId
+        });
       }
-
-      summons.push({
-        instanceId: `layout:${initialSummon.summonId}:${x},${y}:${summons.length + 1}`,
-        ownerId: initialSummon.ownerId ?? "",
-        position: { x, y },
-        summonId: initialSummon.summonId
-      });
     }
   }
 
   return summons;
+}
+
+export function layoutCellHasInitialSummon(
+  descriptor: string,
+  symbols: Partial<Record<string, LayoutSymbolDefinition>> = {}
+): boolean {
+  const normalizedSymbols = {
+    ...DEFAULT_BOARD_SYMBOLS,
+    ...symbols
+  } as LayoutSymbolMap;
+
+  return resolveLayoutCell(descriptor, normalizedSymbols).initialSummons.length > 0;
 }
 
 // Runtime board creation flows through the shared map registry so each map binds mode and spawn rules.
@@ -164,9 +312,12 @@ export function resizeBoardLayout(
   }
 
   return Array.from({ length: nextHeight }, (_unused, y) => {
-    const sourceRow = layout[y] ?? "";
-    const resizedRow = Array.from({ length: nextWidth }, (_unusedColumn, x) => sourceRow[x] ?? fillSymbol);
-    return resizedRow.join("");
+    const sourceRow = splitLayoutRow(layout[y] ?? "");
+    const resizedRow = Array.from(
+      { length: nextWidth },
+      (_unusedColumn, x) => sourceRow[x] ?? fillSymbol
+    );
+    return joinLayoutRow(resizedRow);
   });
 }
 

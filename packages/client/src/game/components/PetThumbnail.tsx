@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import type { CSSProperties } from "react";
-import { PetPiece } from "./PetPiece";
+import { PetPiece } from "../assets/player/PetPiece";
 
 export function PetThumbnail({
   color,

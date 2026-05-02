@@ -1,8 +1,10 @@
 import {
   getCharacterDefinition,
+  getDicePigCarryCode,
   getSummonDefinition,
   getTerrainAccent,
   getTerrainTextDescription,
+  getToolDefinition,
   type Direction,
   type PlayerSnapshot,
   type SummonSnapshot,
@@ -72,12 +74,23 @@ export function describePlayerInspection(player: PlayerSnapshot): SceneInspectio
 // Summon inspection cards expose the summon purpose without coupling BoardScene to summon ids.
 export function describeSummonInspection(summon: SummonSnapshot): SceneInspectionCardData {
   const definition = getSummonDefinition(summon.summonId);
+  const carryCode = summon.summonId === "dicePig" ? getDicePigCarryCode(summon.state) : null;
+  const dicePigSubtitle =
+    carryCode === null
+      ? null
+      : carryCode === "none"
+        ? "不携带奖励"
+        : carryCode === "random_tool"
+          ? "携带随机工具骰"
+          : carryCode.startsWith("point:")
+            ? `携带移动 ${carryCode.slice("point:".length)}`
+            : `携带${getToolDefinition(carryCode.slice("tool:".length) as Parameters<typeof getToolDefinition>[0]).label}`;
 
   return {
     accent: "#8d7a3d",
     description: definition.description,
     kindLabel: "召唤物",
-    subtitle: `所属者 ${summon.ownerId}`,
+    subtitle: dicePigSubtitle ?? `所属者 ${summon.ownerId}`,
     thumbnailToken: definition.label.slice(0, 1),
     title: definition.label
   };

@@ -1,4 +1,4 @@
-import type { BoardDefinition, GridPosition } from "@watcher/shared";
+import type { BoardDefinition, BoardSummonState, GridPosition } from "@watcher/shared";
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { MOUSE, TOUCH } from "three";
@@ -10,6 +10,7 @@ const DISABLED_TOUCH_ACTION = -1 as TOUCH;
 
 export function MapEditorCanvas({
   board,
+  summons,
   hoveredPosition,
   isPainting,
   onHoverPosition,
@@ -18,6 +19,7 @@ export function MapEditorCanvas({
   selectedTerrain
 }: {
   board: BoardDefinition;
+  summons: BoardSummonState[];
   hoveredPosition: GridPosition | null;
   isPainting: boolean;
   onHoverPosition: (position: GridPosition | null) => void;
@@ -50,6 +52,7 @@ export function MapEditorCanvas({
         />
         <MapEditorScene
           board={board}
+          summons={summons}
           hoveredPosition={hoveredPosition}
           isPainting={isPainting}
           onHoverPosition={onHoverPosition}

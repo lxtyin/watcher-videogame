@@ -56,6 +56,7 @@ export class SummonState extends Schema {
   @type("string") instanceId = "";
   @type("string") summonId = "";
   @type("string") ownerId = "";
+  @type("string") stateJson = "{}";
   @type("number") x = 0;
   @type("number") y = 0;
 }

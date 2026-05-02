@@ -10,10 +10,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i.t.T.I#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	TowerW	.	TowerB	.	SpawnB	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       symbols: {
         A: { type: "tower", durability: 4, faction: "black" }
@@ -54,10 +54,10 @@ export const GOLDEN_BEDWARS_CASES = [
       mapId: BEDWARS_GAME_MAP_ID,
       mode: "bedwars",
       boardLayout: [
-        "#########",
-        "#i.t.A.I#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	TowerW	.	A	.	SpawnB	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       settlementState: "active",
       players: {
@@ -84,10 +84,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i.t.Z.I#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	TowerW	.	Z	.	SpawnB	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       symbols: {
         Z: { type: "tower", durability: 1, faction: "black" },
@@ -126,10 +126,10 @@ export const GOLDEN_BEDWARS_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#########",
-        "#i.t.f.I#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	TowerW	.	f	.	SpawnB	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: {
         p1: {
@@ -149,10 +149,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i..p..I#",
-        "#..t.T..#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	.	Poison	.	.	SpawnB	#",
+        "#	.	.	TowerW	.	TowerB	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -215,10 +215,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i.....I#",
-        "#..t.T..#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	.	.	.	.	SpawnB	#",
+        "#	.	.	TowerW	.	TowerB	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -268,10 +268,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i.c...I#",
-        "#..t.T..#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	CampW	.	.	.	SpawnB	#",
+        "#	.	.	TowerW	.	TowerB	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -329,10 +329,10 @@ export const GOLDEN_BEDWARS_CASES = [
     scene: {
       mapId: BEDWARS_GAME_MAP_ID,
       layout: [
-        "#########",
-        "#i..p..I#",
-        "#....T..#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	SpawnW	.	.	Poison	.	.	SpawnB	#",
+        "#	.	.	.	.	TowerB	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {

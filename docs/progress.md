@@ -7,6 +7,43 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-02 玩家与生物摆放统一
+
+- `PetPiece` 从 `game/components` 移入 `game/assets/player`，作为玩家棋子模型资产；cube-pet 模型归一化继续沿用原来的玩家棋子逻辑。
+- `DicePigSummonAsset` 改为复用 `PetPiece` 渲染猪模型，骰子仍作为该模型组内的附加资源挂载，避免骰子猪单独维护一套模型归一化。
+- `BoardScene` 的堆叠计算从“玩家列表”升级为“可堆叠实体列表”：
+  - 玩家和 `kind: "creature"` 召唤物共用入格顺序、stack index、垂直堆叠和场景摆放
+  - `kind: "object"` 召唤物继续按普通场上物件单独摆放，不进入玩家堆叠
+- `window.watcher_scene_debug.displayedSummons` 为生物召唤物暴露 `isCreature / stackSerial / stackIndex / stackY`，便于浏览器自动化检查实际摆放。
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - develop-web-game golden 页面烟测：`layout-symbol-spawns-dice-pig` 正常渲染，无 console/page error
+  - 自定义 Playwright 检查：把骰子猪临时放到玩家同格后，玩家与骰子猪分别得到同一堆叠组内的 `stackIndex`，截图确认两者垂直堆叠显示
+
+## 2026-05-02 骰子猪形态与布局描述符
+
+- 召唤物实例新增通用 `state` 字段，并贯通 shared draft、presentation state transition、server schema、client deserialize 与 golden summary。
+- 骰子猪支持 14 种携带形态：
+  - 点数 1~6：死亡时给予对应点数的 `movement` 工具
+  - 六种工具骰面：死亡时给予指定工具
+  - 随机工具：死亡时沿用工具骰随机奖励并推进工具骰种子
+  - 空形态：死亡时不发放奖励
+- 骰子猪 client 资源改为 `animal-pig.glb` 与骰子模型组合；点数骰、工具骰复用 `diceRollAnimation.ts` 的骰面朝上配置，随机形态使用 `randomDice.glb`。
+- 地图布局从单字符行升级为 tab 分隔格子描述符，单格支持 `地形|特性`，例如 `.|p5` 表示空地上初始放置携带移动 5 的骰子猪。
+- 新增 `scripts/migrate-layout-descriptors.mjs`，已用脚本批量迁移内置地图与 golden case 的 `layout / boardLayout`。
+- 地图编辑器接入骰子猪放置与预览；在空地上可放置骰子猪，改画地形会直接替换格子描述符并清除初始召唤物；`R` 键改为切换当前选中项形态。
+- 新增 golden case：
+  - `dice-pig-point-carry-grants-movement-tool`
+  - `dice-pig-tool-carry-grants-specific-tool`
+  - `dice-pig-empty-carry-grants-nothing`
+- 验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`，`56/56` passed
+  - `npm.cmd run build`
+  - develop-web-game `/mapeditor` 烟测：页面加载、canvas 截图、`render_game_to_text` 状态与 console/page error 检查通过
+  - Playwright 交互检查：选中骰子猪后按 `R` 从 `.|p1` 切到 `.|p2`、再切到 `.|p3`
+
 ## 2026-05-02 生物召唤物
 
 - 召唤物新增 `kind` 语义：

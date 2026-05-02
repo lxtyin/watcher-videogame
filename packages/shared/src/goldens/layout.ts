@@ -2,6 +2,10 @@ import {
   DEFAULT_BOARD_SYMBOLS,
   type LayoutSymbolDefinition
 } from "../content/boards/defaultBoard";
+import {
+  createBoardDefinitionFromLayout,
+  joinLayoutRow
+} from "../board";
 import type {
   BoardDefinition,
   GridPosition,
@@ -19,7 +23,7 @@ function toTileKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
 }
 
-// Golden cases use the same compact symbol board format as the default game board.
+// Golden cases use the same descriptor board format as the default game board.
 export function buildGoldenLayoutSymbols(
   overrides: Partial<Record<string, LayoutSymbolDefinition>> = {}
 ): Record<string, LayoutSymbolDefinition> {
@@ -34,49 +38,7 @@ export function createBoardDefinitionFromGoldenLayout(
   layout: readonly string[],
   symbolOverrides: Partial<Record<string, LayoutSymbolDefinition>> = {}
 ): BoardDefinition {
-  if (!layout.length) {
-    throw new Error("Golden layout must include at least one row.");
-  }
-
-  const width = layout[0]?.length ?? 0;
-
-  if (!width) {
-    throw new Error("Golden layout rows must not be empty.");
-  }
-
-  if (layout.some((row) => row.length !== width)) {
-    throw new Error("Golden layout rows must all have the same width.");
-  }
-
-  const symbols = buildGoldenLayoutSymbols(symbolOverrides);
-  const tiles: TileDefinition[] = [];
-
-  layout.forEach((row, y) => {
-    row.split("").forEach((symbol, x) => {
-      const definition = symbols[symbol];
-
-      if (!definition) {
-        throw new Error(`Unknown golden layout symbol "${symbol}" at (${x}, ${y}).`);
-      }
-
-      const position = { x, y };
-      tiles.push({
-        key: toTileKey(position),
-        x,
-        y,
-        type: definition.type,
-        durability: definition.durability ?? 0,
-        direction: definition.direction ?? null,
-        faction: definition.faction ?? null
-      });
-    });
-  });
-
-  return {
-    width,
-    height: layout.length,
-    tiles
-  };
+  return createBoardDefinitionFromLayout(layout, symbolOverrides);
 }
 
 function symbolMatchesTile(
@@ -91,7 +53,7 @@ function symbolMatchesTile(
   );
 }
 
-// Board serialization reuses the case symbol legend so expected and actual maps stay compact.
+// Board serialization reuses the case symbol legend so expected and actual maps stay data-only.
 export function serializeGoldenBoardLayout(
   board: BoardDefinition,
   symbolOverrides: Partial<Record<string, LayoutSymbolDefinition>> = {}
@@ -102,7 +64,7 @@ export function serializeGoldenBoardLayout(
   );
 
   return Array.from({ length: board.height }, (_, y) =>
-    Array.from({ length: board.width }, (_, x) => {
+    joinLayoutRow(Array.from({ length: board.width }, (_, x) => {
       const position = clonePosition({ x, y });
       const tile = tilesByKey.get(toTileKey(position));
 
@@ -115,6 +77,6 @@ export function serializeGoldenBoardLayout(
       );
 
       return matchingSymbol?.[0] ?? "?";
-    }).join("")
+    }))
   );
 }

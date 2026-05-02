@@ -142,6 +142,15 @@ export function pushSummonEvents(
     }
 
     if (summonEffect.kind === "dice_pig_death") {
+      if (!summonEffect.grantedTool) {
+        pushRoomEvent(
+          state,
+          "summon_triggered",
+          `${player.name} defeated an empty dice pig.`
+        );
+        continue;
+      }
+
       pushRoomEvent(
         state,
         "summon_triggered",

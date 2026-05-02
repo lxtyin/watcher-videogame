@@ -10,6 +10,7 @@ import type {
   RolledToolId,
   SequencedActionPresentation,
   SummonId,
+  SummonStateMap,
   TeamId,
   ToolId,
   ToolParameterValueMap,
@@ -80,6 +81,7 @@ interface RoomSummonState {
   instanceId: string;
   summonId: SummonId;
   ownerId: string;
+  stateJson: string;
   x: number;
   y: number;
 }
@@ -176,6 +178,13 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return [];
     }
   };
+  const parseSummonState = (stateJson: string): SummonStateMap => {
+    try {
+      return JSON.parse(stateJson) as SummonStateMap;
+    } catch {
+      return {};
+    }
+  };
 
   return {
     allowDebugTools: roomState.allowDebugTools,
@@ -203,7 +212,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       position: {
         x: summon.x,
         y: summon.y
-      }
+      },
+      state: parseSummonState(summon.stateJson)
     })),
     players: Array.from(roomState.players.values()).map((player) => ({
       id: player.id,

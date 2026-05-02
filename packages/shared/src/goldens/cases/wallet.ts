@@ -8,10 +8,10 @@ export const GOLDEN_WALLET_CASES = [
       "Using Deploy Wallet during the action phase should create a summon but keep the player in the same phase.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -50,10 +50,10 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         leader: {
@@ -87,10 +87,10 @@ export const GOLDEN_WALLET_CASES = [
       "Ending the action phase should enter turn-end, grant Deploy Wallet, and using the last turn-end tool should finish the turn automatically.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -164,10 +164,10 @@ export const GOLDEN_WALLET_CASES = [
       "If a turn-end tool was granted, sending endTurn again should skip the remaining phase and finish the turn.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -225,10 +225,10 @@ export const GOLDEN_WALLET_CASES = [
       "Active grounded movement should trigger wallet pickup when the actor passes through the wallet tile.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -272,10 +272,10 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         leader: {
@@ -297,10 +297,10 @@ export const GOLDEN_WALLET_CASES = [
       "Active grounded movement should let any player pick up a wallet while passing through it.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -369,10 +369,10 @@ export const GOLDEN_WALLET_CASES = [
       "If the current player starts their turn while already standing on a wallet, the wallet should wait for the roll and then trigger with other stop effects when action phase begins.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -450,10 +450,10 @@ export const GOLDEN_WALLET_CASES = [
       "Active hookshot self-movement should trigger wallet pickup while passing over the wallet tile.",
     scene: {
       layout: [
-        "######",
-        "#...##",
-        "#....#",
-        "######"
+        "#	#	#	#	#	#",
+        "#	.	.	.	#	#",
+        "#	.	.	.	.	#",
+        "#	#	#	#	#	#"
       ],
       players: [
         {
@@ -497,10 +497,10 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "######",
-        "#...##",
-        "#....#",
-        "######"
+        "#	#	#	#	#	#",
+        "#	.	.	.	#	#",
+        "#	.	.	.	.	#",
+        "#	#	#	#	#	#"
       ],
       players: {
         leader: {
@@ -522,10 +522,10 @@ export const GOLDEN_WALLET_CASES = [
       "Active leap movement should trigger wallet pickup on stop when the landing tile contains the wallet.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -569,10 +569,10 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#...#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         leader: {
@@ -594,10 +594,10 @@ export const GOLDEN_WALLET_CASES = [
       "Being pushed across a wallet by another actor should not trigger pickup because the displacement is out of turn.",
     scene: {
       layout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -649,10 +649,10 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: {
         enemy: {
@@ -685,9 +685,9 @@ export const GOLDEN_WALLET_CASES = [
       "Passive displacement only describes movement form; self recoil during the actor's own tool use is still in-turn and can trigger wallet pickup.",
     scene: {
       layout: [
-        "#####",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -732,9 +732,9 @@ export const GOLDEN_WALLET_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         leader: {

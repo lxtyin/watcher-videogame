@@ -1,9 +1,10 @@
 import { Clone, useGLTF } from "@react-three/drei";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { Box3, Mesh, Vector3 } from "three";
-import { PET_MODEL_FORWARD_OFFSET_Y, PET_MODEL_PATHS, getPetModelPath } from "../content/pets";
+import { PET_MODEL_FORWARD_OFFSET_Y, PET_MODEL_PATHS, getPetModelPath } from "../../content/pets";
 
 interface PetPieceProps {
+  children?: ReactNode;
   fallbackSeed?: string | undefined;
   petId?: string | undefined;
   position: [number, number, number];
@@ -11,7 +12,7 @@ interface PetPieceProps {
 }
 
 // Cube-pet models are normalized to a shared board footprint before being rendered.
-export function PetPiece({ fallbackSeed, petId, position, rotation }: PetPieceProps) {
+export function PetPiece({ children, fallbackSeed, petId, position, rotation }: PetPieceProps) {
   const modelPath = getPetModelPath(petId, fallbackSeed);
   const { scene } = useGLTF(modelPath);
 
@@ -53,6 +54,7 @@ export function PetPiece({ fallbackSeed, petId, position, rotation }: PetPiecePr
       scale={normalizedModel.scale}
     >
       <Clone object={scene} position={normalizedModel.offset} />
+      {children}
     </group>
   );
 }

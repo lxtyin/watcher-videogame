@@ -9,10 +9,10 @@ export const GOLDEN_RACE_CASES = [
     scene: {
       mapId: RACE_GAME_MAP_ID,
       layout: [
-        "#####",
-        "#s.g#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.	Goal	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -87,10 +87,10 @@ export const GOLDEN_RACE_CASES = [
     scene: {
       mapId: RACE_GAME_MAP_ID,
       layout: [
-        "#####",
-        "#s.g#",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.	Goal	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -167,10 +167,10 @@ export const GOLDEN_RACE_CASES = [
     scene: {
       mapId: RACE_GAME_MAP_ID,
       layout: [
-        "#####",
-        "#s..#",
-        "#..g#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.	.	#",
+        "#	.	.	Goal	#",
+        "#	#	#	#	#"
       ],
       players: [
         {

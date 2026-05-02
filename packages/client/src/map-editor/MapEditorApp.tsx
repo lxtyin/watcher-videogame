@@ -1,7 +1,11 @@
 import {
   DEFAULT_BOARD_LAYOUT,
+  createInitialSummonsFromLayout,
   createBoardDefinitionFromLayout,
+  getLayoutWidth,
+  layoutCellHasInitialSummon,
   resizeBoardLayout,
+  setLayoutCellDescriptor,
   type GameMode,
   type GridPosition
 } from "@watcher/shared";
@@ -15,27 +19,12 @@ import { formatMapEditorDocument, parseMapEditorDocument, type MapEditorDocument
 import { MapEditorCanvas } from "./MapEditorCanvas";
 import {
   expandTerrainLibraryEntriesForCapture,
-  findTerrainLibraryEntry,
   isTerrainEntrySelected,
   resolveTerrainEntrySelectionSymbol,
   resolveSelectedTerrain,
-  rotateTerrainSymbolClockwise,
+  cycleTerrainSymbolVariant,
   TERRAIN_LIBRARY_ENTRIES
 } from "./terrainCatalog";
-
-function replaceLayoutSymbol(
-  layout: string[],
-  position: GridPosition,
-  symbol: string
-): string[] {
-  return layout.map((row, rowIndex) => {
-    if (rowIndex !== position.y) {
-      return row;
-    }
-
-    return `${row.slice(0, position.x)}${symbol}${row.slice(position.x + 1)}`;
-  });
-}
 
 function createInitialDocument(): MapEditorDocumentLike {
   return {
@@ -77,7 +66,7 @@ export function MapEditorApp() {
   const [importError, setImportError] = useState<string | null>(null);
   const [isPainting, setIsPainting] = useState(false);
   const [importText, setImportText] = useState("");
-  const [sizeWidthInput, setSizeWidthInput] = useState(() => String(INITIAL_DOCUMENT.layout[0]?.length ?? 1));
+  const [sizeWidthInput, setSizeWidthInput] = useState(() => String(getLayoutWidth(INITIAL_DOCUMENT.layout)));
   const [sizeHeightInput, setSizeHeightInput] = useState(() => String(INITIAL_DOCUMENT.layout.length));
   const [thumbnailUrls, setThumbnailUrls] = useState<Partial<Record<string, string>>>({});
   const snapshot = useGameStore((state) => state.snapshot);
@@ -85,7 +74,6 @@ export function MapEditorApp() {
   const lastError = useGameStore((state) => state.lastError);
   const { createRoom } = useWatcherConnection(null);
   const storedProfile = useMemo(() => getStoredPlayerProfile(), []);
-  const selectedTerrainEntry = findTerrainLibraryEntry(selectedSymbol);
   const selectedTerrain = useMemo(() => resolveSelectedTerrain(selectedSymbol), [selectedSymbol]);
   const thumbnailEntries = useMemo(
     () => expandTerrainLibraryEntriesForCapture(TERRAIN_LIBRARY_ENTRIES),
@@ -95,10 +83,14 @@ export function MapEditorApp() {
     () => createBoardDefinitionFromLayout(documentState.layout),
     [documentState.layout]
   );
+  const editorSummons = useMemo(
+    () => createInitialSummonsFromLayout(documentState.layout),
+    [documentState.layout]
+  );
   const createRoomBusy = connectionStatus === "connecting";
 
   useEffect(() => {
-    setSizeWidthInput(String(documentState.layout[0]?.length ?? 1));
+    setSizeWidthInput(String(getLayoutWidth(documentState.layout)));
     setSizeHeightInput(String(documentState.layout.length));
   }, [documentState.layout]);
 
@@ -129,7 +121,7 @@ export function MapEditorApp() {
         return;
       }
 
-      const rotatedSymbol = rotateTerrainSymbolClockwise(selectedSymbol);
+      const rotatedSymbol = cycleTerrainSymbolVariant(selectedSymbol);
 
       if (rotatedSymbol === selectedSymbol) {
         return;
@@ -157,6 +149,7 @@ export function MapEditorApp() {
           height: board.height
         },
         selectedSymbol,
+        summonCount: editorSummons.length,
         hoveredPosition,
         painting: isPainting
       });
@@ -166,7 +159,7 @@ export function MapEditorApp() {
     return () => {
       window.render_game_to_text = undefined;
     };
-  }, [board.height, board.width, documentState.allowDebugTools, documentState.mapLabel, documentState.mode, hoveredPosition, isPainting, selectedSymbol]);
+  }, [board.height, board.width, documentState.allowDebugTools, documentState.mapLabel, documentState.mode, editorSummons.length, hoveredPosition, isPainting, selectedSymbol]);
 
   return (
     <div className="map-editor-shell" onContextMenu={(event) => {
@@ -279,7 +272,7 @@ export function MapEditorApp() {
           <p className="hint-copy">左键点击下方地形卡，选中当前要摆放的地形。</p>
           <p className="hint-copy">左键在棋盘中按下并拖动，可以连续摆放同一种地形。</p>
           <p className="hint-copy">右键随时取消当前选中，回到未选中状态。</p>
-          <p className="hint-copy">按 `R` 可顺时针旋转当前地形；目前只对大炮和传送带生效。</p>
+          <p className="hint-copy">按 `R` 可切换当前项目形态，例如大炮方向、传送带方向、阵营或骰子猪携带内容。</p>
         </section>
 
         <section className="map-editor-card">
@@ -382,6 +375,7 @@ export function MapEditorApp() {
         >
           <MapEditorCanvas
             board={board}
+            summons={editorSummons}
             hoveredPosition={hoveredPosition}
             isPainting={isPainting}
             onHoverPosition={setHoveredPosition}
@@ -390,9 +384,16 @@ export function MapEditorApp() {
                 return;
               }
 
+              const targetTile = board.tiles.find((tile) => tile.x === position.x && tile.y === position.y);
+              const selectedPlacesSummon = layoutCellHasInitialSummon(selectedTerrain.symbol);
+
+              if (selectedPlacesSummon && targetTile?.type !== "floor") {
+                return;
+              }
+
               setDocumentState((current) => ({
                 ...current,
-                layout: replaceLayoutSymbol(current.layout, position, selectedTerrain.symbol)
+                layout: setLayoutCellDescriptor(current.layout, position, selectedTerrain.symbol)
               }));
             }}
             onPointerUp={() => setIsPainting(false)}
@@ -405,11 +406,11 @@ export function MapEditorApp() {
             <div>
               <p className="section-title">地形库</p>
               <p className="hint-copy">
-                左键选中后在棋盘中按下并拖动连续放置，右键取消，`R` 顺时针旋转。
+                左键选中后在棋盘中按下并拖动连续放置，右键取消，`R` 切换形态。
               </p>
             </div>
             <div className="mini-pill">
-              {selectedTerrainEntry ? `当前：${selectedTerrainEntry.label}` : "当前：未选中"}
+              {selectedTerrain ? `当前：${selectedTerrain.label}` : "当前：未选中"}
             </div>
           </div>
 

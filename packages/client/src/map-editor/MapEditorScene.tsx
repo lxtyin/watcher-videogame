@@ -1,9 +1,12 @@
 import {
+  createInitialSummonsFromLayout,
   toTileKey,
+  type BoardSummonState,
   type BoardDefinition,
   type GridPosition
 } from "@watcher/shared";
 import { BoardTileVisual } from "../game/assets/board/BoardTileVisual";
+import { SummonVisual } from "../game/assets/summons/SummonVisual";
 import { estimateBoardShadowBounds } from "../game/utils/shadowCamera";
 import type { TerrainLibraryEntry } from "./terrainCatalog";
 
@@ -24,8 +27,33 @@ function createGhostBoard(board: BoardDefinition, entry: TerrainLibraryEntry, po
   return ghostLayout.find((tile) => tile !== null) ?? null;
 }
 
+function createGhostSummon(
+  board: BoardDefinition,
+  entry: TerrainLibraryEntry,
+  position: GridPosition
+): BoardSummonState | null {
+  const targetTile = board.tiles.find((tile) => tile.x === position.x && tile.y === position.y);
+
+  if (targetTile?.type !== "floor") {
+    return null;
+  }
+
+  const initialSummon = createInitialSummonsFromLayout([`${entry.symbol}\t.`])[0];
+
+  if (!initialSummon) {
+    return null;
+  }
+
+  return {
+    ...initialSummon,
+    instanceId: `ghost:${initialSummon.instanceId}`,
+    position
+  };
+}
+
 export function MapEditorScene({
   board,
+  summons,
   hoveredPosition,
   isPainting,
   onHoverPosition,
@@ -33,6 +61,7 @@ export function MapEditorScene({
   selectedTerrain
 }: {
   board: BoardDefinition;
+  summons: BoardSummonState[];
   hoveredPosition: GridPosition | null;
   isPainting: boolean;
   onHoverPosition: (position: GridPosition | null) => void;
@@ -42,6 +71,10 @@ export function MapEditorScene({
   const ghostTile =
     selectedTerrain && hoveredPosition
       ? createGhostBoard(board, selectedTerrain, hoveredPosition)
+      : null;
+  const ghostSummon =
+    selectedTerrain && hoveredPosition
+      ? createGhostSummon(board, selectedTerrain, hoveredPosition)
       : null;
   const hoveredTileKey = hoveredPosition ? toTileKey(hoveredPosition) : null;
   const shadowBounds = estimateBoardShadowBounds(board.width, board.height);
@@ -100,6 +133,34 @@ export function MapEditorScene({
           selectionColor={GHOST_SELECTION_COLOR}
           tile={ghostTile}
           yOffset={0.18}
+        />
+      ) : null}
+      {summons.map((summon) => (
+        <SummonVisual
+          key={summon.instanceId}
+          boardHeight={board.height}
+          boardWidth={board.width}
+          color="#dba84a"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+
+            if (event.button !== 0 || !selectedTerrain) {
+              return;
+            }
+
+            onPaintPosition(summon.position);
+            onHoverPosition(summon.position);
+          }}
+          summon={summon}
+        />
+      ))}
+      {ghostSummon ? (
+        <SummonVisual
+          boardHeight={board.height}
+          boardWidth={board.width}
+          color="#dba84a"
+          opacity={0.54}
+          summon={ghostSummon}
         />
       ) : null}
     </>

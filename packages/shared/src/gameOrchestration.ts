@@ -11,6 +11,7 @@ import {
 import { createBoardDefinitionFromGoldenLayout } from "./goldens/layout";
 import { cloneModifierIds } from "./modifiers";
 import { clonePlayerTags } from "./playerTags";
+import { cloneSummonState } from "./summonState";
 import {
   appendPresentationEvents,
   createEffectEvent,
@@ -161,7 +162,8 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
     toolHistory: snapshot.toolHistory.map(cloneToolHistoryEntry),
     summons: snapshot.summons.map((summon) => ({
       ...summon,
-      position: clonePosition(summon.position)
+      position: clonePosition(summon.position),
+      state: cloneSummonState(summon.state)
     })),
     eventLog: snapshot.eventLog.map((entry) => ({ ...entry })),
     turnInfo: cloneTurnInfo(snapshot.turnInfo),
@@ -179,8 +181,20 @@ export function cloneOrchestratedGameSnapshot(snapshot: GameSnapshot): GameSnaps
                   })),
                   summonTransitions: event.summonTransitions.map((transition) => ({
                     ...transition,
-                    before: transition.before ? { ...transition.before, position: { ...transition.before.position } } : null,
-                    after: transition.after ? { ...transition.after, position: { ...transition.after.position } } : null
+                    before: transition.before
+                      ? {
+                          ...transition.before,
+                          position: { ...transition.before.position },
+                          state: cloneSummonState(transition.before.state)
+                        }
+                      : null,
+                    after: transition.after
+                      ? {
+                          ...transition.after,
+                          position: { ...transition.after.position },
+                          state: cloneSummonState(transition.after.state)
+                        }
+                      : null
                   })),
                   playerTransitions: event.playerTransitions.map((transition) => ({
                     ...transition,
@@ -246,6 +260,7 @@ function buildBoardSummons(snapshot: GameSnapshot): BoardSummonState[] {
     instanceId: summon.instanceId,
     ownerId: summon.ownerId,
     position: clonePosition(summon.position),
+    state: cloneSummonState(summon.state),
     summonId: summon.summonId
   }));
 }
@@ -400,7 +415,8 @@ function applySummonMutations(snapshot: GameSnapshot, summonMutations: SummonMut
       instanceId: mutation.instanceId,
       summonId: mutation.summonId,
       ownerId: mutation.ownerId,
-      position: clonePosition(mutation.position)
+      position: clonePosition(mutation.position),
+      state: cloneSummonState(mutation.state)
     });
   }
 
@@ -627,6 +643,15 @@ function pushSummonEvents(
     }
 
     if (summonEffect.kind === "dice_pig_death") {
+      if (!summonEffect.grantedTool) {
+        pushEvent(
+          state,
+          "summon_triggered",
+          `${player.name} defeated an empty dice pig.`
+        );
+        continue;
+      }
+
       pushEvent(
         state,
         "summon_triggered",
@@ -1965,7 +1990,8 @@ export function createGameOrchestrationStateFromScene(
       instanceId: summon.instanceId ?? `${summon.summonId}-${index + 1}`,
       summonId: summon.summonId,
       ownerId: summon.ownerId,
-      position: clonePosition(summon.position)
+      position: clonePosition(summon.position),
+      state: cloneSummonState(summon.state)
     }))
   ];
 

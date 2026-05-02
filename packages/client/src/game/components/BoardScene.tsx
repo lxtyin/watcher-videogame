@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Color, Plane, Raycaster, Vector2, Vector3, type Camera, type PerspectiveCamera } from "three";
 import {
   findToolInstance,
+  getSummonDefinition,
   getToolDefinition,
   getToolTextDescription,
   type Direction,
@@ -58,7 +59,7 @@ import { useSceneOverlayStore } from "../state/useSceneOverlayStore";
 import { useGameStore } from "../state/useGameStore";
 import { SceneActionRing } from "./SceneInteractionHud";
 import { SceneDirectionArrows } from "./SceneDirectionArrows";
-import { PetPiece } from "./PetPiece";
+import { PetPiece } from "../assets/player/PetPiece";
 import { BoardStaticTileLayer, BoardTileSelectionLayer } from "./BoardStaticTileLayer";
 import {
   buildActionPreview,
@@ -75,10 +76,24 @@ interface SceneHudOffset {
   y: number;
 }
 
-interface PlayerStackLayout {
+interface EntityStackLayout {
   count: number;
   index: number;
 }
+
+type StackableBoardEntity =
+  | {
+      entityKey: string;
+      kind: "player";
+      player: PlayerSnapshot;
+      position: GridPosition;
+    }
+  | {
+      entityKey: string;
+      kind: "summon";
+      position: GridPosition;
+      summon: SummonSnapshot;
+    };
 
 type CameraControlMode = "follow" | "orbit";
 type FollowCameraState = "follow" | "manual-pan" | "recentering";
@@ -126,6 +141,18 @@ const DIRECTION_ROTATION_Y: Record<Direction, number> = {
 
 function toPositionKey(position: GridPosition): string {
   return `${position.x},${position.y}`;
+}
+
+function getPlayerEntityKey(playerId: string): string {
+  return `player:${playerId}`;
+}
+
+function getSummonEntityKey(summonInstanceId: string): string {
+  return `summon:${summonInstanceId}`;
+}
+
+function isCreatureSummonSnapshot(summon: SummonSnapshot): boolean {
+  return getSummonDefinition(summon.summonId).kind === "creature";
 }
 
 function positionsEqual(left: GridPosition | undefined, right: GridPosition): boolean {
@@ -313,7 +340,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
   const [inspectionCard, setInspectionCard] = useState<SceneInspectionCardData | null>(null);
   const [activeToolPointerType, setActiveToolPointerType] = useState<string | null>(null);
   const [isToolPointerInsideCancelZone, setIsToolPointerInsideCancelZone] = useState(false);
-  const [cellEntrySerialByPlayer, setCellEntrySerialByPlayer] = useState<Record<string, number>>({});
+  const [cellEntrySerialByEntity, setCellEntrySerialByEntity] = useState<Record<string, number>>({});
   const interactionSessionRef = useRef<ToolInteractionSession | null>(null);
   const inspectionTimerRef = useRef<number | null>(null);
   const activeToolPointerTypeRef = useRef<string | null>(null);
@@ -511,6 +538,14 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
   const stableDisplayedTiles = useStableTileDefinitions(displayedTiles);
   const displayedPlayers = playbackState.displayedPlayers;
   const displayedSummons = playbackState.displayedSummons;
+  const displayedCreatureSummons = useMemo(
+    () => displayedSummons.filter(isCreatureSummonSnapshot),
+    [displayedSummons]
+  );
+  const displayedObjectSummons = useMemo(
+    () => displayedSummons.filter((summon) => !isCreatureSummonSnapshot(summon)),
+    [displayedSummons]
+  );
   const displayedSummonPositions = useMemo(
     () =>
       Object.fromEntries(
@@ -526,73 +561,92 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
     [snapshot]
   );
   const showActionRingArc = !isPresentationBusy && !shouldHideToolInteractionArc(interactionSession);
-  const playerStackLayout = useMemo(() => {
-    const layout = new Map<string, PlayerStackLayout>();
+  const stackableBoardEntities = useMemo<StackableBoardEntity[]>(() => {
+    if (!snapshot) {
+      return [];
+    }
+
+    const playerEntities = displayedPlayers
+      .filter((player) => player.boardVisible)
+      .map((player) => ({
+        entityKey: getPlayerEntityKey(player.id),
+        kind: "player" as const,
+        player,
+        position: displayedPlayerPositions[player.id] ?? player.position
+      }));
+    const summonEntities = displayedCreatureSummons.map((summon) => ({
+      entityKey: getSummonEntityKey(summon.instanceId),
+      kind: "summon" as const,
+      position: summon.position,
+      summon
+    }));
+
+    return [...playerEntities, ...summonEntities];
+  }, [displayedCreatureSummons, displayedPlayerPositions, displayedPlayers, snapshot]);
+  const entityStackLayout = useMemo(() => {
+    const layout = new Map<string, EntityStackLayout>();
 
     if (!snapshot) {
       return layout;
     }
 
-    const groupedPlayers = new Map<string, PlayerSnapshot[]>();
+    const groupedEntities = new Map<string, StackableBoardEntity[]>();
 
-    for (const player of displayedPlayers.filter((entry) => entry.boardVisible)) {
-      const displayedPosition = displayedPlayerPositions[player.id] ?? player.position;
+    for (const entity of stackableBoardEntities) {
       const key = toPositionKey({
-        x: Math.round(displayedPosition.x),
-        y: Math.round(displayedPosition.y)
+        x: Math.round(entity.position.x),
+        y: Math.round(entity.position.y)
       });
-      const currentGroup = groupedPlayers.get(key) ?? [];
-      currentGroup.push(player);
-      groupedPlayers.set(key, currentGroup);
+      const currentGroup = groupedEntities.get(key) ?? [];
+      currentGroup.push(entity);
+      groupedEntities.set(key, currentGroup);
     }
 
-    for (const [, players] of groupedPlayers) {
-      const orderedPlayers = [...players].sort((left, right) => {
-        const leftSerial = cellEntrySerialByPlayer[left.id] ?? 0;
-        const rightSerial = cellEntrySerialByPlayer[right.id] ?? 0;
+    for (const [, entities] of groupedEntities) {
+      const orderedEntities = [...entities].sort((left, right) => {
+        const leftSerial = cellEntrySerialByEntity[left.entityKey] ?? 0;
+        const rightSerial = cellEntrySerialByEntity[right.entityKey] ?? 0;
 
         if (leftSerial !== rightSerial) {
           return rightSerial - leftSerial;
         }
 
-        return left.id.localeCompare(right.id);
+        return left.entityKey.localeCompare(right.entityKey);
       });
 
-      orderedPlayers.forEach((player, index) => {
-        layout.set(player.id, {
-          count: orderedPlayers.length,
+      orderedEntities.forEach((entity, index) => {
+        layout.set(entity.entityKey, {
+          count: orderedEntities.length,
           index
         });
       });
     }
 
     return layout;
-  }, [cellEntrySerialByPlayer, displayedPlayerPositions, displayedPlayers, snapshot]);
-  const renderedPlayers = useMemo(() => {
+  }, [cellEntrySerialByEntity, snapshot, stackableBoardEntities]);
+  const renderedStackEntities = useMemo(() => {
     if (!snapshot) {
       return [];
     }
 
-    return displayedPlayers
-      .filter((player) => player.boardVisible)
-      .sort((left, right) => {
-      const leftLayout = playerStackLayout.get(left.id) ?? { count: 1, index: 0 };
-      const rightLayout = playerStackLayout.get(right.id) ?? { count: 1, index: 0 };
+    return [...stackableBoardEntities].sort((left, right) => {
+      const leftLayout = entityStackLayout.get(left.entityKey) ?? { count: 1, index: 0 };
+      const rightLayout = entityStackLayout.get(right.entityKey) ?? { count: 1, index: 0 };
 
       if (leftLayout.index !== rightLayout.index) {
         return leftLayout.index - rightLayout.index;
       }
 
-      const leftSerial = cellEntrySerialByPlayer[left.id] ?? 0;
-      const rightSerial = cellEntrySerialByPlayer[right.id] ?? 0;
+      const leftSerial = cellEntrySerialByEntity[left.entityKey] ?? 0;
+      const rightSerial = cellEntrySerialByEntity[right.entityKey] ?? 0;
 
       if (leftSerial !== rightSerial) {
         return rightSerial - leftSerial;
       }
 
-        return left.id.localeCompare(right.id);
-      });
-  }, [cellEntrySerialByPlayer, displayedPlayers, playerStackLayout, snapshot]);
+      return left.entityKey.localeCompare(right.entityKey);
+    });
+  }, [cellEntrySerialByEntity, entityStackLayout, snapshot, stackableBoardEntities]);
   const playerLiftById = useMemo(() => {
     const nextLifts: Record<string, number> = {};
 
@@ -668,55 +722,92 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
 
   useLayoutEffect(() => {
     if (!snapshot) {
-      setCellEntrySerialByPlayer({});
+      setCellEntrySerialByEntity({});
       nextCellEntrySerialRef.current = 1;
       return;
     }
 
-    const nextEntrySerials = { ...cellEntrySerialByPlayer };
-    const fallbackOrderById = Object.fromEntries(
-      snapshot.players.map((player, index) => [player.id, index])
+    const snapshotCreatureSummons = snapshot.summons.filter(isCreatureSummonSnapshot);
+    const snapshotStackEntities = [
+      ...snapshot.players.map((player, index) => ({
+        entityKey: getPlayerEntityKey(player.id),
+        fallbackOrder: index,
+        id: player.id,
+        kind: "player" as const,
+        position: player.position
+      })),
+      ...snapshotCreatureSummons.map((summon, index) => ({
+        entityKey: getSummonEntityKey(summon.instanceId),
+        fallbackOrder: snapshot.players.length + index,
+        id: summon.instanceId,
+        kind: "summon" as const,
+        position: summon.position
+      }))
+    ];
+    const nextEntrySerials = { ...cellEntrySerialByEntity };
+    const fallbackOrderByEntityKey = Object.fromEntries(
+      snapshotStackEntities.map((entity) => [entity.entityKey, entity.fallbackOrder])
     ) as Record<string, number>;
-    const arrivalMsByPlayer = Object.fromEntries(
+    const arrivalMsByEntityKey = Object.fromEntries(
       (snapshot.latestPresentation?.events ?? []).flatMap((event) => {
-        if (event.kind !== "motion" || event.subject.kind !== "player") {
+        if (event.kind !== "motion") {
           return [];
         }
 
-        return [[event.subject.playerId, event.startMs + event.durationMs] as const];
+        if (event.subject.kind === "player") {
+          return [
+            [getPlayerEntityKey(event.subject.playerId), event.startMs + event.durationMs] as const
+          ];
+        }
+
+        if (event.subject.kind === "summon") {
+          return [
+            [
+              getSummonEntityKey(event.subject.summonInstanceId),
+              event.startMs + event.durationMs
+            ] as const
+          ];
+        }
+
+        return [];
       })
     ) as Record<string, number>;
-    const playersNeedingEntryUpdate = snapshot.players
-      .filter((player) => {
-        const previousPosition = previousPositionsRef.current[player.id];
+    const entitiesNeedingEntryUpdate = snapshotStackEntities
+      .filter((entity) => {
+        const previousPosition =
+          entity.kind === "player"
+            ? previousPositionsRef.current[entity.id]
+            : previousSummonPositionsRef.current[entity.id];
 
         return (
-          !(player.id in nextEntrySerials) ||
-          !positionsEqual(previousPosition, player.position)
+          !(entity.entityKey in nextEntrySerials) ||
+          !positionsEqual(previousPosition, entity.position)
         );
       })
       .sort(
         (left, right) =>
-          (arrivalMsByPlayer[left.id] ?? 0) - (arrivalMsByPlayer[right.id] ?? 0) ||
-          (fallbackOrderById[left.id] ?? 0) - (fallbackOrderById[right.id] ?? 0)
+          (arrivalMsByEntityKey[left.entityKey] ?? 0) -
+            (arrivalMsByEntityKey[right.entityKey] ?? 0) ||
+          (fallbackOrderByEntityKey[left.entityKey] ?? 0) -
+            (fallbackOrderByEntityKey[right.entityKey] ?? 0)
       );
 
-    for (const player of playersNeedingEntryUpdate) {
-      nextEntrySerials[player.id] = nextCellEntrySerialRef.current;
+    for (const entity of entitiesNeedingEntryUpdate) {
+      nextEntrySerials[entity.entityKey] = nextCellEntrySerialRef.current;
       nextCellEntrySerialRef.current += 1;
     }
 
     const nextState = Object.fromEntries(
-      snapshot.players.map((player) => [
-        player.id,
-        nextEntrySerials[player.id] ?? nextCellEntrySerialRef.current++
+      snapshotStackEntities.map((entity) => [
+        entity.entityKey,
+        nextEntrySerials[entity.entityKey] ?? nextCellEntrySerialRef.current++
       ])
     );
 
-    if (!areNumberMapsEqual(cellEntrySerialByPlayer, nextState)) {
-      setCellEntrySerialByPlayer(nextState);
+    if (!areNumberMapsEqual(cellEntrySerialByEntity, nextState)) {
+      setCellEntrySerialByEntity(nextState);
     }
-  }, [cellEntrySerialByPlayer, snapshot]);
+  }, [cellEntrySerialByEntity, snapshot]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -729,12 +820,12 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       { fromIndex: number; startedAtMs: number; toIndex: number }
     > = {};
 
-    for (const player of snapshot.players) {
-      const nextIndex = playerStackLayout.get(player.id)?.index ?? 0;
-      const previousAnimation = stackAnimationByIdRef.current[player.id];
+    for (const entity of stackableBoardEntities) {
+      const nextIndex = entityStackLayout.get(entity.entityKey)?.index ?? 0;
+      const previousAnimation = stackAnimationByIdRef.current[entity.entityKey];
 
       if (!previousAnimation) {
-        nextAnimations[player.id] = {
+        nextAnimations[entity.entityKey] = {
           fromIndex: nextIndex,
           toIndex: nextIndex,
           startedAtMs: simulationTimeMs
@@ -743,11 +834,11 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       }
 
       if (previousAnimation.toIndex === nextIndex) {
-        nextAnimations[player.id] = previousAnimation;
+        nextAnimations[entity.entityKey] = previousAnimation;
         continue;
       }
 
-      nextAnimations[player.id] = {
+      nextAnimations[entity.entityKey] = {
         fromIndex: getAnimatedStackIndex(
           previousAnimation.fromIndex,
           previousAnimation.toIndex,
@@ -759,7 +850,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
     }
 
     stackAnimationByIdRef.current = nextAnimations;
-  }, [playerStackLayout, simulationTimeMs, snapshot]);
+  }, [entityStackLayout, simulationTimeMs, snapshot, stackableBoardEntities]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -1696,8 +1787,9 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       inspectionCard,
       displayedPlayers: Object.fromEntries(
         displayedPlayers.map((player) => {
-          const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
-          const stackAnimation = stackAnimationByIdRef.current[player.id];
+          const entityKey = getPlayerEntityKey(player.id);
+          const stackLayout = entityStackLayout.get(entityKey) ?? { count: 1, index: 0 };
+          const stackAnimation = stackAnimationByIdRef.current[entityKey];
           const animatedStackIndex = stackAnimation
             ? getAnimatedStackIndex(
                 stackAnimation.fromIndex,
@@ -1713,7 +1805,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
               boardVisible: player.boardVisible,
               color: player.color,
               isActive: player.id === snapshot.turnInfo.currentPlayerId,
-              stackSerial: cellEntrySerialByPlayer[player.id] ?? 0,
+              stackSerial: cellEntrySerialByEntity[entityKey] ?? 0,
               stackIndex: animatedStackIndex,
               stackY: PLAYER_BASE_Y + animatedStackIndex * PLAYER_STACK_STEP_Y
             }
@@ -1721,7 +1813,35 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         })
       ),
       displayedSummons: Object.fromEntries(
-        displayedSummons.map((summon) => [summon.instanceId, summon])
+        displayedSummons.map((summon) => {
+          const isCreature = isCreatureSummonSnapshot(summon);
+
+          if (!isCreature) {
+            return [summon.instanceId, { ...summon, isCreature }] as const;
+          }
+
+          const entityKey = getSummonEntityKey(summon.instanceId);
+          const stackLayout = entityStackLayout.get(entityKey) ?? { count: 1, index: 0 };
+          const stackAnimation = stackAnimationByIdRef.current[entityKey];
+          const animatedStackIndex = stackAnimation
+            ? getAnimatedStackIndex(
+                stackAnimation.fromIndex,
+                stackAnimation.toIndex,
+                simulationTimeMs - stackAnimation.startedAtMs
+              )
+            : stackLayout.index;
+
+          return [
+            summon.instanceId,
+            {
+              ...summon,
+              isCreature,
+              stackSerial: cellEntrySerialByEntity[entityKey] ?? 0,
+              stackIndex: animatedStackIndex,
+              stackY: PLAYER_BASE_Y + animatedStackIndex * PLAYER_STACK_STEP_Y
+            }
+          ] as const;
+        })
       ),
       displayedTiles: Object.fromEntries(
         displayedTiles.map((tile) => [
@@ -1765,7 +1885,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       window.watcher_scene_debug = undefined;
     };
   }, [
-    cellEntrySerialByPlayer,
+    cellEntrySerialByEntity,
     actionPresentationQueue.length,
     activeActionPresentation,
     diceRollAnimation,
@@ -1773,8 +1893,8 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
     displayedPlayerPositions,
     displayedSummons,
     displayedTiles,
+    entityStackLayout,
     inspectionCard,
-    playerStackLayout,
     simulationTimeMs,
     snapshot
   ]);
@@ -1970,7 +2090,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         effectTiles={scenePreview.effectTiles}
         toolId={interactionSession?.toolId ?? null}
       />
-      {displayedSummons.map((summon, index) => {
+      {displayedObjectSummons.map((summon, index) => {
         const ownerColor =
           snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
         const activeMotion = playbackState.summonMotions[summon.instanceId] ?? null;
@@ -1999,10 +2119,57 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         );
       })}
 
-      {renderedPlayers.map((player, index) => {
+      {renderedStackEntities.map((entity, index) => {
+        if (entity.kind === "summon") {
+          const summon = entity.summon;
+          const ownerColor =
+            snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
+          const activeMotion = playbackState.summonMotions[summon.instanceId] ?? null;
+          const facingDirection =
+            activeMotion?.position.facing ?? summonFacingById[summon.instanceId] ?? "down";
+          const summonPose = getGridEntityPresentationPose(
+            activeMotion?.motionStyle ?? null,
+            activeMotion?.progress ?? 0,
+            DIRECTION_ROTATION_Y[facingDirection],
+            facingDirection
+          );
+          const stackLayout = entityStackLayout.get(entity.entityKey) ?? { count: 1, index: 0 };
+          const stackAnimation = stackAnimationByIdRef.current[entity.entityKey];
+          const animatedStackIndex = stackAnimation
+            ? getAnimatedStackIndex(
+                stackAnimation.fromIndex,
+                stackAnimation.toIndex,
+                simulationTimeMs - stackAnimation.startedAtMs
+              )
+            : stackLayout.index;
+          const bob = activeMotion ? 0 : Math.sin(simulationTimeMs / 520 + index) * 0.025;
+          const positionY =
+            PLAYER_BASE_Y +
+            animatedStackIndex * PLAYER_STACK_STEP_Y +
+            bob +
+            (activeMotion?.position.lift ?? 0) +
+            summonPose.yOffset;
+
+          return (
+            <SummonVisual
+              key={entity.entityKey}
+              summon={summon}
+              boardWidth={snapshot.boardWidth}
+              boardHeight={snapshot.boardHeight}
+              color={ownerColor}
+              gridPosition={entity.position}
+              onPointerDown={(event) => handleSummonPointerDown(summon, event)}
+              positionY={positionY}
+              renderOrder={20 + Math.round(animatedStackIndex * 10)}
+              rotation={summonPose.rotation}
+            />
+          );
+        }
+
+        const player = entity.player;
         const snapshotPlayer = snapshotPlayersById.get(player.id) ?? player;
         const activeMotion = playbackState.playerMotions[player.id] ?? null;
-        const displayedGridPosition = displayedPlayerPositions[player.id] ?? player.position;
+        const displayedGridPosition = entity.position;
         const [x, , z] = toWorldPositionFromGrid(
           displayedGridPosition.x,
           displayedGridPosition.y,
@@ -2011,8 +2178,8 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         );
         const isActive = player.id === snapshot.turnInfo.currentPlayerId;
         const isMe = player.id === sessionId;
-        const stackLayout = playerStackLayout.get(player.id) ?? { count: 1, index: 0 };
-        const stackAnimation = stackAnimationByIdRef.current[player.id];
+        const stackLayout = entityStackLayout.get(entity.entityKey) ?? { count: 1, index: 0 };
+        const stackAnimation = stackAnimationByIdRef.current[entity.entityKey];
         const animatedStackIndex = stackAnimation
           ? getAnimatedStackIndex(
               stackAnimation.fromIndex,
@@ -2055,7 +2222,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
 
         return (
           <group
-            key={player.id}
+            key={entity.entityKey}
             position={[x, 0, z]}
             renderOrder={20 + Math.round(animatedStackIndex * 10)}
           >

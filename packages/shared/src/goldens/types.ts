@@ -12,6 +12,7 @@ import type {
   TeamId,
   PlayerTurnFlag,
   SummonId,
+  SummonStateMap,
   SummonSnapshot,
   TileType,
   ToolId,
@@ -46,6 +47,7 @@ export interface GoldenSummonDefinition {
   instanceId?: string;
   ownerId: string;
   position: GridPosition;
+  state?: SummonStateMap;
   summonId: SummonId;
 }
 
@@ -127,6 +129,7 @@ export interface GoldenExpectedSummonState {
   instanceId?: string;
   ownerId?: string;
   position: GridPosition;
+  state?: SummonStateMap;
   summonId: SummonId;
 }
 

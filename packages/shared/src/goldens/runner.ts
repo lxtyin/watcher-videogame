@@ -13,6 +13,7 @@ import {
 } from "../toolInteraction";
 import { findToolInstance } from "../tools";
 import { serializeGoldenBoardLayout } from "./layout";
+import { cloneSummonState } from "../summonState";
 import type {
   GoldenCaseDefinition,
   GoldenCasePlayback,
@@ -272,7 +273,8 @@ function buildCaseStateSummary(
     settlementState: snapshot.settlementState,
     summons: snapshot.summons.map((summon) => ({
       ...summon,
-      position: clonePosition(summon.position)
+      position: clonePosition(summon.position),
+      state: cloneSummonState(summon.state)
     })),
     turnInfo: cloneTurnInfo(snapshot.turnInfo)
   };
@@ -406,7 +408,11 @@ function matchesExpectedSummon(
     return false;
   }
 
-  return positionsEqual(actual.position, expected.position);
+  if (!positionsEqual(actual.position, expected.position)) {
+    return false;
+  }
+
+  return !expected.state || JSON.stringify(actual.state) === JSON.stringify(expected.state);
 }
 
 function compareCaseExpectation(

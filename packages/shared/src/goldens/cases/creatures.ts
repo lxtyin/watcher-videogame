@@ -3,13 +3,13 @@ import { defineGoldenCase } from "../types";
 export const GOLDEN_CREATURE_CASES = [
   defineGoldenCase({
     id: "layout-symbol-spawns-dice-pig",
-    title: "Layout P spawns a dice pig creature",
-    description: "The temporary P layout symbol should leave a floor tile and create one dice pig summon.",
+    title: "Layout descriptor spawns a dice pig creature",
+    description: "The dice pig layout feature should leave a floor tile and create one dice pig summon.",
     scene: {
       layout: [
-        "#####",
-        "#.P.#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.|p?	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -27,15 +27,16 @@ export const GOLDEN_CREATURE_CASES = [
     steps: [],
     expect: {
       boardLayout: [
-        "#####",
-        "#...#",
-        "#####"
+        "#	#	#	#	#",
+        "#	.	.	.	#",
+        "#	#	#	#	#"
       ],
       summonCount: 1,
       summons: [
         {
           summonId: "dicePig",
           ownerId: "",
+          state: { carry: "random_tool" },
           position: { x: 2, y: 1 }
         }
       ]
@@ -47,9 +48,9 @@ export const GOLDEN_CREATURE_CASES = [
     description: "A creature summon should move through the same displacement pipeline as a player target.",
     scene: {
       layout: [
-        "#####",
-        "#sP.#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.|p?	.	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -80,9 +81,9 @@ export const GOLDEN_CREATURE_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#s..#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.	.	#",
+        "#	#	#	#	#"
       ],
       players: {
         actor: {
@@ -95,6 +96,7 @@ export const GOLDEN_CREATURE_CASES = [
         {
           summonId: "dicePig",
           ownerId: "",
+          state: { carry: "random_tool" },
           position: { x: 3, y: 1 }
         }
       ],
@@ -110,9 +112,9 @@ export const GOLDEN_CREATURE_CASES = [
     description: "A creature summon can be pushed by a tool, trigger pit death, and run its onDeath reward.",
     scene: {
       layout: [
-        "#####",
-        "#sPo#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.|p?	Pit	#",
+        "#	#	#	#	#"
       ],
       players: [
         {
@@ -146,9 +148,9 @@ export const GOLDEN_CREATURE_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#####",
-        "#s.o#",
-        "#####"
+        "#	#	#	#	#",
+        "#	Start	.	Pit	#",
+        "#	#	#	#	#"
       ],
       players: {
         actor: {
@@ -164,6 +166,161 @@ export const GOLDEN_CREATURE_CASES = [
         currentPlayerId: "actor",
         phase: "turn-action"
       }
+    }
+  }),
+  defineGoldenCase({
+    id: "dice-pig-point-carry-grants-movement-tool",
+    title: "Dice pig point carry grants movement",
+    description: "A dice pig carrying point five should grant a Movement 5 tool when it dies.",
+    scene: {
+      layout: [
+        "#	#	#	#	#",
+        "#	Start	.|p5	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: [
+        {
+          id: "actor",
+          name: "Actor",
+          characterId: "ehh",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "basketball"
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "actor",
+        phase: "turn-action"
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "actor",
+        tool: "basketball",
+        direction: "right",
+        label: "Push the point-carrying dice pig into the pit"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "#	#	#	#	#",
+        "#	Start	.	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: {
+        actor: {
+          toolCount: 1,
+          toolIds: ["movement"]
+        }
+      },
+      summonCount: 0
+    }
+  }),
+  defineGoldenCase({
+    id: "dice-pig-tool-carry-grants-specific-tool",
+    title: "Dice pig tool carry grants the specific tool",
+    description: "A dice pig carrying hookshot should grant Hookshot instead of rolling the random tool die.",
+    scene: {
+      layout: [
+        "#	#	#	#	#",
+        "#	Start	.|p:hookshot	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: [
+        {
+          id: "actor",
+          name: "Actor",
+          characterId: "ehh",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "basketball"
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "actor",
+        phase: "turn-action"
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "actor",
+        tool: "basketball",
+        direction: "right",
+        label: "Push the hookshot-carrying dice pig into the pit"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "#	#	#	#	#",
+        "#	Start	.	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: {
+        actor: {
+          toolCount: 1,
+          toolIds: ["hookshot"]
+        }
+      },
+      summonCount: 0
+    }
+  }),
+  defineGoldenCase({
+    id: "dice-pig-empty-carry-grants-nothing",
+    title: "Empty dice pig grants nothing",
+    description: "A dice pig carrying no die should die without adding a tool to the current player.",
+    scene: {
+      layout: [
+        "#	#	#	#	#",
+        "#	Start	.|pn	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: [
+        {
+          id: "actor",
+          name: "Actor",
+          characterId: "ehh",
+          position: { x: 1, y: 1 },
+          tools: [
+            {
+              toolId: "basketball"
+            }
+          ]
+        }
+      ],
+      turn: {
+        currentPlayerId: "actor",
+        phase: "turn-action"
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "actor",
+        tool: "basketball",
+        direction: "right",
+        label: "Push the empty dice pig into the pit"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "#	#	#	#	#",
+        "#	Start	.	Pit	#",
+        "#	#	#	#	#"
+      ],
+      players: {
+        actor: {
+          toolCount: 0
+        }
+      },
+      summonCount: 0
     }
   })
 ];

@@ -1,4 +1,5 @@
 import { getTile } from "../board";
+import { cloneSummonState } from "../summonState";
 import {
   getChoiceSelection,
   getDirectionSelection,
@@ -49,7 +50,8 @@ function toSummonPresentationState(summon: BoardSummonState): SummonPresentation
     instanceId: summon.instanceId,
     summonId: summon.summonId,
     ownerId: summon.ownerId,
-    position: summon.position
+    position: summon.position,
+    state: cloneSummonState(summon.state)
   };
 }
 
@@ -98,7 +100,8 @@ function buildSummonStateTransition(
         instanceId: mutation.instanceId,
         summonId: mutation.summonId,
         ownerId: mutation.ownerId,
-        position: mutation.position
+        position: mutation.position,
+        state: cloneSummonState(mutation.state)
       }
     };
   }

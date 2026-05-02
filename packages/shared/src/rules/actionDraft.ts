@@ -1,5 +1,6 @@
 import { cloneModifierIds } from "../modifiers";
 import { clonePlayerTags } from "../playerTags";
+import { cloneSummonState } from "../summonState";
 import type {
   ActionPhaseEffect,
   ActionPresentation,
@@ -103,6 +104,7 @@ function cloneBoardSummonState(summon: BoardSummonState): BoardSummonState {
     instanceId: summon.instanceId,
     ownerId: summon.ownerId,
     position: clonePosition(summon.position),
+    state: cloneSummonState(summon.state),
     summonId: summon.summonId
   };
 }
@@ -451,6 +453,7 @@ export function appendDraftSummonMutations(
       instanceId: summonMutation.instanceId,
       ownerId: summonMutation.ownerId,
       position: clonePosition(summonMutation.position),
+      state: cloneSummonState(summonMutation.state),
       summonId: summonMutation.summonId
     });
   }
@@ -635,6 +638,7 @@ export function createTurnStartResolutionDraft(
       instanceId: summon.instanceId,
       ownerId: summon.ownerId,
       position: clonePosition(summon.position),
+      state: cloneSummonState(summon.state),
       summonId: summon.summonId
     })),
     tools

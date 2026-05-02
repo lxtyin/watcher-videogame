@@ -276,6 +276,7 @@ export class WatcherRoom extends Room<WatcherState> {
       summonState.instanceId = summon.instanceId;
       summonState.summonId = summon.summonId;
       summonState.ownerId = summon.ownerId;
+      summonState.stateJson = JSON.stringify(summon.state);
       summonState.x = summon.position.x;
       summonState.y = summon.position.y;
       this.state.summons.set(summon.instanceId, summonState);

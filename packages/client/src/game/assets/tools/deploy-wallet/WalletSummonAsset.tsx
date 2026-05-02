@@ -14,6 +14,7 @@ export function WalletSummonAsset({
   color: string;
   opacity?: number;
   position?: GridPosition;
+  summon?: unknown;
 }) {
   const shouldPlace = position !== undefined && boardWidth !== undefined && boardHeight !== undefined;
   const [x, , z] = shouldPlace ? toWorldPosition(position, boardWidth, boardHeight) : [0, 0, 0];

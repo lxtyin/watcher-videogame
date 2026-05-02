@@ -30,7 +30,15 @@ interface WatcherSceneDebugState {
       stackY: number;
     }
   >;
-  displayedSummons: Record<string, SummonSnapshot>;
+  displayedSummons: Record<
+    string,
+    SummonSnapshot & {
+      isCreature: boolean;
+      stackIndex?: number;
+      stackSerial?: number;
+      stackY?: number;
+    }
+  >;
   displayedTiles: Record<
     string,
     {

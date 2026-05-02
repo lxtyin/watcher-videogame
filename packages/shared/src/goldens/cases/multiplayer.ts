@@ -8,10 +8,10 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       "Hookshot should pull every player on the hit cell with the same passive drag resolution.",
     scene: {
       layout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -57,10 +57,10 @@ export const GOLDEN_MULTIPLAYER_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#######",
-        "#.....#",
-        "#.....#",
-        "#######"
+        "#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	#",
+        "#	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#"
       ],
       players: {
         hooker: {
@@ -87,13 +87,13 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       "Rocket should launch all players on the impact cell and also push players on each adjacent splash cell.",
     scene: {
       layout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -153,13 +153,13 @@ export const GOLDEN_MULTIPLAYER_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: {
         rocketeer: {
@@ -199,13 +199,13 @@ export const GOLDEN_MULTIPLAYER_CASES = [
       "Splash knockback should apply independently to multiple players stacked on the same adjacent cell.",
     scene: {
       layout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: [
         {
@@ -259,13 +259,13 @@ export const GOLDEN_MULTIPLAYER_CASES = [
     ],
     expect: {
       boardLayout: [
-        "#########",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#.......#",
-        "#########"
+        "#	#	#	#	#	#	#	#	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	.	.	.	.	.	.	.	#",
+        "#	#	#	#	#	#	#	#	#"
       ],
       players: {
         rocketeer: {

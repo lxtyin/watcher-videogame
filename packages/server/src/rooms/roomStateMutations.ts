@@ -103,6 +103,7 @@ export function applySummonMutations(state: WatcherState, summonMutations: Summo
     summonState.instanceId = mutation.instanceId;
     summonState.summonId = mutation.summonId;
     summonState.ownerId = mutation.ownerId;
+    summonState.stateJson = JSON.stringify(mutation.state);
     summonState.x = mutation.position.x;
     summonState.y = mutation.position.y;
     state.summons.set(mutation.instanceId, summonState);
@@ -192,6 +193,7 @@ export function applyGameSnapshotToState(
     summonState.instanceId = summon.instanceId;
     summonState.summonId = summon.summonId;
     summonState.ownerId = summon.ownerId;
+    summonState.stateJson = JSON.stringify(summon.state);
     summonState.x = summon.position.x;
     summonState.y = summon.position.y;
     state.summons.set(summon.instanceId, summonState);

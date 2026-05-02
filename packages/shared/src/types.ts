@@ -53,6 +53,8 @@ export type ToolUsabilityContext = ContentToolUsabilityContext;
 export type ToolUsabilityResult = ContentToolUsabilityResult;
 export type PlayerTagValue = boolean | number | string;
 export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
+export type SummonStateValue = boolean | number | string | null;
+export type SummonStateMap = Record<string, SummonStateValue>;
 
 export type ToolSelectionValue =
   | {
@@ -136,6 +138,7 @@ export interface SummonSnapshot {
   instanceId: string;
   ownerId: string;
   position: GridPosition;
+  state: SummonStateMap;
   summonId: SummonId;
 }
 
@@ -308,6 +311,7 @@ export interface BoardSummonState {
   instanceId: string;
   ownerId: string;
   position: GridPosition;
+  state: SummonStateMap;
   summonId: SummonId;
 }
 
@@ -466,7 +470,7 @@ export type TriggeredSummonEffect =
       summonInstanceId: string;
     }
   | {
-      grantedTool: TurnToolSnapshot;
+      grantedTool: TurnToolSnapshot | null;
       kind: "dice_pig_death";
       playerId: string;
       position: GridPosition;
@@ -480,6 +484,7 @@ export type SummonMutation =
       kind: "upsert";
       ownerId: string;
       position: GridPosition;
+      state: SummonStateMap;
       summonId: SummonId;
     }
   | {
@@ -607,6 +612,7 @@ export interface SummonPresentationState {
   instanceId: string;
   ownerId: string;
   position: GridPosition;
+  state: SummonStateMap;
   summonId: SummonId;
 }
 
