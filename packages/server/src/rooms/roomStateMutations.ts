@@ -4,6 +4,7 @@ import type {
   ModifierId,
   PlayerTagMap,
   SummonMutation,
+  TileStateMap,
   TileMutation,
   TurnToolSnapshot
 } from "@watcher/shared";
@@ -86,9 +87,24 @@ export function applyTileMutations(state: WatcherState, tileMutations: TileMutat
       continue;
     }
 
+    const previousType = tile.type;
+    const previousState = parseTileState(tile.stateJson);
+    const nextState =
+      mutation.nextState ??
+      (mutation.nextType === previousType ? previousState : {});
+
     tile.type = mutation.nextType;
     tile.durability = mutation.nextDurability;
     tile.direction = "";
+    tile.stateJson = JSON.stringify(nextState);
+  }
+}
+
+function parseTileState(stateJson: string): TileStateMap {
+  try {
+    return JSON.parse(stateJson) as TileStateMap;
+  } catch {
+    return {};
   }
 }
 

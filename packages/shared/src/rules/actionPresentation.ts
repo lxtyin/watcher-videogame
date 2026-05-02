@@ -181,7 +181,8 @@ export function createEffectEvent(
   position: GridPosition,
   tiles: GridPosition[],
   startMs = 0,
-  durationMs = 1000
+  durationMs = 1000,
+  metadata?: import("../types").PresentationEffectMetadata
 ): ActionPresentationEvent {
   return {
     id: eventId,
@@ -189,6 +190,7 @@ export function createEffectEvent(
     reaction: {
       kind: "effect",
       effectType,
+      ...(metadata === undefined ? {} : { metadata }),
       position,
       tiles
     },

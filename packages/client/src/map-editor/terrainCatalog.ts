@@ -1,4 +1,5 @@
 import {
+  getDiceRewardVariants,
   getDicePigCarryVariants,
   getToolDefinition
 } from "@watcher/shared";
@@ -30,6 +31,18 @@ function getDicePigVariantLabel(code: ReturnType<typeof getDicePigCarryVariants>
   return `骰子猪 ${getToolDefinition(code.slice("tool:".length) as Parameters<typeof getToolDefinition>[0]).label}`;
 }
 
+function getLuckyVariantLabel(code: ReturnType<typeof getDiceRewardVariants>[number]["code"]): string {
+  if (code === "random_tool") {
+    return "幸运方块 随机工具";
+  }
+
+  if (code.startsWith("point:")) {
+    return `幸运方块 移动${code.slice("point:".length)}`;
+  }
+
+  return `幸运方块 ${getToolDefinition(code.slice("tool:".length) as Parameters<typeof getToolDefinition>[0]).label}`;
+}
+
 const DICE_PIG_SYMBOLS = getDicePigCarryVariants().map((variant) => `.|${variant.token}`);
 
 const DICE_PIG_LIBRARY_ENTRY: TerrainLibraryEntry = {
@@ -43,6 +56,13 @@ const DICE_PIG_VARIANT_LABELS = Object.fromEntries(
   getDicePigCarryVariants().map((variant) => [
     `.|${variant.token}`,
     getDicePigVariantLabel(variant.code)
+  ])
+) as Record<string, string>;
+
+const LUCKY_VARIANT_LABELS = Object.fromEntries(
+  getDiceRewardVariants().map((variant) => [
+    variant.token,
+    getLuckyVariantLabel(variant.code)
   ])
 ) as Record<string, string>;
 
@@ -109,7 +129,7 @@ export function resolveSelectedTerrain(symbol: string | null): TerrainLibraryEnt
 
   return {
     ...entry,
-    label: DICE_PIG_VARIANT_LABELS[symbol] ?? entry.label,
+    label: DICE_PIG_VARIANT_LABELS[symbol] ?? LUCKY_VARIANT_LABELS[symbol] ?? entry.label,
     symbol,
     tile: createTerrainCatalogTile(symbol)
   };

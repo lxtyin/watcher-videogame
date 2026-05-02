@@ -161,7 +161,7 @@ export const GOLDEN_MOVEMENT_CASES = [
         expect: {
             boardLayout: [
                 "#	#	#	#	#",
-                "#	.	Lucky0	.	#",
+                "#	.	Lucky	.	#",
                 "#	.	.	.	#",
                 "#	#	#	#	#"
             ],
@@ -179,9 +179,9 @@ export const GOLDEN_MOVEMENT_CASES = [
         }
     }),
     defineGoldenCase({
-        id: "turn-start-restores-empty-lucky",
-        title: "Turn start restores empty lucky tiles",
-        description: "Lucky tiles claimed on the previous turn should restore as the next turn begins.",
+        id: "lucky-can-trigger-every-turn",
+        title: "Lucky can trigger every turn",
+        description: "Lucky tiles should stay on the board and grant a reward every time action phase begins on them.",
         scene: {
             layout: [
                 "#	#	#	#	#",
@@ -222,6 +222,11 @@ export const GOLDEN_MOVEMENT_CASES = [
                 kind: "endTurn",
                 actorId: "hero",
                 label: "Advance into the next turn start"
+            },
+            {
+                kind: "rollDice",
+                actorId: "hero",
+                label: "Claim lucky again at action phase start"
             }
         ],
         expect: {
@@ -234,17 +239,132 @@ export const GOLDEN_MOVEMENT_CASES = [
             players: {
                 hero: {
                     position: { x: 2, y: 1 },
-                    toolCount: 0
+                    toolCount: 4
                 }
             },
             turnInfo: {
                 currentPlayerId: "hero",
-                phase: "turn-start",
+                phase: "turn-action",
                 turnNumber: 3
             },
             latestPresentation: {
-                toolId: "movement",
-                eventKinds: ["state_transition"]
+                eventKinds: ["reaction"]
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "lucky-point-reward-grants-movement-points",
+        title: "Lucky point reward grants movement",
+        description: "A point Lucky tile should grant a movement tool with the configured movement die value.",
+        scene: {
+            layout: [
+                "#	#	#	#	#	#	#	#	#",
+                "#	.	L5	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#	#	#"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 1
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Step onto the point Lucky tile"
+            },
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Spend the movement-5 reward"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#	#	#	#	#	#	#	#	#",
+                "#	.	L5	.	.	.	.	.	#",
+                "#	#	#	#	#	#	#	#	#"
+            ],
+            players: {
+                hero: {
+                    position: { x: 7, y: 1 },
+                    toolCount: 0
+                }
+            }
+        }
+    }),
+    defineGoldenCase({
+        id: "lucky-tool-reward-grants-specific-tool",
+        title: "Lucky tool reward grants the configured tool",
+        description: "A tool Lucky tile should grant the exact configured tool instead of rolling randomly.",
+        scene: {
+            layout: [
+                "#	#	#	#	#",
+                "#	.	L:rocket	.	#",
+                "#	#	#	#	#"
+            ],
+            players: [
+                {
+                    id: "hero",
+                    name: "Hero",
+                    characterId: "ehh",
+                    position: { x: 1, y: 1 },
+                    tools: [
+                        {
+                            toolId: "movement",
+                            params: {
+                                movePoints: 1
+                            }
+                        }
+                    ]
+                }
+            ],
+            turn: {
+                currentPlayerId: "hero",
+                phase: "turn-action"
+            }
+        },
+        steps: [
+            {
+                kind: "useTool",
+                actorId: "hero",
+                tool: "movement",
+                direction: "right",
+                label: "Step onto the tool Lucky tile"
+            }
+        ],
+        expect: {
+            boardLayout: [
+                "#	#	#	#	#",
+                "#	.	L:rocket	.	#",
+                "#	#	#	#	#"
+            ],
+            players: {
+                hero: {
+                    position: { x: 2, y: 1 },
+                    toolCount: 1,
+                    toolIds: ["rocket"]
+                }
             }
         }
     }),

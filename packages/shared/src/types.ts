@@ -55,6 +55,8 @@ export type PlayerTagValue = boolean | number | string;
 export type PlayerTagMap = Partial<Record<string, PlayerTagValue>>;
 export type SummonStateValue = boolean | number | string | null;
 export type SummonStateMap = Record<string, SummonStateValue>;
+export type TileStateValue = boolean | number | string | null;
+export type TileStateMap = Record<string, TileStateValue>;
 
 export type ToolSelectionValue =
   | {
@@ -99,6 +101,7 @@ export interface TileDefinition extends GridPosition {
   durability: number;
   faction: TeamId | null;
   key: string;
+  state?: TileStateMap;
   type: TileType;
 }
 
@@ -168,6 +171,8 @@ export type PresentationMotionStyle =
   | "impact_recoil";
 export type PresentationProjectileType = "basketball" | "rocket" | "awm_bullet";
 export type PresentationEffectType = keyof typeof import("./content/effects").EFFECT_REGISTRY;
+export type PresentationEffectMetadataValue = boolean | number | string | null;
+export type PresentationEffectMetadata = Record<string, PresentationEffectMetadataValue>;
 export type PresentationSoundCueId = keyof typeof import("./content/sounds").SOUND_CUE_REGISTRY;
 export type PresentationLinkStyle = "chain";
 export type PresentationLinkProgressStyle = "full" | "extend_from_from";
@@ -318,6 +323,7 @@ export interface BoardSummonState {
 export interface TileMutation {
   key: string;
   nextDurability: number;
+  nextState?: TileStateMap;
   nextType: TileType;
   presentationStartMs?: number;
   position: GridPosition;
@@ -541,6 +547,7 @@ export type ReactionPresentationPayload =
   | {
       kind: "effect";
       effectType: PresentationEffectType;
+      metadata?: PresentationEffectMetadata;
       position: GridPosition;
       tiles: GridPosition[];
     }
@@ -598,6 +605,7 @@ export interface TilePresentationState {
   direction: Direction | null;
   durability: number;
   faction: TeamId | null;
+  state?: TileStateMap;
   type: TileType;
 }
 

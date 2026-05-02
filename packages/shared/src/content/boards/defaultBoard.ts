@@ -1,5 +1,16 @@
 import { createDicePigState } from "../../dicePig";
-import type { Direction, SummonId, SummonStateMap, TeamId, TileType } from "../../types";
+import {
+  createDiceRewardState,
+  getDiceRewardVariants
+} from "../../diceReward";
+import type {
+  Direction,
+  SummonId,
+  SummonStateMap,
+  TeamId,
+  TileStateMap,
+  TileType
+} from "../../types";
 
 export interface LayoutSymbolDefinition {
   faction?: TeamId;
@@ -11,12 +22,13 @@ export interface LayoutSymbolDefinition {
   type: TileType;
   direction?: Direction;
   durability?: number;
+  state?: TileStateMap;
 }
 
 // Default board content lives outside the runtime builder so map edits stay data-only.
 export const DEFAULT_BOARD_LAYOUT = [
   "#\t#\t#\t#\t#\t#\t#\t#\t#\t#\t#",
-  "#\tStart\tV>\tLucky\tLucky0\t.\t.\tGoal\t.\t.\t#",
+  "#\tStart\tV>\tL?\tL1\t.\t.\tGoal\t.\t.\t#",
   "#\t.\tVv\t.\tHigh\t.\t.\tC^\t.\t.\t#",
   "#\t.\tPoison\tE2\t#\tE2\t.\tC<\t.\t.\t#",
   "#\t.\t.\tV^\t.\t.\tPit\t.|p?\t.\t.\t#",
@@ -25,6 +37,16 @@ export const DEFAULT_BOARD_LAYOUT = [
   "#\t.\t.\t.\t.\tV<\t.\t.\t.\t.\t#",
   "#\t#\t#\t#\t#\t#\t#\t#\t#\t#\t#"
 ] as const;
+
+const LUCKY_BOARD_SYMBOLS = Object.fromEntries(
+  getDiceRewardVariants().map((variant) => [
+    variant.token,
+    {
+      type: "lucky",
+      state: createDiceRewardState(variant.code)
+    } satisfies LayoutSymbolDefinition
+  ])
+) as Record<string, LayoutSymbolDefinition>;
 
 const CANONICAL_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   ".": { type: "floor" },
@@ -40,8 +62,9 @@ const CANONICAL_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   Poison: { type: "poison" },
   Pit: { type: "pit" },
   High: { type: "highwall" },
-  Lucky: { type: "lucky" },
-  Lucky0: { type: "emptyLucky" },
+  Lucky: { type: "lucky", state: createDiceRewardState() },
+  Lucky0: { type: "lucky", state: createDiceRewardState() },
+  ...LUCKY_BOARD_SYMBOLS,
   Start: { type: "start" },
   Goal: { type: "goal" },
   "V^": { type: "conveyor", direction: "up" },
@@ -68,7 +91,7 @@ const LEGACY_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   o: CANONICAL_BOARD_SYMBOLS.Pit!,
   H: CANONICAL_BOARD_SYMBOLS.High!,
   l: CANONICAL_BOARD_SYMBOLS.Lucky!,
-  x: CANONICAL_BOARD_SYMBOLS.Lucky0!,
+  x: CANONICAL_BOARD_SYMBOLS.Lucky!,
   s: CANONICAL_BOARD_SYMBOLS.Start!,
   g: CANONICAL_BOARD_SYMBOLS.Goal!,
   "^": CANONICAL_BOARD_SYMBOLS["V^"]!,

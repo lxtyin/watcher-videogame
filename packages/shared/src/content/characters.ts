@@ -7,6 +7,14 @@ function defineCharacterRegistry<const Registry extends Record<string, Character
 }
 
 export const CHARACTER_REGISTRY = defineCharacterRegistry({
+  villager: {
+    flavorText: "朴素的白板。",
+    label: "Villager",
+    nativeName: "村民",
+    portraitId: "villager",
+    summary: "没有任何技能。",
+    skillIds: []
+  },
   late: {
     flavorText: "迟来的艺术。",
     label: "Late",

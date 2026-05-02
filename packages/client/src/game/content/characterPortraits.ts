@@ -8,6 +8,7 @@ import lampPortraitUrl from "../assets/characters/portraits/lamp.jpg";
 import latePortraitUrl from "../assets/characters/portraits/late.jpg";
 import leaderPortraitUrl from "../assets/characters/portraits/leader.jpg";
 import mountainPortraitUrl from "../assets/characters/portraits/mountain.jpg";
+import villagerPortraitUrl from "../assets/characters/portraits/villager.jpg";
 import volatyPortraitUrl from "../assets/characters/portraits/volaty.jpg";
 
 const CHARACTER_PORTRAIT_URLS: Record<string, string> = {
@@ -20,6 +21,7 @@ const CHARACTER_PORTRAIT_URLS: Record<string, string> = {
   late: latePortraitUrl,
   leader: leaderPortraitUrl,
   mountain: mountainPortraitUrl,
+  villager: villagerPortraitUrl,
   volaty: volatyPortraitUrl
 };
 

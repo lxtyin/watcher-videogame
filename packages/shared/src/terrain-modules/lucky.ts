@@ -1,22 +1,21 @@
-import { rollToolDie } from "../dice";
+import {
+  getDiceRewardCode
+} from "../diceReward";
+import { createDiceRewardTool } from "../diceRewardTools";
 import { createEffectEvent } from "../rules/actionPresentation";
 import { appendDraftPresentationEvents } from "../rules/actionDraft";
-import { createRolledToolInstance } from "../tools";
 import {
   appendTerrainTrigger,
-  grantTerrainRewardTool,
-  mutateTerrainTile,
+  grantTerrainRewardTool
 } from "./helpers";
 import type { TerrainModule } from "./types";
-import type { TurnToolSnapshot } from "../types";
 
 const LUCKY_CLAIM_EFFECT_MS = 420;
-
 
 function buildLuckyToolInstanceId(
   sourceId: string,
   tileKey: string,
-  grantedToolId: TurnToolSnapshot["toolId"]
+  grantedToolId: string
 ): string {
   return `${sourceId}:lucky:${tileKey}:${grantedToolId}`;
 }
@@ -25,7 +24,7 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
   accent: "#d6bf70",
   getTextDescription: () => ({
     title: "幸运方块",
-    description: "停留时会奖励一个工具，并立刻切换为空幸运方块。",
+    description: "停留时会按地里露出的骰子奖励点数或工具。",
     details: []
   }),
   label: "幸运方块",
@@ -34,26 +33,28 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
       return;
     }
 
-    const toolRoll = rollToolDie(context.draft.nextToolDieSeed);
-    const rewardedTool = createRolledToolInstance(
-      buildLuckyToolInstanceId(context.draft.sourceId, context.tile.key, toolRoll.value.toolId),
-      toolRoll.value
+    const rewardCode = getDiceRewardCode(context.tile.state);
+    const reward = createDiceRewardTool(
+      rewardCode,
+      context.draft.nextToolDieSeed,
+      (grantedToolId) =>
+        buildLuckyToolInstanceId(context.draft.sourceId, context.tile.key, grantedToolId)
     );
 
-    grantTerrainRewardTool(context.draft, context.player, rewardedTool, toolRoll.nextSeed);
-    mutateTerrainTile(context.draft, context.tile, "emptyLucky");
+    grantTerrainRewardTool(context.draft, context.player, reward.grantedTool, reward.nextToolDieSeed);
     appendDraftPresentationEvents(context.draft, [
       createEffectEvent(
         `${context.draft.sourceId}:lucky:${context.tile.key}`,
-        "lucky_claim",
+        "dice_reward_claim",
         context.position,
         [context.position],
         context.startMs,
-        LUCKY_CLAIM_EFFECT_MS
+        LUCKY_CLAIM_EFFECT_MS,
+        { rewardCode }
       )
     ]);
     appendTerrainTrigger(context.draft, {
-      grantedTool: rewardedTool,
+      grantedTool: reward.grantedTool,
       kind: "lucky",
       movement: context.movement,
       playerId: context.player.id,

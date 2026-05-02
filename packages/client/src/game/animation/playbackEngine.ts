@@ -6,6 +6,7 @@ import type {
   GridPosition,
   PlayerSnapshot,
   PresentationAnchor,
+  PresentationEffectMetadata,
   PlayerStateTransition,
   PresentationEffectType,
   PresentationLinkProgressStyle,
@@ -52,6 +53,7 @@ export interface ActiveEffectReactionPlayback {
   effectType: PresentationEffectType;
   eventId: string;
   kind: "effect";
+  metadata?: PresentationEffectMetadata;
   position: GridPosition;
   progress: number;
   tiles: GridPosition[];
@@ -154,7 +156,8 @@ function cloneSummon(summon: SummonSnapshot): SummonSnapshot {
 
 function cloneTile(tile: TileDefinition): TileDefinition {
   return {
-    ...tile
+    ...tile,
+    state: { ...(tile.state ?? {}) }
   };
 }
 
@@ -370,6 +373,7 @@ function evaluateEventPlayback(
         eventId: event.id,
         effectType: event.reaction.effectType,
         kind: "effect",
+        ...(event.reaction.metadata === undefined ? {} : { metadata: event.reaction.metadata }),
         position: event.reaction.position,
         progress,
         tiles: event.reaction.tiles
@@ -540,7 +544,9 @@ function resolveDisplayedTiles(
         ...currentTile,
         type: tileTransition.before.type,
         durability: tileTransition.before.durability,
-        direction: tileTransition.before.direction
+        direction: tileTransition.before.direction,
+        faction: tileTransition.before.faction,
+        state: { ...(tileTransition.before.state ?? {}) }
       });
     }
   }

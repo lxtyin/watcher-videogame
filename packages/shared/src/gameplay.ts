@@ -1,4 +1,4 @@
-import { getGameMapDefinition, resolveGameMapId } from "./content/maps";
+import { getGameMapDefinition, resolveGameMapId, type GameMapContentDefinition } from "./content/maps";
 import type { GameMapId, GameMode, GameSettlementState, TeamId } from "./types";
 
 interface PlayerProgressLike {
@@ -17,6 +17,7 @@ export interface RaceStandingEntry {
 
 export interface GameMapRuntimeMetadata {
   allowDebugTools: boolean;
+  initialSeeds?: import("./content/maps").GameMapInitialSeeds;
   mapId: GameMapId;
   mapLabel: string;
   mode: GameMode;
@@ -24,10 +25,11 @@ export interface GameMapRuntimeMetadata {
 
 export function buildGameMapRuntimeMetadata(mapId?: string): GameMapRuntimeMetadata {
   const resolvedMapId = resolveGameMapId(mapId);
-  const definition = getGameMapDefinition(resolvedMapId);
+  const definition: GameMapContentDefinition = getGameMapDefinition(resolvedMapId);
 
   return {
     allowDebugTools: definition.allowDebugTools,
+    ...(definition.initialSeeds ? { initialSeeds: { ...definition.initialSeeds } } : {}),
     mapId: resolvedMapId,
     mapLabel: definition.label,
     mode: definition.mode
@@ -143,4 +145,3 @@ export function getNextActivePlayerId(
 
   return null;
 }
-

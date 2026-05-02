@@ -9,6 +9,7 @@ import {
   resolveSettlementState
 } from "./gameplay";
 import { createBoardDefinitionFromGoldenLayout } from "./goldens/layout";
+import { cloneTileState, isTileStateEmpty } from "./tileState";
 import { cloneModifierIds } from "./modifiers";
 import { clonePlayerTags } from "./playerTags";
 import { cloneSummonState } from "./summonState";
@@ -394,9 +395,20 @@ function applyTileMutations(snapshot: GameSnapshot, tileMutations: TileMutation[
       continue;
     }
 
+    const previousType = tile.type;
+    const nextState =
+      mutation.nextState ??
+      (mutation.nextType === previousType ? tile.state : undefined);
+
     tile.type = mutation.nextType;
     tile.durability = mutation.nextDurability;
     tile.direction = null;
+
+    if (isTileStateEmpty(nextState)) {
+      delete tile.state;
+    } else {
+      tile.state = cloneTileState(nextState);
+    }
   }
 }
 
@@ -825,42 +837,6 @@ function publishDraftPresentation(
       transitionEvents
     )
   );
-}
-
-function restoreLuckyTilesForTurnStart(
-  state: MutableGameOrchestrationState,
-  playerId: string
-): void {
-  const tileMutations = state.snapshot.tiles
-    .filter((tile) => tile.type === "emptyLucky")
-    .map((tile) => ({
-      key: tile.key,
-      nextDurability: tile.durability,
-      nextType: "lucky" as const,
-      position: clonePosition({
-        x: tile.x,
-        y: tile.y
-      })
-    }));
-
-  if (!tileMutations.length) {
-    return;
-  }
-
-  const board = buildBoardDefinition(state.snapshot);
-  const summons = buildBoardSummons(state.snapshot);
-
-  publishDraftPresentation(state, {
-    actorId: playerId,
-    board,
-    presentationEvents: [],
-    sourceId: `turn-start:${playerId}:${state.snapshot.turnInfo.turnNumber}:lucky-restore`,
-    summonMutations: [],
-    summons,
-    tileMutations,
-    toolId: "movement"
-  });
-  applyTileMutations(state.snapshot, tileMutations);
 }
 
 function detectNextToolInstanceSerial(players: PlayerSnapshot[]): number {
@@ -1352,7 +1328,6 @@ function beginTurnFor(
   }
 
   const presentationBaselineSequence = state.snapshot.latestPresentation?.sequence ?? null;
-  restoreLuckyTilesForTurnStart(state, playerId);
   pushEvent(state, "turn_started", `${player.name}'s turn started. Roll the dice.`);
   const phaseStart = applyPhaseStartToPlayer(state, player, "turn-start");
 

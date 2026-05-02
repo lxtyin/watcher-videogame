@@ -20,6 +20,7 @@ export class TileState extends Schema {
   @type("number") durability = 0;
   @type("string") direction = "";
   @type("string") faction: TeamId | "" = "";
+  @type("string") stateJson = "{}";
 }
 
 export class TurnToolState extends Schema {

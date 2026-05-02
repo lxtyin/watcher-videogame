@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { PresentationEffectType } from "@watcher/shared";
 import type { ActiveEffectReactionPlayback } from "../../animation/playbackEngine";
 import { BoxingBallHitEffectAsset } from "../board/BoxingBallHitEffectAsset";
+import { DiceRewardClaimEffectAsset } from "../board/DiceRewardClaimEffectAsset";
 import { EarthWallBreakEffectAsset } from "../board/EarthWallBreakEffectAsset";
 import { LuckyClaimEffectAsset } from "../board/LuckyClaimEffectAsset";
 import { StunClearEffectAsset } from "../board/StunClearEffectAsset";
@@ -13,6 +14,7 @@ import { RocketExplosionEffectAsset } from "../tools/rocket/RocketExplosionEffec
 interface EffectAssetProps {
   boardHeight: number;
   boardWidth: number;
+  metadata?: ActiveEffectReactionPlayback["metadata"] | undefined;
   position: ActiveEffectReactionPlayback["position"];
   progress: number;
   tiles: ActiveEffectReactionPlayback["tiles"];
@@ -22,6 +24,7 @@ type EffectAssetComponent = ComponentType<EffectAssetProps>;
 
 const EFFECT_ASSETS: Record<PresentationEffectType, EffectAssetComponent> = {
   boxing_ball_hit: BoxingBallHitEffectAsset,
+  dice_reward_claim: DiceRewardClaimEffectAsset,
   earth_wall_break: EarthWallBreakEffectAsset,
   lucky_claim: LuckyClaimEffectAsset,
   punch_player_hit: PunchPlayerHitEffectAsset,
@@ -47,6 +50,7 @@ export function EffectVisual({
     <Asset
       boardHeight={boardHeight}
       boardWidth={boardWidth}
+      {...(effect.metadata === undefined ? {} : { metadata: effect.metadata })}
       position={effect.position}
       progress={effect.progress}
       tiles={effect.tiles}

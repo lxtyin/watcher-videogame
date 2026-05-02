@@ -1,6 +1,7 @@
 import {
   createBoardDefinitionFromLayout,
   DEFAULT_BOARD_SYMBOLS,
+  getDiceRewardVariants,
   getTerrainTextDescription,
   toTileKey,
   type TileDefinition
@@ -54,8 +55,7 @@ export const TERRAIN_THUMBNAIL_ENTRIES: TerrainThumbnailEntry[] = [
   createTerrainThumbnailEntry("High"),
   createTerrainThumbnailEntry("Poison"),
   createTerrainThumbnailEntry("Pit"),
-  createTerrainThumbnailEntry("Lucky"),
-  createTerrainThumbnailEntry("Lucky0"),
+  createTerrainThumbnailEntry("L?", getDiceRewardVariants().map((variant) => variant.token)),
   createTerrainThumbnailEntry("Start"),
   createTerrainThumbnailEntry("Goal"),
   createTerrainThumbnailEntry("V^", ["V^", "V>", "Vv", "V<"]),
@@ -103,8 +103,25 @@ function matchesTileSymbol(symbol: string, tile: TileDefinition): boolean {
   return (
     (definition.direction ?? null) === tile.direction &&
     (definition.durability ?? 0) === tile.durability &&
-    (definition.faction ?? null) === tile.faction
+    (definition.faction ?? null) === tile.faction &&
+    stateMapsEqual(definition.state, tile.state)
   );
+}
+
+function stateMapsEqual(
+  left: TileDefinition["state"] | undefined,
+  right: TileDefinition["state"] | undefined
+): boolean {
+  const leftState = left ?? {};
+  const rightState = right ?? {};
+  const leftKeys = Object.keys(leftState);
+  const rightKeys = Object.keys(rightState);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => leftState[key] === rightState[key]);
 }
 
 export function resolveTerrainThumbnailSymbol(tile: TileDefinition): string | null {

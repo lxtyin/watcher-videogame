@@ -4,6 +4,7 @@ import {
   DEFAULT_BOARD_SYMBOLS,
   type LayoutSymbolDefinition
 } from "./boards/defaultBoard";
+import { NEWBIE_VILLAGE_BOARD_LAYOUT, NEWBIE_VILLAGE_BOARD_SYMBOLS } from "./boards/newbieVillage";
 import { BEDWARS_BOARD_LAYOUT, BEDWARS_BOARD_SYMBOLS } from "./boards/bedwarsBoard";
 import { RACE_BOARD_LAYOUT, RACE_BOARD_SYMBOLS } from "./boards/raceBoard";
 import { RACE_BOARD2_LAYOUT, RACE_BOARD2_SYMBOLS } from "./boards/raceBoard2";
@@ -14,9 +15,15 @@ interface MapGridPosition {
   y: number;
 }
 
+export interface GameMapInitialSeeds {
+  moveDieSeed?: number;
+  toolDieSeed?: number;
+}
+
 export interface GameMapContentDefinition {
   allowDebugTools: boolean;
   description: string;
+  initialSeeds?: GameMapInitialSeeds;
   label: string;
   layout: readonly string[];
   mode: GameMode;
@@ -31,6 +38,7 @@ function defineGameMapRegistry<const Registry extends Record<string, GameMapCont
   return registry;
 }
 
+export const NEWBIE_VILLAGE_MAP_ID = "newbie_village" as const;
 export const DEFAULT_GAME_MAP_ID = "free_default" as const;
 export const RACE_GAME_MAP_ID = "race_sprint" as const;
 export const RACE_GAME2_MAP_ID = "race_sprint2" as const;
@@ -38,6 +46,17 @@ export const RACE_GAME3_MAP_ID = "race_sprint3" as const;
 export const BEDWARS_GAME_MAP_ID = "bedwars_test" as const;
 
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
+  [NEWBIE_VILLAGE_MAP_ID]: {
+    label: "走出新手村",
+    description: "一分钟走出新手村，三把成为大师",
+    mode: "race",
+    allowDebugTools: false,
+    layout: NEWBIE_VILLAGE_BOARD_LAYOUT,
+    symbols: NEWBIE_VILLAGE_BOARD_SYMBOLS,
+    spawnMode: "shared",
+    spawnPositions: [{ x: 2, y: 6 }],
+    initialSeeds: {moveDieSeed: 41, toolDieSeed: 1}
+  },
   [DEFAULT_GAME_MAP_ID]: {
     label: "自由模式默认地图",
     description: "保留调试入口的基础沙盒地图，适合自由试验工具、角色和地形联动。",

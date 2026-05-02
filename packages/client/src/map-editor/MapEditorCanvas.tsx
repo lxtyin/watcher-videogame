@@ -36,7 +36,7 @@ export function MapEditorCanvas({
           enablePan={false}
           enableZoom
           minDistance={10}
-          maxDistance={24}
+          maxDistance={44}
           minPolarAngle={0.45}
           maxPolarAngle={1.2}
           target={[0, 0, 0]}

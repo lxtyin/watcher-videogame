@@ -118,7 +118,7 @@ const STACK_REPOSITION_MS = 260;
 const STACK_ENTRY_LIFT_EPSILON = 0.12;
 const FOLLOW_CAMERA_DEFAULT_DISTANCE = 12;
 const FOLLOW_CAMERA_MIN_DISTANCE = 9.5;
-const FOLLOW_CAMERA_MAX_DISTANCE = 22;
+const FOLLOW_CAMERA_MAX_DISTANCE = 32;
 const FOLLOW_CAMERA_WINDOW_NDC_X = 0.24;
 const FOLLOW_CAMERA_WINDOW_NDC_Y = 0.15;
 const TOOL_POINTER_CAMERA_WINDOW_NDC_X = 0.6;
@@ -171,14 +171,32 @@ function areNumberMapsEqual(left: Record<string, number>, right: Record<string, 
 }
 
 function areTileDefinitionsEqual(left: TileDefinition, right: TileDefinition): boolean {
+  const leftState = left.state ?? {};
+  const rightState = right.state ?? {};
+
   return (
     left.key === right.key &&
     left.x === right.x &&
     left.y === right.y &&
     left.type === right.type &&
     left.durability === right.durability &&
-    left.direction === right.direction
+    left.direction === right.direction &&
+    areStateMapsEqual(leftState, rightState)
   );
+}
+
+function areStateMapsEqual(
+  left: Record<string, boolean | number | string | null>,
+  right: Record<string, boolean | number | string | null>
+): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
 }
 
 function useStableTileDefinitions(tiles: TileDefinition[]): TileDefinition[] {
@@ -1849,7 +1867,8 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
           {
             type: tile.type,
             durability: tile.durability,
-            direction: tile.direction
+            direction: tile.direction,
+            state: { ...(tile.state ?? {}) }
           }
         ])
       ),

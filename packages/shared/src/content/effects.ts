@@ -19,6 +19,10 @@ export const EFFECT_REGISTRY = defineEffectRegistry({
     label: "幸运方块消散",
     description: "幸运方块被领取时的上升与消散表现。"
   },
+  dice_reward_claim: {
+    label: "骰子奖励升起",
+    description: "奖励骰子被拾取或掉落奖励时的上升虚化表现。"
+  },
   stun_clear: {
     label: "Stun clear",
     description: "A short reaction when stun wears off and the turn is skipped."

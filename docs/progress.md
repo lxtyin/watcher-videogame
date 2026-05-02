@@ -7,6 +7,41 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-02 Lucky 奖励骰与白板角色
+
+- 新增白板角色 `villager`，无技能，接入角色注册表与客户端立绘映射。
+- `GAME_MAP_REGISTRY` 支持可选 `initialSeeds`：
+  - 地图设置 `moveDieSeed / toolDieSeed` 时使用固定初始种子
+  - 未设置时仍按当前时间与房间信息生成非固定种子
+- 新增通用 tile `state`：
+  - board layout、golden layout、server schema、client deserialize 与 playback tile transition 都会保留地块状态
+  - Lucky 用 `state.reward` 表达奖励骰形态
+- 新增通用奖励骰模型与规则 helper：
+  - 奖励形态包含点数 1~6、六种工具骰面、随机工具
+  - `L1`~`L6`、`L:rocket`、`L?` 等布局符号可直接描述 Lucky 奖励
+- Lucky 规则重置：
+  - Lucky 不再变成 `emptyLucky`
+  - 不再每回合限一次
+  - 每次在自己回合停留都按地块奖励骰发放奖励
+  - 地面表现改为对应骰子埋在地里，仅露出顶部
+- 骰子猪死亡与 Lucky 领取共用 `dice_reward_claim` effect：对应骰子按正确朝向升空并虚化。
+- 骰子猪模型继续由 `animal-pig.glb + DiceRewardModel` 组合，携带骰子和 Lucky 地块使用同一套骰面朝向配置。
+- 奖励 effect 的 GLB clone 会复制材质后再调透明度，避免虚化动画污染场上静态骰子的材质。
+- 修复 dev server 创建房间时的 ESM 初始化顺序错误：`diceReward.ts` 不再直接导入工具骰 registry，奖励码枚举与真实工具生成拆分到 `diceReward.ts / diceRewardTools.ts`。
+- 新增 / 更新 golden case：
+  - `lucky-can-trigger-every-turn`
+  - `lucky-point-reward-grants-movement-points`
+  - `lucky-tool-reward-grants-specific-tool`
+- 验证：
+  - `npm.cmd run typecheck --workspace @watcher/shared`
+  - `npm.cmd run typecheck --workspace @watcher/client`
+  - `npm.cmd run typecheck --workspace @watcher/server`
+  - `npm.cmd run goldens`，`58/58` passed
+  - `npm.cmd run build`
+  - 源码级 `tsx` import 检查通过，确认 shared 初始化不再触发 `TOOL_DIE_FACE_REGISTRY` TDZ
+  - dev server 启动到 `Watcher server ready at ws://localhost:2567`，并用 Colyseus client 创建房间成功
+  - develop-web-game 浏览器回放：Lucky 固定工具奖励、骰子猪死亡奖励与 `/mapeditor` 路由均无 console/page error，截图确认骰子猪携带骰子与奖励骰升空虚化 effect 可见。
+
 ## 2026-05-02 玩家与生物摆放统一
 
 - `PetPiece` 从 `game/components` 移入 `game/assets/player`，作为玩家棋子模型资产；cube-pet 模型归一化继续沿用原来的玩家棋子逻辑。

@@ -5,6 +5,7 @@ import type {
   Direction,
   GridPosition,
   SummonSnapshot,
+  TileStateMap,
   TileType
 } from "@watcher/shared";
 
@@ -44,6 +45,7 @@ interface WatcherSceneDebugState {
     {
       direction: Direction | null;
       durability: number;
+      state: TileStateMap;
       type: TileType;
     }
   >;

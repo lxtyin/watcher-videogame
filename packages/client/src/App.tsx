@@ -1,4 +1,4 @@
-import { DEFAULT_GAME_MAP_ID, type GameMapId } from "@watcher/shared";
+import { DEFAULT_GAME_MAP_ID, NEWBIE_VILLAGE_MAP_ID, type GameMapId } from "@watcher/shared";
 import { useEffect, useRef, useState } from "react";
 import { GameBoardCanvas } from "./game/components/GameBoardCanvas";
 import { BedwarsSettlementOverlay } from "./game/components/BedwarsSettlementOverlay";
@@ -56,7 +56,7 @@ function writeAppRoute(route: AppRoute): void {
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
   const [playerProfile, setPlayerProfile] = useState(() => getStoredPlayerProfile());
-  const [selectedCreateMapId, setSelectedCreateMapId] = useState<GameMapId>(DEFAULT_GAME_MAP_ID);
+  const [selectedCreateMapId, setSelectedCreateMapId] = useState<GameMapId>(NEWBIE_VILLAGE_MAP_ID);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const previousRoomCodeRef = useRef<string | null>(route.roomCode);
 

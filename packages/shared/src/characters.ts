@@ -1,7 +1,7 @@
 import { CHARACTER_REGISTRY } from "./content/characters";
 import type { CharacterId } from "./types";
 
-export const DEFAULT_CHARACTER_ID = "ehh" as const satisfies CharacterId;
+export const DEFAULT_CHARACTER_ID = "villager" as const satisfies CharacterId;
 
 export interface CharacterDefinition {
   flavorText: string;

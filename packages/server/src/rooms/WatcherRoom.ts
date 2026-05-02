@@ -219,6 +219,7 @@ export class WatcherRoom extends Room<WatcherState> {
       tileState.durability = tile.durability;
       tileState.direction = tile.direction ?? "";
       tileState.faction = tile.faction ?? "";
+      tileState.stateJson = JSON.stringify(tile.state ?? {});
       this.state.board.set(tile.key, tileState);
     }
   }
@@ -304,12 +305,16 @@ export class WatcherRoom extends Room<WatcherState> {
 
   private resetMatchRuntimeState(): void {
     const nextPresentationSequence = this.runtimeState.nextPresentationSequence;
+    const mapInitialSeeds =
+      this.state.mapId === "custom"
+        ? {}
+        : buildGameMapRuntimeMetadata(this.state.mapId).initialSeeds ?? {};
 
     this.matchSeedSerial += 1;
     this.runtimeState = createInitialGameRuntimeState({
-      moveDieSeed: this.createMatchSeed(0x9e3779b9),
+      moveDieSeed: mapInitialSeeds.moveDieSeed ?? this.createMatchSeed(0x9e3779b9),
       nextPresentationSequence,
-      toolDieSeed: this.createMatchSeed(0x85ebca6b)
+      toolDieSeed: mapInitialSeeds.toolDieSeed ?? this.createMatchSeed(0x85ebca6b)
     });
     this.clearPendingRaceAdvanceTimer();
     this.clearSummonsState();

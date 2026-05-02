@@ -249,13 +249,15 @@ export function createTileMutation(
   position: GridPosition,
   nextType: TileType,
   nextDurability: number,
-  presentationStartMs?: number
+  presentationStartMs?: number,
+  nextState?: TileMutation["nextState"]
 ): TileMutation {
   return {
     key: toTileKey(position),
     position,
     nextType,
     nextDurability,
+    ...(nextState === undefined ? {} : { nextState }),
     ...(presentationStartMs === undefined ? {} : { presentationStartMs })
   };
 }

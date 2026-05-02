@@ -62,7 +62,7 @@ export function BoardTileDecorationAsset({
       {tile.type === "poison" ? <PoisonTileAsset /> : null}
       {tile.type === "cannon" && tile.direction ? <CannonTileAsset direction={tile.direction} /> : null}
       {tile.type === "highwall" ? <HighwallTileAsset /> : null}
-      {tile.type === "lucky" ? <LuckyBlockAsset /> : null}
+      {tile.type === "lucky" ? <LuckyBlockAsset tile={tile} /> : null}
       {tile.type === "start" ? <StartTileAsset /> : null}
       {tile.type === "goal" ? <GoalTileAsset /> : null}
       {tile.type === "conveyor" && tile.direction ? (

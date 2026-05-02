@@ -1,5 +1,6 @@
 import { getTile } from "../board";
 import { cloneSummonState } from "../summonState";
+import { cloneTileState, isTileStateEmpty } from "../tileState";
 import {
   getChoiceSelection,
   getDirectionSelection,
@@ -35,13 +36,17 @@ function toTilePresentationState(tile: {
   direction: Direction | null;
   durability: number;
   faction: TilePresentationState["faction"];
+  state?: TilePresentationState["state"];
   type: TilePresentationState["type"];
 }): TilePresentationState {
+  const state = cloneTileState(tile.state);
+
   return {
     type: tile.type,
     durability: tile.durability,
     direction: tile.direction,
-    faction: tile.faction
+    faction: tile.faction,
+    ...(isTileStateEmpty(state) ? {} : { state })
   };
 }
 
@@ -72,6 +77,10 @@ function buildTileStateTransition(
     return null;
   }
 
+  const afterState =
+    mutation.nextState ??
+    (mutation.nextType === previousTile.type ? previousTile.state : undefined);
+
   return {
     key: mutation.key,
     position: mutation.position,
@@ -80,7 +89,12 @@ function buildTileStateTransition(
       type: mutation.nextType,
       durability: mutation.nextDurability,
       direction: getTileTransitionDirection(previousTile, mutation.nextType),
-      faction: previousTile.faction
+      faction: previousTile.faction,
+      ...(
+        isTileStateEmpty(afterState)
+          ? {}
+          : { state: cloneTileState(afterState) }
+      )
     }
   };
 }

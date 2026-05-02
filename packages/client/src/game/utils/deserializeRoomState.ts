@@ -12,6 +12,7 @@ import type {
   SummonId,
   SummonStateMap,
   TeamId,
+  TileStateMap,
   ToolId,
   ToolParameterValueMap,
   TurnPhase
@@ -45,6 +46,7 @@ interface RoomTileState {
   durability: number;
   direction: Direction | "";
   faction: TeamId | "";
+  stateJson: string;
 }
 
 interface RoomPlayerState {
@@ -185,6 +187,13 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       return {};
     }
   };
+  const parseTileState = (stateJson: string): TileStateMap => {
+    try {
+      return JSON.parse(stateJson) as TileStateMap;
+    } catch {
+      return {};
+    }
+  };
 
   return {
     allowDebugTools: roomState.allowDebugTools,
@@ -203,7 +212,8 @@ export function deserializeRoomState(state: unknown): GameSnapshot {
       type: tile.type,
       durability: tile.durability,
       direction: tile.direction === "" ? null : tile.direction,
-      faction: tile.faction === "" ? null : tile.faction
+      faction: tile.faction === "" ? null : tile.faction,
+      state: parseTileState(tile.stateJson)
     })),
     summons: Array.from(roomState.summons.values()).map((summon) => ({
       instanceId: summon.instanceId,

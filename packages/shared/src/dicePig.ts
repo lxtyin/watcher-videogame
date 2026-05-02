@@ -1,5 +1,5 @@
 import { MOVEMENT_DIE_FACES } from "./constants";
-import { getRollableToolIds } from "./tools";
+import { DICE_REWARD_TOOL_IDS } from "./diceReward";
 import type { RolledToolId, SummonStateMap } from "./types";
 
 export const DICE_PIG_CARRY_STATE_KEY = "carry";
@@ -23,7 +23,7 @@ function isMovementDieFace(value: number): value is typeof MOVEMENT_DIE_FACES[nu
 }
 
 function isRolledToolId(value: string): value is RolledToolId {
-  return getRollableToolIds().includes(value as RolledToolId);
+  return DICE_REWARD_TOOL_IDS.includes(value as (typeof DICE_REWARD_TOOL_IDS)[number]);
 }
 
 export function createDicePigState(
@@ -122,7 +122,7 @@ export function getDicePigCarryVariants(): DicePigCarryVariant[] {
         token: getDicePigCarryToken(code)
       };
     }),
-    ...getRollableToolIds().map((toolId) => {
+    ...DICE_REWARD_TOOL_IDS.map((toolId) => {
       const code = `tool:${toolId}` as DicePigToolCarryCode;
 
       return {

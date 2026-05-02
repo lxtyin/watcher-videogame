@@ -8,6 +8,7 @@ import type {
   PlayerTurnFlag,
   SequencedActionPresentation,
   SummonStateMap,
+  TileStateMap,
   TileType,
   ToolHistoryEntrySnapshot,
   TurnToolSnapshot
@@ -33,7 +34,8 @@ export function createBoardDefinitionFromState(state: WatcherState) {
       type: tile.type as TileType,
       durability: tile.durability,
       direction: tile.direction === "" ? null : (tile.direction as Direction),
-      faction: tile.faction === "" ? null : tile.faction
+      faction: tile.faction === "" ? null : tile.faction,
+      state: parseTileState(tile.stateJson)
     }))
   };
 }
@@ -97,6 +99,14 @@ function parseToolHistory(toolHistoryJson: string): ToolHistoryEntrySnapshot[] {
 function parseSummonState(stateJson: string): SummonStateMap {
   try {
     return JSON.parse(stateJson) as SummonStateMap;
+  } catch {
+    return {};
+  }
+}
+
+function parseTileState(stateJson: string): TileStateMap {
+  try {
+    return JSON.parse(stateJson) as TileStateMap;
   } catch {
     return {};
   }

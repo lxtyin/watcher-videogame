@@ -1,7 +1,9 @@
 import { DEFAULT_BOARD_SYMBOLS, type LayoutSymbolDefinition } from "./content/boards/defaultBoard";
-import { DEFAULT_GAME_MAP_ID, getGameMapDefinition } from "./content/maps";
+import { DEFAULT_GAME_MAP_ID, getGameMapDefinition, NEWBIE_VILLAGE_MAP_ID } from "./content/maps";
+import { createDiceRewardState, parseLuckyRewardToken } from "./diceReward";
 import { createDicePigState, parseDicePigCarryToken } from "./dicePig";
 import { cloneSummonState } from "./summonState";
+import { cloneTileState, isTileStateEmpty } from "./tileState";
 import type {
   BoardDefinition,
   BoardSummonState,
@@ -140,8 +142,10 @@ function resolveLayoutCell(
   }
 
   const parsedCell = parseLayoutCellDescriptor(descriptor);
+  const luckyReward = parseLuckyRewardToken(parsedCell.tileSymbol);
   const tileDefinition =
     symbols[parsedCell.tileSymbol] ??
+    (luckyReward ? { type: "lucky", state: createDiceRewardState(luckyReward) } : undefined) ??
     (parseDicePigCarryToken(parsedCell.tileSymbol) ? symbols["."] : undefined);
 
   if (!tileDefinition) {
@@ -195,7 +199,12 @@ function buildBoardFromLayout(
         type: tileConfig.type,
         durability: tileConfig.durability ?? 0,
         direction: tileConfig.direction ?? null,
-        faction: tileConfig.faction ?? null
+        faction: tileConfig.faction ?? null,
+        ...(
+          isTileStateEmpty(tileConfig.state)
+            ? {}
+            : { state: cloneTileState(tileConfig.state) }
+        )
       });
     }
   }
@@ -265,13 +274,13 @@ export function layoutCellHasInitialSummon(
 }
 
 // Runtime board creation flows through the shared map registry so each map binds mode and spawn rules.
-export function createBoardDefinition(mapId: string = DEFAULT_GAME_MAP_ID): BoardDefinition {
+export function createBoardDefinition(mapId: string = NEWBIE_VILLAGE_MAP_ID): BoardDefinition {
   const definition = getGameMapDefinition(mapId);
 
   return createBoardDefinitionFromLayout(definition.layout, definition.symbols);
 }
 
-export function createInitialSummons(mapId: string = DEFAULT_GAME_MAP_ID): BoardSummonState[] {
+export function createInitialSummons(mapId: string = NEWBIE_VILLAGE_MAP_ID): BoardSummonState[] {
   const definition = getGameMapDefinition(mapId);
 
   return createInitialSummonsFromLayout(definition.layout, definition.symbols);
@@ -279,7 +288,7 @@ export function createInitialSummons(mapId: string = DEFAULT_GAME_MAP_ID): Board
 
 // Existing callers still treat the free-mode map as the default board.
 export function createDefaultBoardDefinition(): BoardDefinition {
-  return createBoardDefinition(DEFAULT_GAME_MAP_ID);
+  return createBoardDefinition(NEWBIE_VILLAGE_MAP_ID);
 }
 
 // Tile lookup stays centralized so movement and terrain code share one access path.

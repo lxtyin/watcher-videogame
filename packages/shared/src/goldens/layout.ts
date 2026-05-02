@@ -9,6 +9,7 @@ import {
 import type {
   BoardDefinition,
   GridPosition,
+  TileStateMap,
   TileDefinition
 } from "../types";
 
@@ -43,14 +44,28 @@ export function createBoardDefinitionFromGoldenLayout(
 
 function symbolMatchesTile(
   symbolDefinition: LayoutSymbolDefinition,
-  tile: Pick<TileDefinition, "direction" | "durability" | "faction" | "type">
+  tile: Pick<TileDefinition, "direction" | "durability" | "faction" | "state" | "type">
 ): boolean {
   return (
     symbolDefinition.type === tile.type &&
     (symbolDefinition.durability ?? 0) === tile.durability &&
     (symbolDefinition.direction ?? null) === tile.direction &&
-    (symbolDefinition.faction ?? null) === tile.faction
+    (symbolDefinition.faction ?? null) === tile.faction &&
+    stateMapsEqual(symbolDefinition.state, tile.state)
   );
+}
+
+function stateMapsEqual(left: TileStateMap | undefined, right: TileStateMap | undefined): boolean {
+  const leftState = left ?? {};
+  const rightState = right ?? {};
+  const leftKeys = Object.keys(leftState);
+  const rightKeys = Object.keys(rightState);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => leftState[key] === rightState[key]);
 }
 
 // Board serialization reuses the case symbol legend so expected and actual maps stay data-only.
