@@ -23,7 +23,7 @@ import type {
   CharacterId,
   ModifierId,
   MovementDescriptor,
-  MovementType,
+  MovementTiming,
   PlayerTagMap,
   SkillId,
   TextDescription,
@@ -500,42 +500,11 @@ export function applyToolPrepareModifiers(
   };
 }
 
-export function resolveToolMovementType(
-  characterId: CharacterId,
-  actor: ModifierActorContext,
-  tool: TurnToolSnapshot,
-  movementType: MovementType
-): MovementType {
-  let nextMovementType = movementType;
-
-  for (const modifier of getPlayerModifiers(characterId, actor.modifiers)) {
-    const overrideMovementType =
-      modifier.hooks.getMovementType?.({
-        actorId: actor.id,
-        characterId,
-        modifiers: actor.modifiers,
-        phase: actor.phase,
-        position: actor.position,
-        tags: actor.tags,
-        toolHistory: actor.toolHistory,
-        turnNumber: actor.turnNumber,
-        tools: actor.tools,
-        tool,
-        movementType: nextMovementType
-      }) ?? null;
-
-    if (overrideMovementType) {
-      nextMovementType = overrideMovementType;
-    }
-  }
-
-  return nextMovementType;
-}
-
 export function applyMovementResolvedModifiers(
   characterId: CharacterId,
   actor: ModifierActorContext,
   movement: MovementDescriptor,
+  movementTiming: MovementTiming,
   direction: "up" | "down" | "left" | "right" | null,
   path: readonly { x: number; y: number }[]
 ): {
@@ -558,6 +527,7 @@ export function applyMovementResolvedModifiers(
         turnNumber: actor.turnNumber,
         tools: actor.tools,
         movement,
+        movementTiming,
         direction,
         path
       } satisfies ModifierMovementHookContext) ?? null;

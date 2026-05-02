@@ -30,7 +30,7 @@ export const TEAM_CAMP_TERRAIN_MODULE: TerrainModule = {
   onStop: (context) => {
     if (
       context.player.id !== context.draft.actorId ||
-      context.movement?.timing !== "in_turn" ||
+      context.movementTiming !== "in_turn" ||
       !context.tile.faction ||
       context.player.teamId !== context.tile.faction
     ) {

@@ -24,13 +24,13 @@ import { traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
-  createPassiveMovementDescriptor,
   createToolPreview,
   createDraftSoundEvent,
   createPlayerAnchor,
   createUsedSummary,
   getToolParamValue,
   isChargedToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -69,10 +69,13 @@ function resolveBasketballTool(
   const projectileRange = getToolParamValue(context.activeTool, "projectileRange", 999);
   const bounceCount = getToolParamValue(context.activeTool, "projectileBounceCount", 1);
   const pushDistance = getToolParamValue(context.activeTool, "projectilePushDistance", 1);
-  const pushedMovement = createPassiveMovementDescriptor(
-    context.activeTool.toolId,
+  const pushedMovement = resolveToolMovementDescriptor(
+    context,
     "translate",
-    ["basketball:push"]
+    {
+      disposition: "passive",
+      extraTags: ["basketball:push"]
+    }
   );
 
   if (!direction) {

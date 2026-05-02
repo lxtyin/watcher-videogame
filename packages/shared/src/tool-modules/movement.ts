@@ -31,10 +31,6 @@ import {
 } from "./helpers";
 
 export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
-  actorMovement: {
-    type: "translate",
-    disposition: "active"
-  },
   label: "移动",
   disabledHint: "没有可用的移动点数时不能使用移动。",
   source: "turn",
@@ -61,7 +57,7 @@ function resolveMovementTool(
 ): void {
   const direction = requireDirection(context);
   const movePoints = getToolParamValue(context.activeTool, "movePoints", 4);
-  const movement = resolveToolMovementDescriptor(context, MOVEMENT_TOOL_DEFINITION, "translate");
+  const movement = resolveToolMovementDescriptor(context, "translate");
 
   if (!direction) {
     setDraftBlocked(draft, "Movement needs a direction", {

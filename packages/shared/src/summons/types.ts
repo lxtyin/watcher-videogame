@@ -7,6 +7,7 @@ import type {
   ModifierId,
   MovementActor,
   MovementDescriptor,
+  MovementTiming,
   PlayerTagMap,
   PlayerTurnFlag,
   SummonId,
@@ -28,6 +29,7 @@ export interface SummonTriggerContext {
   direction?: Direction;
   draft: ResolutionDraft;
   movement: MovementDescriptor | null;
+  movementTiming: MovementTiming;
   phase: TurnPhase | null;
   player: SummonTriggerTarget;
   position: GridPosition;

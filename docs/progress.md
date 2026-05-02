@@ -7,6 +7,20 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-02 MovementDescriptor timing 收口
+
+- `MovementDescriptor` 只保留 `type / disposition / tags`，不再携带或推导 `timing`。
+- `timing` 改为触发时按发起动作的 `actorId` 与被移动玩家 id 计算：
+  - 地形与召唤物触发上下文提供 `movementTiming`
+  - 技能的 `onMovementResolved` hook 接收 `movementTiming`
+- 删除工具内容定义中的 `actorMovement`，各工具模块在执行逻辑中显式传入自身的位移类型与主动/被动形态。
+- 删除 `createPassiveMovementDescriptor()`，主动位移与被动推拉统一通过 `resolveToolMovementDescriptor()` 构造。
+- 新增 golden case `wallet-passive-self-recoil-is-in-turn`，覆盖“被动自我后坐仍属于自己的回合”的触发语义。
+- 验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`，`50/50` passed
+  - `npm.cmd run build`
+
 ## 2026-05-01 房间大厅重做
 
 - client 新增独立 `LobbyScreen`：

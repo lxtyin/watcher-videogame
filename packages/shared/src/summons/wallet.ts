@@ -7,7 +7,6 @@ import {
   setDraftToolInventory,
   type ResolutionDraft
 } from "../rules/actionDraft";
-import { isMovementDisposition, isMovementTiming, isMovementType } from "../rules/displacement";
 import { createRolledToolInstance } from "../tools";
 import type { BoardSummonState, GridPosition, TurnToolSnapshot } from "../types";
 import type { SummonDefinition, SummonTriggerContext } from "./types";
@@ -70,12 +69,12 @@ export const WALLET_SUMMON_DEFINITION: SummonDefinition = {
   id: "wallet",
   ...SUMMON_REGISTRY.wallet,
   onPassThrough: (context) => {
-    if (isMovementTiming(context.movement, "in_turn")) {
+    if (context.movementTiming === "in_turn") {
       grantWalletReward(context);
     }
   },
   onStop: (context) => {
-    if (isMovementTiming(context.movement, "in_turn")) {
+    if (context.movementTiming === "in_turn") {
       grantWalletReward(context);
     }
   }

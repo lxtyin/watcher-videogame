@@ -118,13 +118,7 @@ export interface ToolInteractionDefinition {
   stages: readonly ToolInteractionStageDefinition[];
 }
 
-export interface MovementContentDefinition {
-  disposition: MovementDisposition;
-  type: MovementType;
-}
-
 export interface ToolContentDefinition {
-  actorMovement?: MovementContentDefinition;
   choices?: readonly ToolChoiceContentDefinition[];
   color: string;
   defaultCharges: number;

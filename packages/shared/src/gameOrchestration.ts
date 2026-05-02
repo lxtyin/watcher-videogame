@@ -76,7 +76,7 @@ import type {
   SimulationDispatchResult,
   SimulationSceneDefinition
 } from "./simulation/types";
-import { createMovementDescriptor } from "./rules/displacement";
+import { createMovementDescriptor, getMovementTimingForPlayer } from "./rules/displacement";
 
 interface MutableGameOrchestrationState {
   runtime: GameRuntimeState;
@@ -448,6 +448,7 @@ function applyAffectedPlayerMoves(
 function applyMovementResolvedEffects(
   snapshot: GameSnapshot,
   phase: TurnInfoSnapshot["phase"],
+  actorId: string,
   actorMovement: { movement: import("./types").MovementDescriptor; path: GridPosition[]; playerId: string } | null,
   affectedPlayers: Array<{
     movement: import("./types").MovementDescriptor;
@@ -484,6 +485,7 @@ function applyMovementResolvedEffects(
         tools: [...player.tools]
       },
       movementResult.movement,
+      getMovementTimingForPlayer(actorId, movementResult.playerId),
       null,
       movementResult.path
     );
@@ -956,8 +958,7 @@ function applyPhaseEntryStop(
     movement: createMovementDescriptor(
       "landing",
       "active",
-      [],
-      "in_turn"
+      []
     ),
     phase,
     player: draft.actor,
@@ -972,8 +973,7 @@ function applyPhaseEntryStop(
       movement: createMovementDescriptor(
         "landing",
         "active",
-        [],
-        "in_turn"
+        []
       ),
       player: draft.actor,
       position: draft.actor.position,
@@ -990,7 +990,7 @@ function applyPhaseEntryStop(
   applyTileMutations(state.snapshot, draft.tileMutations);
   applySummonMutations(state.snapshot, draft.summonMutations);
   applyAffectedPlayerMoves(state.snapshot, draft.affectedPlayers);
-  applyMovementResolvedEffects(state.snapshot, phase, null, draft.affectedPlayers);
+  applyMovementResolvedEffects(state.snapshot, phase, player.id, null, draft.affectedPlayers);
   state.runtime.toolDieSeed = draft.nextToolDieSeed;
   state.snapshot.turnInfo.toolDieSeed = state.runtime.toolDieSeed;
   if (draft.presentationEvents.length || draft.tileMutations.length || draft.summonMutations.length) {
@@ -1560,6 +1560,7 @@ function runUseToolCommand(
   applyMovementResolvedEffects(
     state.snapshot,
     state.snapshot.turnInfo.phase,
+    player.id,
     resolution.actorMovement
       ? {
           movement: resolution.actorMovement.movement,

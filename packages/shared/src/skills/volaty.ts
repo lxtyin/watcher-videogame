@@ -20,16 +20,11 @@ export const VOLATY_SKILL_DEFINITION: SkillDefinition = {
 export const VOLATY_MODIFIER_DEFINITION: ModifierDefinition = {
   id: VOLATY_MODIFIER_ID,
   hooks: {
-    // getMovementType: ({ movementType, tags }) =>
-    //   movementType === "translate" && getPlayerTagBoolean(tags, VOLATY_LEAP_TURN_TAG)
-    //     ? "leap"
-    //     : null,
     onDiceRoll: ({ tags, movementRoll }) =>
       getPlayerTagBoolean(tags, VOLATY_LEAP_TURN_TAG)
         ? ({
             nextTags: setPlayerTagValue(
                 tags,
-                // setPlayerTagValue(tags, VOLATY_LEAP_PENDING_TAG, undefined),
                 VOLATY_LEAP_TURN_TAG,
                 undefined
             ),
@@ -39,26 +34,8 @@ export const VOLATY_MODIFIER_DEFINITION: ModifierDefinition = {
             rolledTool: null
           })
         : null,
-
-    // onDiceRoll: ({ tags, movementRoll }) => ({
-    //   grantTools: [{ toolId: "leap", params: { jumpDistance: movementRoll } }],
-    //   movementRoll: undefined,
-    // }),
-    // onTurnEnd: ({ tags }) => ({
-    //   nextTags: setPlayerTagValue(
-    //     setPlayerTagValue(tags, VOLATY_LEAP_PENDING_TAG, undefined),
-    //     VOLATY_LEAP_TURN_TAG,
-    //     undefined
-    //   )
-    // }),
     onTurnStart: ({ tags }) => ({
       grantTools: [{ toolId: "volatySkipToolDie" }],
-      // nextTags: setPlayerTagValue(
-      //   // setPlayerTagValue(tags, VOLATY_LEAP_PENDING_TAG, undefined),
-      //   tags,
-      //   VOLATY_LEAP_TURN_TAG,
-      //   true
-      // )
     })
   }
 };

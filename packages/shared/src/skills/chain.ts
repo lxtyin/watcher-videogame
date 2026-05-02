@@ -20,8 +20,8 @@ export const CHAIN_SKILL_DEFINITION: SkillDefinition = {
 export const CHAIN_MODIFIER_DEFINITION: ModifierDefinition = {
   id: CHAIN_MODIFIER_ID,
   hooks: {
-    onMovementResolved: ({ movement, tags }) => {
-      if (movement.timing !== "out_of_turn") {
+    onMovementResolved: ({ movementTiming, tags }) => {
+      if (movementTiming !== "out_of_turn") {
         return null;
       }
 

@@ -3,6 +3,7 @@ import type {
   GridPosition,
   MovementActor,
   MovementDescriptor,
+  MovementTiming,
   PresentationProjectileType,
   TileDefinition
 } from "../types";
@@ -18,6 +19,7 @@ export interface PassThroughTerrainState {
 export interface TerrainPassThroughContext {
   draft: ResolutionDraft;
   movement: MovementDescriptor;
+  movementTiming: MovementTiming;
   startMs: number;
   state: PassThroughTerrainState;
   tile: TileDefinition;
@@ -26,6 +28,7 @@ export interface TerrainPassThroughContext {
 export interface TerrainStopContext {
   draft: ResolutionDraft;
   movement: MovementDescriptor | null;
+  movementTiming: MovementTiming;
   player: MovementActor;
   position: GridPosition;
   startMs: number;

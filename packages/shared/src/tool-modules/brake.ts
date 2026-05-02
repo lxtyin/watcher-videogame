@@ -32,10 +32,6 @@ import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 
 
 export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
-  actorMovement: {
-    type: "translate",
-    disposition: "active"
-  },
   label: "制动",
   disabledHint: "当前不能使用制动。",
   source: "turn",
@@ -63,7 +59,7 @@ function resolveBrakeTool(
   const maxRange = getToolParamValue(context.activeTool, "movePoints", 3);
   const targetPosition = requireTileSelection(context);
   const axisTarget = normalizeAxisTarget(context.actor.position, targetPosition ?? undefined);
-  const movement = resolveToolMovementDescriptor(context, BRAKE_TOOL_DEFINITION, "translate");
+  const movement = resolveToolMovementDescriptor(context, "translate");
 
   if (!axisTarget) {
     setDraftBlocked(draft, "Brake needs a target tile", {

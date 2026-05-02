@@ -1,4 +1,3 @@
-import { getToolDefinition } from "../tools";
 import { detachModifier, type ModifierDefinition } from "../modifiers";
 import { getPlayerTagNumber, setPlayerTagValue } from "../playerTags";
 
@@ -14,11 +13,9 @@ export const BONDAGE_MODIFIER_DEFINITION: ModifierDefinition = {
   hooks: {
     onToolPrepare: ({ tags, tool }) => {
       const bondageStacks = getPlayerTagNumber(tags, BONDAGE_STACKS_TAG);
-      const toolDefinition = getToolDefinition(tool.toolId);
 
       if (
         bondageStacks < 1 ||
-        toolDefinition.actorMovement?.disposition !== "active" ||
         typeof tool.params.movePoints !== "number"
       ) {
         return null;

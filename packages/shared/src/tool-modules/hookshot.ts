@@ -29,7 +29,6 @@ import type { ToolModule } from "./types";
 import {
   createDraftSoundEvent,
   createPlayerAnchor,
-  createPassiveMovementDescriptor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -41,10 +40,6 @@ import {
 } from "./helpers";
 
 export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
-  actorMovement: {
-    type: "drag",
-    disposition: "active"
-  },
   label: "钩锁",
   disabledHint: "当前不能使用钩锁。",
   source: "turn",
@@ -75,14 +70,18 @@ function resolveHookshotTool(
   const hookLength = getToolParamValue(context.activeTool, "hookLength", 3);
   const actorMovement = resolveToolMovementDescriptor(
     context,
-    HOOKSHOT_TOOL_DEFINITION,
     "drag",
-    ["hookshot:self"]
+    {
+      extraTags: ["hookshot:self"]
+    }
   );
-  const pulledMovement = createPassiveMovementDescriptor(
-    context.activeTool.toolId,
+  const pulledMovement = resolveToolMovementDescriptor(
+    context,
     "drag",
-    ["hookshot:pull"]
+    {
+      disposition: "passive",
+      extraTags: ["hookshot:pull"]
+    }
   );
   // const selectionTiles = collectDirectionSelectionTiles(context.board, context.actor.position);
 

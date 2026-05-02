@@ -9,7 +9,6 @@ import {
 } from "./helpers";
 import type { TerrainModule } from "./types";
 import type { TurnToolSnapshot } from "../types";
-import { isMovementTiming } from "../rules/displacement";
 
 const LUCKY_CLAIM_EFFECT_MS = 420;
 
@@ -31,7 +30,7 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
   }),
   label: "幸运方块",
   onStop: (context) => {
-    if (!isMovementTiming(context.movement, "in_turn")) {
+    if (context.movementTiming !== "in_turn") {
       return;
     }
 

@@ -4,7 +4,7 @@ import type {
   GridPosition,
   ModifierId,
   MovementDescriptor,
-  MovementType,
+  MovementTiming,
   PlayerTagMap,
   SkillId,
   ToolHistoryEntrySnapshot,
@@ -47,6 +47,7 @@ export interface ModifierDiceRollHookContext extends ModifierContextBase {
 export interface ModifierMovementHookContext extends ModifierContextBase {
   direction: Direction | null;
   movement: MovementDescriptor;
+  movementTiming: MovementTiming;
   path: readonly GridPosition[];
 }
 
@@ -66,12 +67,7 @@ export interface ModifierDiceRollHookResult extends ModifierPhaseHookResult {
   rolledTool?: ToolLoadoutDefinition | null;
 }
 
-export interface ModifierMovementTypeHookContext extends ModifierToolHookContext {
-  movementType: MovementType;
-}
-
 export interface ModifierHooks {
-  getMovementType?: (context: ModifierMovementTypeHookContext) => MovementType | null;
   onDiceRoll?: (context: ModifierDiceRollHookContext) => ModifierDiceRollHookResult | null;
   onGetTool?: (context: ModifierToolHookContext) => ModifierToolHookResult | null;
   onMovementResolved?: (context: ModifierMovementHookContext) => ModifierPhaseHookResult | null;

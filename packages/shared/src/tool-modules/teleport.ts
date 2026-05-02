@@ -28,10 +28,6 @@ import {
 } from "./helpers";
 
 export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
-  actorMovement: {
-    type: "landing",
-    disposition: "active"
-  },
   label: "瞬移",
   disabledHint: "当前还不能瞬移到这个位置。",
   source: "turn",
@@ -55,7 +51,7 @@ function resolveTeleportTool(
   context: Parameters<ToolModule["execute"]>[1]
 ): void {
   const targetPosition = requireTileSelection(context);
-  const movement = resolveToolMovementDescriptor(context, TELEPORT_TOOL_DEFINITION, "landing");
+  const movement = resolveToolMovementDescriptor(context, "landing");
 
   if (!targetPosition) {
     setDraftBlocked(draft, "Teleport needs a target tile", {

@@ -20,7 +20,6 @@ import { getOppositeDirection, traceProjectile } from "../rules/spatial";
 import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
-  createPassiveMovementDescriptor,
   createDraftSoundEvent,
   createPlayerAnchor,
   createPositionAnchor,
@@ -28,6 +27,7 @@ import {
   createUsedSummary,
   getToolParamValue,
   isChargedToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -88,16 +88,21 @@ function resolvePunchTool(
     "projectilePushDistance",
     PUNCH_DEFAULT_PUSH_DISTANCE
   );
-  const pushedOtherMovement = createPassiveMovementDescriptor(
-    context.activeTool.toolId,
+  const pushedOtherMovement = resolveToolMovementDescriptor(
+    context,
     "translate",
-    ["punch:push"]
+    {
+      disposition: "passive",
+      extraTags: ["punch:push"]
+    }
   );
-  const pushedSelfMovement = createPassiveMovementDescriptor(
-    context.activeTool.toolId,
+  const pushedSelfMovement = resolveToolMovementDescriptor(
+    context,
     "translate",
-    ["punch:self-recoil"],
-    "in_turn"
+    {
+      disposition: "passive",
+      extraTags: ["punch:self-recoil"]
+    }
   );
 
   if (!direction) {

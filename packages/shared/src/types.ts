@@ -1,7 +1,6 @@
 ﻿import type {
   Direction as ContentDirection,
   GameMode as ContentGameMode,
-  MovementContentDefinition,
   MovementDisposition as ContentMovementDisposition,
   MovementType as ContentMovementType,
   TeamId as ContentTeamId,
@@ -111,7 +110,6 @@ export interface MovementDescriptor {
   type: ContentMovementType;
   disposition: ContentMovementDisposition;
   tags: string[];
-  timing: MovementTiming;
 }
 
 export interface PlayerSnapshot {
@@ -198,7 +196,6 @@ export interface ToolDieFaceDefinition extends ToolLoadoutDefinition {
 }
 
 export interface ToolDefinition {
-  actorMovement?: MovementContentDefinition;
   choices?: readonly ToolChoiceDefinition[];
   color: string;
   debugGrantable: boolean;

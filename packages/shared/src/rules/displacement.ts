@@ -11,15 +11,20 @@
 export function createMovementDescriptor(
   type: MovementType,
   disposition: MovementDisposition,
-  tags?: readonly string[],
-  timing?: MovementTiming
+  tags?: readonly string[]
 ): MovementDescriptor {
   return {
     type,
     disposition,
-    timing: timing ?? (disposition === "active" ? "in_turn" : "out_of_turn"),
     tags: [...(tags ?? [])]
   };
+}
+
+export function getMovementTimingForPlayer(
+  actorId: string,
+  playerId: string
+): MovementTiming {
+  return actorId === playerId ? "in_turn" : "out_of_turn";
 }
 
 // Resolved movement records track who moved, how they moved, and which cells were traversed.
@@ -56,13 +61,6 @@ export function isMovementDisposition(
   disposition: MovementDisposition
 ): boolean {
   return movement?.disposition === disposition;
-}
-
-export function isMovementTiming(
-  movement: MovementDescriptor | null,
-  timing: MovementTiming
-): boolean {
-  return movement?.timing === timing;
 }
 
 export function hasMovementTag(

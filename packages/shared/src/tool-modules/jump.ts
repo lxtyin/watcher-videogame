@@ -26,10 +26,6 @@ import {
 } from "./helpers";
 
 export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
-  actorMovement: {
-    type: "leap",
-    disposition: "active"
-  },
   label: "跳跃",
   disabledHint: "当前不能使用跳跃。",
   source: "turn",
@@ -56,7 +52,7 @@ function resolveJumpTool(
 ): void {
   const direction = requireDirection(context);
   const jumpDistance = getToolParamValue(context.activeTool, "jumpDistance", 2);
-  const movement = resolveToolMovementDescriptor(context, JUMP_TOOL_DEFINITION, "leap");
+  const movement = resolveToolMovementDescriptor(context, "leap");
   const presentationMark = markDraftPresentation(draft);
   const resolution = direction
     ? (() => {

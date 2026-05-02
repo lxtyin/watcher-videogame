@@ -1,4 +1,5 @@
 import { getDraftSummons, type ResolutionDraft } from "../rules/actionDraft";
+import { getMovementTimingForPlayer } from "../rules/displacement";
 import type { GridPosition, SummonId, SummonMutation } from "../types";
 import { collectSummonsAtPosition, hasSummonAtPosition, WALLET_SUMMON_DEFINITION } from "./wallet";
 import type { SummonDefinition, SummonPhaseContext } from "./types";
@@ -47,6 +48,7 @@ function runSummonPhase(
       ...(context.direction ? { direction: context.direction } : {}),
       draft,
       movement: context.movement,
+      movementTiming: getMovementTimingForPlayer(draft.actorId, context.player.id),
       phase: context.phase,
       player: {
         characterId: context.player.characterId,

@@ -1,7 +1,5 @@
 import { isWithinBoard, getTile } from "../board";
-import { resolveToolMovementType } from "../skills";
 import type {
-  ToolContentDefinition,
   ToolUsabilityContext,
   ToolUsabilityResult
 } from "../content/schema";
@@ -13,7 +11,6 @@ import type {
   MovementActor,
   MovementDescriptor,
   MovementDisposition,
-  MovementTiming,
   MovementType,
   PresentationAnchor,
   PresentationSoundCueId,
@@ -105,57 +102,17 @@ export function toMovementSubject(actor: MovementActor | ToolActionContext["play
 }
 
 export function resolveToolMovementDescriptor(
-  context: ToolActionContext,
-  definition: ToolContentDefinition,
-  fallbackType: MovementType,
-  extraTags: readonly string[] = [],
-  dispositionOverride?: MovementDisposition,
-  timingOverride?: MovementTiming
-): MovementDescriptor {
-  const definitionMovement =
-    definition.actorMovement ?? {
-      type: fallbackType,
-      disposition: "active" as const
-    };
-  const disposition = dispositionOverride ?? definitionMovement.disposition;
-  const type =
-    disposition === "active"
-      ? resolveToolMovementType(
-          context.actor.characterId,
-          {
-            id: context.actor.id,
-            modifiers: context.actor.modifiers,
-            phase: context.phase,
-            position: context.actor.position,
-            tags: context.actor.tags,
-            toolHistory: context.toolHistory,
-            turnNumber: context.turnNumber,
-            tools: context.tools
-          },
-          context.activeTool,
-          definitionMovement.type
-        )
-      : definitionMovement.type;
-
-  return createMovementDescriptor(
-    type,
-    disposition,
-    [`tool:${context.activeTool.toolId}`, ...extraTags],
-    timingOverride ?? (disposition === "active" ? "in_turn" : "out_of_turn")
-  );
-}
-
-export function createPassiveMovementDescriptor(
-  toolId: ToolActionContext["activeTool"]["toolId"],
+  context: Pick<ToolActionContext, "activeTool">,
   type: MovementType,
-  extraTags: readonly string[] = [],
-  timingOverride: MovementTiming = "out_of_turn"
+  options: {
+    disposition?: MovementDisposition;
+    extraTags?: readonly string[];
+  } = {}
 ): MovementDescriptor {
   return createMovementDescriptor(
     type,
-    "passive",
-    [`tool:${toolId}`, ...extraTags],
-    timingOverride
+    options.disposition ?? "active",
+    [`tool:${context.activeTool.toolId}`, ...(options.extraTags ?? [])]
   );
 }
 

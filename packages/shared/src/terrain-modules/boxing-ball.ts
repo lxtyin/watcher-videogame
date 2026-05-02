@@ -1,5 +1,6 @@
 import { createEffectEvent, createNumberPopupReactionEvent } from "../rules/actionPresentation";
 import { appendDraftPresentationEvents } from "../rules/actionDraft";
+import { getMovementTimingForPlayer } from "../rules/displacement";
 import { createToolInstance } from "../tools";
 import {
   appendTerrainTrigger,
@@ -37,7 +38,7 @@ export const BOXING_BALL_TERRAIN_MODULE: TerrainModule = {
     if (
       context.source.kind !== "player" ||
       context.source.player.id !== context.draft.actorId ||
-      context.source.movement.timing !== "in_turn"
+      getMovementTimingForPlayer(context.draft.actorId, context.source.player.id) !== "in_turn"
     ) {
       return;
     }

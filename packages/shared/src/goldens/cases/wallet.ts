@@ -591,7 +591,7 @@ export const GOLDEN_WALLET_CASES = [
     id: "leader-wallet-ignores-passive-translate",
     title: "Wallet ignores passive translation",
     description:
-      "Being pushed across a wallet should not trigger pickup because the displacement is passive.",
+      "Being pushed across a wallet by another actor should not trigger pickup because the displacement is out of turn.",
     scene: {
       layout: [
         "#######",
@@ -676,6 +676,73 @@ export const GOLDEN_WALLET_CASES = [
         toolId: "basketball",
         eventKinds: ["motion", "motion"]
       }
+    }
+  }),
+  defineGoldenCase({
+    id: "wallet-passive-self-recoil-is-in-turn",
+    title: "Wallet triggers on in-turn passive self movement",
+    description:
+      "Passive displacement only describes movement form; self recoil during the actor's own tool use is still in-turn and can trigger wallet pickup.",
+    scene: {
+      layout: [
+        "#####",
+        "#...#",
+        "#####"
+      ],
+      players: [
+        {
+          id: "leader",
+          name: "Leader",
+          characterId: "leader",
+          position: { x: 3, y: 1 },
+          tools: [
+            {
+              toolId: "punch",
+              params: {
+                projectileRange: 1,
+                projectilePushDistance: 1
+              }
+            }
+          ]
+        }
+      ],
+      summons: [
+        {
+          summonId: "wallet",
+          ownerId: "leader",
+          position: { x: 2, y: 1 }
+        }
+      ],
+      turn: {
+        currentPlayerId: "leader",
+        phase: "turn-action"
+      },
+      seeds: {
+        toolDieSeed: 1
+      }
+    },
+    steps: [
+      {
+        kind: "useTool",
+        actorId: "leader",
+        tool: "punch",
+        direction: "right",
+        label: "Punch a wall and recoil onto wallet"
+      }
+    ],
+    expect: {
+      boardLayout: [
+        "#####",
+        "#...#",
+        "#####"
+      ],
+      players: {
+        leader: {
+          position: { x: 2, y: 1 },
+          toolCount: 1
+        }
+      },
+      summonCount: 0
     }
   })
 ];

@@ -2,6 +2,7 @@ import { toTileKey } from "./board";
 import type { TextDescription } from "./content/schema";
 import type { GridPosition, TileDefinition } from "./types";
 import type { ResolutionDraft } from "./rules/actionDraft";
+import { getMovementTimingForPlayer } from "./rules/displacement";
 import { getTerrainModule } from "./terrain-modules";
 import type { PassThroughTerrainState } from "./terrain-modules/types";
 
@@ -24,6 +25,7 @@ export function resolvePassThroughTerrainEffect(
   terrainDefinition.onPassThrough({
     draft,
     movement: context.movement,
+    movementTiming: getMovementTimingForPlayer(draft.actorId, context.state.player.id),
     startMs: context.startMs,
     state: context.state,
     tile: context.tile
@@ -50,6 +52,7 @@ export function resolveStopTerrainEffect(
   terrainDefinition.onStop({
     draft,
     movement: context.movement,
+    movementTiming: getMovementTimingForPlayer(draft.actorId, context.player.id),
     player: context.player,
     position: context.position,
     startMs: context.startMs,

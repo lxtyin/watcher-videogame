@@ -25,19 +25,33 @@
  - 默认角色设置为鹅哈哈
 
 
- - 我看到MovementDescriptor还是有很多旁路逻辑，再次梳理一下：
-   - MovementDescriptor中，type和disposition都是工具直接提供的，不要用任何方式推导。可以用helper去自动推导tags和timing。
-   - timing可以自动推导，但不应该从disposition === "active"来推导in_turn，这两者是没有关联的。应该对比当前回合玩家ID和进行位移的玩家ID，来判断是否in_turn。（区分：passive也有可能是in_turn）
- - 删除ToolContentDefinition中的actorMovement，删除createPassiveMovementDescriptor
- - resolveToolMovementType, getMovementType(hook)是多余的，现在没有（也不应该）有modifier会直接去修改movementType
-
-
 检查并修复一些问题：
  - 在同一个房间，游戏结束后继续进行第二把时，玩家平移动画会消失
  - 在服务端部署时，点复制房间号会报错：当前浏览器无法复制房间号
  - 调整：在竞速模式下，只剩下一名玩家没走完时，应该直接进入结算（完成回合数和倒数第二名一致）
  - 所有页面右上角加两个可点击的图标：关闭背景音乐/音效（SVG资源位于resources\icons），关闭/开启用亮/暗色表示
  - 每局游戏都要根据时间更新随机种子，不要用固定的随机数
+
+
+修复：
+ - MovementDescriptor中，disposition 和 timing 应该是不同的概念，没有关联，不能自动推导；timing仅表示当前是不是发生位移的玩家的回合，disposition表示位移的形态（区分：passive也有可能是in_turn发生的）
+ - timing只应该通过对比发生位移的玩家ID，和当前使用工具的玩家ID来确定。它的确不能在工具初始化时就确定，因此，考虑从MovementDescriptor中移除timing，改成在各个Terrian/Summon/Skill触发器中，通过其他方式计算timing
+ - 删除ToolContentDefinition中的actorMovement（工具实现内部应该自己处理好各种movementType），删除createPassiveMovementDescriptor（多余，统一用resolveToolMovementDescriptor）
+
+
+ - 我看到MovementDescriptor还是有很多旁路逻辑，再次梳理一下：
+   - MovementDescriptor中，type和disposition都是工具直接提供的，不要用任何方式推导。可以用helper去自动推导tags和timing。
+   - timing可以自动推导，但不应该从disposition === "active"来推导in_turn，这两者是没有关联的。应该对比当前回合玩家ID和进行位移的玩家ID，来判断是否in_turn。
+ - 删除ToolContentDefinition中的actorMovement，删除createPassiveMovementDescriptor
+ - resolveToolMovementType, getMovementType(hook)是多余的，现在没有（也不应该）有modifier会直接去修改movementType
+
+
+
+
+下面给召唤物做一个新概念：生物
+ - 召唤物可以是生物，生物在场景中像玩家一样可以被工具影响，产生位移，触发地形交互（和玩家的逻辑完全一致，只是没有自己的回合），掉坑死亡（一般不会复活）；
+ -
+ - 做一个新召唤物：
 
 
 

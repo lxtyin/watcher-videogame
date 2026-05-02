@@ -100,8 +100,7 @@ function createPassiveRocketMovement(
 ) {
   return createMovementDescriptor(
     type, "passive",
-    [toolTagBase, `rocket:${variant}`],
-    "out_of_turn"
+    [toolTagBase, `rocket:${variant}`]
   );
 }
 

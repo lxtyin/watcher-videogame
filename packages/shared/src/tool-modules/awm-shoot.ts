@@ -26,7 +26,6 @@ import { resolveImpactTerrainEffect } from "../terrain";
 import type { ToolModule } from "./types";
 import {
   clearMovementTools,
-  createPassiveMovementDescriptor,
   createToolPreview,
   createDraftSoundEvent,
   createPlayerAnchor,
@@ -34,6 +33,7 @@ import {
   getToolParamValue,
   getTotalMovementPoints,
   isChargedToolAvailable,
+  resolveToolMovementDescriptor,
   toMovementSubject
 } from "./helpers";
 
@@ -93,10 +93,13 @@ function resolveAwmShootTool(
 
   const trace = traceProjectile(context, direction, projectileRange, 0);
   const shotPower = getTotalMovementPoints(context.tools);
-  const bulletPushMovement = createPassiveMovementDescriptor(
-    context.activeTool.toolId,
+  const bulletPushMovement = resolveToolMovementDescriptor(
+    context,
     "translate",
-    ["awm:push"]
+    {
+      disposition: "passive",
+      extraTags: ["awm:push"]
+    }
   );
   const affectedPlayers: AffectedPlayerMove[] = [];
 
