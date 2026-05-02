@@ -157,6 +157,7 @@ export interface CharacterContentDefinition {
 
 export interface SummonContentDefinition {
   description: string;
+  kind: "creature" | "object";
   label: string;
   triggerMode: "movement_trigger";
 }

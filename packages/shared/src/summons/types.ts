@@ -38,6 +38,14 @@ export interface SummonTriggerContext {
   summon: import("../types").BoardSummonState;
 }
 
+export interface SummonDeathContext {
+  draft: ResolutionDraft;
+  player: MovementActor;
+  position: GridPosition;
+  startMs: number;
+  summon: import("../types").BoardSummonState;
+}
+
 export interface SummonPhaseContext {
   direction?: Direction;
   movement: MovementDescriptor | null;
@@ -51,7 +59,9 @@ export interface SummonPhaseContext {
 export interface SummonDefinition {
   description: string;
   id: SummonId;
+  kind: "creature" | "object";
   label: string;
+  onDeath?: (context: SummonDeathContext) => void;
   onPassThrough?: (context: SummonTriggerContext) => void;
   onStop?: (context: SummonTriggerContext) => void;
   triggerMode: "movement_trigger";

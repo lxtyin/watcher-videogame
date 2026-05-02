@@ -2,6 +2,7 @@ import { DEFAULT_BOARD_SYMBOLS, type LayoutSymbolDefinition } from "./content/bo
 import { DEFAULT_GAME_MAP_ID, getGameMapDefinition } from "./content/maps";
 import type {
   BoardDefinition,
+  BoardSummonState,
   GameMode,
   GridPosition,
   TeamId,
@@ -63,11 +64,14 @@ function buildBoardFromLayout(
 
 export function createBoardDefinitionFromLayout(
   layout: readonly string[],
-  symbols: Partial<Record<string, LayoutSymbolDefinition>> = DEFAULT_BOARD_SYMBOLS
+  symbols: Partial<Record<string, LayoutSymbolDefinition>> = {}
 ): BoardDefinition {
   return buildBoardFromLayout(
     layout,
-    symbols as Record<
+    {
+      ...DEFAULT_BOARD_SYMBOLS,
+      ...symbols
+    } as Record<
       string,
       {
         faction?: TileDefinition["faction"];
@@ -79,11 +83,50 @@ export function createBoardDefinitionFromLayout(
   );
 }
 
+export function createInitialSummonsFromLayout(
+  layout: readonly string[],
+  symbols: Partial<Record<string, LayoutSymbolDefinition>> = {}
+): BoardSummonState[] {
+  const normalizedSymbols = {
+    ...DEFAULT_BOARD_SYMBOLS,
+    ...symbols
+  } as Record<string, LayoutSymbolDefinition>;
+  const summons: BoardSummonState[] = [];
+
+  for (let y = 0; y < layout.length; y += 1) {
+    const row = layout[y] ?? "";
+
+    for (let x = 0; x < row.length; x += 1) {
+      const symbol = row[x] ?? ".";
+      const initialSummon = normalizedSymbols[symbol]?.initialSummon;
+
+      if (!initialSummon) {
+        continue;
+      }
+
+      summons.push({
+        instanceId: `layout:${initialSummon.summonId}:${x},${y}:${summons.length + 1}`,
+        ownerId: initialSummon.ownerId ?? "",
+        position: { x, y },
+        summonId: initialSummon.summonId
+      });
+    }
+  }
+
+  return summons;
+}
+
 // Runtime board creation flows through the shared map registry so each map binds mode and spawn rules.
 export function createBoardDefinition(mapId: string = DEFAULT_GAME_MAP_ID): BoardDefinition {
   const definition = getGameMapDefinition(mapId);
 
   return createBoardDefinitionFromLayout(definition.layout, definition.symbols);
+}
+
+export function createInitialSummons(mapId: string = DEFAULT_GAME_MAP_ID): BoardSummonState[] {
+  const definition = getGameMapDefinition(mapId);
+
+  return createInitialSummonsFromLayout(definition.layout, definition.symbols);
 }
 
 // Existing callers still treat the free-mode map as the default board.

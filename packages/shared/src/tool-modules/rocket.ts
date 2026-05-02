@@ -9,6 +9,7 @@ import {
 } from "../rules/actionPresentation";
 import {
   appendDraftPresentationEvents,
+  getDraftSummons,
   getDraftPlayers,
   setDraftApplied,
   setDraftBlocked,
@@ -26,7 +27,7 @@ import {
 import {
   CARDINAL_DIRECTIONS,
   collectExplosionPreviewTiles,
-  findPlayersAtPosition,
+  findMovableEntitiesAtPosition,
   getOppositeDirection,
   stepPosition,
   traceProjectileFromPosition
@@ -113,7 +114,8 @@ export function resolveRocketCore(
   const trace = traceProjectileFromPosition(
     {
       board: draft.board,
-      players: getDraftPlayers(draft)
+      players: getDraftPlayers(draft),
+      summons: getDraftSummons(draft)
     },
     spec.originPosition,
     spec.direction,
@@ -121,13 +123,13 @@ export function resolveRocketCore(
     0
   );
   const explosionPosition =
-    trace.collision.kind === "player"
+    trace.collision.kind === "entity"
       ? trace.collision.position
       : trace.collision.kind === "solid"
         ? trace.collision.previousPosition
         : trace.path[trace.path.length - 1] ?? null;
   const centerLeapDirection =
-    trace.collision.kind === "player"
+    trace.collision.kind === "entity"
       ? trace.collision.direction
       : getOppositeDirection(trace.collision.direction);
 
@@ -185,17 +187,18 @@ export function resolveRocketCore(
   }
 
   const livePlayers = getDraftPlayers(draft);
-  const centerPlayers =
-    trace.collision.kind === "player"
-      ? trace.collision.players
-      : findPlayersAtPosition(livePlayers, explosionPosition, []);
+  const liveSummons = getDraftSummons(draft);
+  const centerEntities =
+    trace.collision.kind === "entity"
+      ? trace.collision.entities
+      : findMovableEntitiesAtPosition(livePlayers, liveSummons, explosionPosition, []);
 
-  centerPlayers.forEach((hitPlayer) => {
+  centerEntities.forEach((hitEntity) => {
     const leapResolution = resolveLeapDisplacement(draft, {
       direction: centerLeapDirection,
       maxDistance: spec.blastLeapDistance,
       movement: blastMovement,
-      player: toMovementSubject(hitPlayer),
+      player: toMovementSubject(hitEntity),
       startMs: explosionStartMs + ROCKET_BLAST_DELAY_MS,
       trackAffectedPlayerReason: "rocket_blast"
     });
@@ -207,18 +210,19 @@ export function resolveRocketCore(
 
   for (const splashDirection of CARDINAL_DIRECTIONS) {
     const splashPosition = stepPosition(explosionPosition, splashDirection);
-    const splashPlayers = findPlayersAtPosition(
+    const splashEntities = findMovableEntitiesAtPosition(
       getDraftPlayers(draft),
+      getDraftSummons(draft),
       splashPosition,
-      centerPlayers.map((player) => player.id)
+      centerEntities.map((entity) => entity.id)
     );
 
-    for (const splashPlayer of splashPlayers) {
+    for (const splashEntity of splashEntities) {
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: splashDirection,
         movePoints: spec.splashPushDistance,
         movement: splashMovement,
-        player: toMovementSubject(splashPlayer),
+        player: toMovementSubject(splashEntity),
         startMs: explosionStartMs + ROCKET_BLAST_DELAY_MS,
         trackAffectedPlayerReason: "rocket_splash"
       });
@@ -275,7 +279,8 @@ function resolveRocketTool(
   const trace = traceProjectileFromPosition(
     {
       board: draft.board,
-      players: getDraftPlayers(draft)
+      players: getDraftPlayers(draft),
+      summons: getDraftSummons(draft)
     },
     context.actor.position,
     direction,
@@ -283,7 +288,7 @@ function resolveRocketTool(
     0
   );
   const explosionPosition =
-    trace.collision.kind === "player"
+    trace.collision.kind === "entity"
       ? trace.collision.position
       : trace.collision.kind === "solid"
         ? trace.collision.previousPosition

@@ -44,6 +44,7 @@ export function useAutomationBridge(): void {
               durationMs: state.activeActionPresentation.durationMs,
               queuedCount: state.actionPresentationQueue.length,
               activePlayerMotionIds: Object.keys(playbackState.playerMotions),
+              activeSummonMotionIds: Object.keys(playbackState.summonMotions),
               activeProjectileCount: playbackState.projectiles.length,
               activeReactionCount: playbackState.reactions.length
             }
@@ -54,6 +55,7 @@ export function useAutomationBridge(): void {
               durationMs: 0,
               queuedCount: state.actionPresentationQueue.length,
               activePlayerMotionIds: [],
+              activeSummonMotionIds: [],
               activeProjectileCount: 0,
               activeReactionCount: 0
             },

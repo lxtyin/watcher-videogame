@@ -1,4 +1,4 @@
-import { appendTerrainPreviewHighlight, appendTerrainTrigger, respawnPlayerOnTerrain } from "./helpers";
+import { appendTerrainPreviewHighlight, appendTerrainTrigger, defeatEntityOnTerrain } from "./helpers";
 import type { TerrainModule } from "./types";
 import { isMovementType } from "../rules/displacement";
 
@@ -19,7 +19,7 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
       };
 
       appendTerrainPreviewHighlight(context.draft, triggerPosition);
-      respawnPlayerOnTerrain(context.draft, {
+      defeatEntityOnTerrain(context.draft, {
         eventId: `${context.draft.sourceId}:pit:${context.tile.key}`,
         motionStyle: "spin_drop",
         player: context.state.player,
@@ -47,7 +47,7 @@ export const PIT_TERRAIN_MODULE: TerrainModule = {
       };
 
       appendTerrainPreviewHighlight(context.draft, triggerPosition);
-      respawnPlayerOnTerrain(context.draft, {
+      defeatEntityOnTerrain(context.draft, {
         eventId: `${context.draft.sourceId}:pit:${context.tile.key}`,
         motionStyle: "spin_drop",
         player: context.player,

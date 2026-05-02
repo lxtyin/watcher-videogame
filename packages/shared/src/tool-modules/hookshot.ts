@@ -20,7 +20,7 @@ import { createResolvedPlayerMovement } from "../rules/displacement";
 import { resolveDragDisplacement } from "../rules/movementSystem";
 import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 import {
-  findPlayersAtPosition,
+  findMovableEntitiesAtPosition,
   getOppositeDirection,
   isSolidTileType,
   stepPosition
@@ -29,6 +29,7 @@ import type { ToolModule } from "./types";
 import {
   createDraftSoundEvent,
   createPlayerAnchor,
+  createSummonAnchor,
   createToolPreview,
   createUsedSummary,
   getToolParamValue,
@@ -225,9 +226,14 @@ function resolveHookshotTool(
     }
 
     rayPath.push(target);
-    const hitPlayers = findPlayersAtPosition(context.players, target, [context.actor.id]);
+    const hitEntities = findMovableEntitiesAtPosition(
+      context.players,
+      context.summons,
+      target,
+      [context.actor.id]
+    );
 
-    if (!hitPlayers.length) {
+    if (!hitEntities.length) {
       continue;
     }
 
@@ -260,7 +266,7 @@ function resolveHookshotTool(
     const pullStartMs = outboundDurationMs + HOOKSHOT_PULL_DELAY_MS;
     let pullSucceeded = false;
 
-    for (const [index, hitPlayer] of hitPlayers.entries()) {
+    for (const [index, hitEntity] of hitEntities.entries()) {
       const pullDistance = Math.max(0, distance - 1);
 
       if (pullDistance < 1) {
@@ -272,7 +278,7 @@ function resolveHookshotTool(
         direction: getOppositeDirection(direction),
         movePoints: pullDistance,
         movement: pulledMovement,
-        player: toMovementSubject(hitPlayer),
+        player: toMovementSubject(hitEntity),
         startMs: pullStartMs,
         trackAffectedPlayerReason: "hookshot"
       });
@@ -296,10 +302,12 @@ function resolveHookshotTool(
               kind: "player",
               playerId: context.actor.id
             },
-            {
-              kind: "player",
-              playerId: hitPlayer.id
-            },
+            hitEntity.kind === "player"
+              ? {
+                  kind: "player",
+                  playerId: hitEntity.id
+                }
+              : createSummonAnchor(hitEntity.id),
             "chain",
             pullStartMs,
             pullDurationMs

@@ -7,6 +7,34 @@
 - 已实现工具、地形、召唤物、角色能力、竞速模式、golden 测试与本地回放。
 - 已建立 `PreviewDescriptor + ActionPresentation + PlaybackEngine` 的表现链路，客户端按语义预览和语义事件播放瞬态。
 
+## 2026-05-02 生物召唤物
+
+- 召唤物新增 `kind` 语义：
+  - `object` 表示普通场上物件，例如钱包
+  - `creature` 表示生物，会作为可移动实体被工具命中并进入位移系统
+- shared 位移链路扩展为统一处理“可移动实体”：
+  - 玩家继续同步到 `playersById`
+  - 生物召唤物同步到 `summonsById`，通过 summon mutation 和 summon motion presentation 表现移动
+  - 投射物、拳击、篮球、火箭、钩索、炸弹、AWM 等工具命中逻辑改为查找玩家与生物召唤物
+- 召唤物模块新增 `onDeath`；致死地形通过统一死亡入口移除生物并触发死亡回调。
+- 新增测试召唤物 `dicePig`：
+  - 静态内容注册为“骰子猪”
+  - 死亡时给当前行动玩家发放一次随机工具骰奖励
+  - client 新增简单 3D 骰子猪召唤物资源
+- 生物表现链路补齐：
+  - summon mutation 的展示切换按移动抵达目标格对齐，避免生物先闪现到终点再播放动画
+  - 玩家与生物复用同一套 motion 采样和场景姿态逻辑，支持飞跃抬升、朝向、侧倒和旋转坠落
+  - `PresentationAnchor` 支持召唤物锚点，钩索链条可以跟随移动中的生物
+- 地图布局符号新增 `initialSummon` 支持；临时符号 `P` 表示开局生成骰子猪，默认自由模式地图已放入一个 `P` 作为测试点。
+- 新增 golden case：
+  - `layout-symbol-spawns-dice-pig`
+  - `dice-pig-can-be-pushed-as-creature`
+  - `dice-pig-dies-and-grants-current-player-tool`
+- 验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run goldens`，`53/53` passed
+  - `npm.cmd run build`
+
 ## 2026-05-02 MovementDescriptor timing 收口
 
 - `MovementDescriptor` 只保留 `type / disposition / tags`，不再携带或推导 `timing`。

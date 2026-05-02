@@ -81,6 +81,46 @@ export function createPlayerMotionEvent(
   motionStyle: PresentationMotionStyle,
   startMs = 0
 ): ActionPresentationEvent | null {
+  return createGridMotionEvent(
+    eventId,
+    {
+      kind: "player",
+      motionStyle,
+      playerId
+    },
+    positions,
+    motionStyle,
+    startMs
+  );
+}
+
+export function createSummonMotionEvent(
+  eventId: string,
+  summonInstanceId: string,
+  positions: GridPosition[],
+  motionStyle: PresentationMotionStyle,
+  startMs = 0
+): ActionPresentationEvent | null {
+  return createGridMotionEvent(
+    eventId,
+    {
+      kind: "summon",
+      motionStyle,
+      summonInstanceId
+    },
+    positions,
+    motionStyle,
+    startMs
+  );
+}
+
+function createGridMotionEvent(
+  eventId: string,
+  subject: Extract<ActionPresentationEvent, { kind: "motion" }>["subject"],
+  positions: GridPosition[],
+  motionStyle: PresentationMotionStyle,
+  startMs = 0
+): ActionPresentationEvent | null {
   if (positions.length < 2) {
     return null;
   }
@@ -91,11 +131,7 @@ export function createPlayerMotionEvent(
     id: eventId,
     kind: "motion",
     positions,
-    subject: {
-      kind: "player",
-      motionStyle,
-      playerId
-    },
+    subject,
     startMs,
     durationMs:
       stepCount *

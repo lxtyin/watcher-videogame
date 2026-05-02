@@ -33,6 +33,13 @@ export interface ActivePlayerMotionPlayback {
   progress: number;
 }
 
+export interface ActiveSummonMotionPlayback {
+  motionStyle: PresentationMotionStyle;
+  position: SampledGridPosition;
+  progress: number;
+  summonInstanceId: string;
+}
+
 export interface ActiveProjectilePlayback {
   eventId: string;
   ownerId: string | null;
@@ -100,6 +107,7 @@ export interface PlaybackEngineState {
   playerMotions: Record<string, ActivePlayerMotionPlayback>;
   projectiles: ActiveProjectilePlayback[];
   reactions: ActiveReactionPlayback[];
+  summonMotions: Record<string, ActiveSummonMotionPlayback>;
 }
 
 export interface PlaybackEngineInput {
@@ -267,21 +275,48 @@ function getProjectileLiftHeight(projectileType: PresentationProjectileType): nu
   }
 }
 
+function getMotionLiftHeight(
+  motionStyle: PresentationMotionStyle,
+  positionCount: number
+): number {
+  if (motionStyle === "arc") {
+    return 0.7 + Math.max(0, positionCount - 2) * 0.08;
+  }
+
+  if (motionStyle === "finish") {
+    return 1.75;
+  }
+
+  return 0;
+}
+
+function sampleMotionPath(
+  motionStyle: PresentationMotionStyle,
+  positions: GridPosition[],
+  progress: number
+): SampledGridPosition {
+  return motionStyle === "impact_recoil"
+    ? sampleImpactRecoilPath(positions, progress)
+    : sampleGridPath(positions, progress, getMotionLiftHeight(motionStyle, positions.length));
+}
+
 function evaluateEventPlayback(
   presentation: SequencedActionPresentation | null,
   elapsedMs: number
-): Pick<PlaybackEngineState, "playerMotions" | "projectiles" | "reactions"> {
+): Pick<PlaybackEngineState, "playerMotions" | "projectiles" | "reactions" | "summonMotions"> {
   if (!presentation) {
     return {
       playerMotions: {},
       projectiles: [],
-      reactions: []
+      reactions: [],
+      summonMotions: {}
     };
   }
 
   const playerMotions: Record<string, ActivePlayerMotionPlayback> = {};
   const projectiles: ActiveProjectilePlayback[] = [];
   const reactions: ActiveReactionPlayback[] = [];
+  const summonMotions: Record<string, ActiveSummonMotionPlayback> = {};
 
   for (const event of presentation.events) {
     if (!isEventActive(event, elapsedMs)) {
@@ -295,18 +330,17 @@ function evaluateEventPlayback(
         playerId: event.subject.playerId,
         motionStyle: event.subject.motionStyle,
         progress,
-        position:
-          event.subject.motionStyle === "impact_recoil"
-            ? sampleImpactRecoilPath(event.positions, progress)
-            : sampleGridPath(
-                event.positions,
-                progress,
-                event.subject.motionStyle === "arc"
-                  ? 0.7 + Math.max(0, event.positions.length - 2) * 0.08
-                  : event.subject.motionStyle === "finish"
-                    ? 1.75
-                    : 0
-              )
+        position: sampleMotionPath(event.subject.motionStyle, event.positions, progress)
+      };
+      continue;
+    }
+
+    if (event.kind === "motion" && event.subject.kind === "summon") {
+      summonMotions[event.subject.summonInstanceId] = {
+        summonInstanceId: event.subject.summonInstanceId,
+        motionStyle: event.subject.motionStyle,
+        progress,
+        position: sampleMotionPath(event.subject.motionStyle, event.positions, progress)
       };
       continue;
     }
@@ -378,7 +412,8 @@ function evaluateEventPlayback(
   return {
     playerMotions,
     projectiles,
-    reactions
+    reactions,
+    summonMotions
   };
 }
 
@@ -579,7 +614,8 @@ export function evaluatePlaybackEngine(
       displayedTiles: [],
       playerMotions: {},
       projectiles: [],
-      reactions: []
+      reactions: [],
+      summonMotions: {}
     };
   }
 
@@ -621,14 +657,31 @@ export function evaluatePlaybackEngine(
     })
   );
 
+  const displayedSummons = resolveDisplayedSummons(input.snapshot, pendingStateTransitions).map((summon) => {
+    const activeMotion = eventPlayback.summonMotions[summon.instanceId];
+
+    if (!activeMotion) {
+      return summon;
+    }
+
+    return {
+      ...summon,
+      position: {
+        x: activeMotion.position.x,
+        y: activeMotion.position.y
+      }
+    };
+  });
+
   return {
     activeElapsedMs,
     displayedPlayerPositions,
     displayedPlayers,
-    displayedSummons: resolveDisplayedSummons(input.snapshot, pendingStateTransitions),
+    displayedSummons,
     displayedTiles: resolveDisplayedTiles(input.snapshot, pendingStateTransitions),
     playerMotions: eventPlayback.playerMotions,
     projectiles: eventPlayback.projectiles,
-    reactions: eventPlayback.reactions
+    reactions: eventPlayback.reactions,
+    summonMotions: eventPlayback.summonMotions
   };
 }

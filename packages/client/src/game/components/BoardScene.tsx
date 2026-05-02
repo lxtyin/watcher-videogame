@@ -191,7 +191,7 @@ function getAnimatedStackIndex(
   return fromIndex + (toIndex - fromIndex) * progress;
 }
 
-function getPlayerPresentationPose(
+function getGridEntityPresentationPose(
   motionStyle: PresentationMotionStyle | null,
   progress: number,
   baseRotationY: number,
@@ -320,7 +320,9 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
   const toolPointerFocusGridRef = useRef<GridPosition | null>(null);
   const toolPointerFocusWorldRef = useRef<{ x: number; z: number } | null>(null);
   const previousPositionsRef = useRef<Record<string, GridPosition>>({});
+  const previousSummonPositionsRef = useRef<Record<string, GridPosition>>({});
   const facingByIdRef = useRef<Record<string, Direction>>({});
+  const summonFacingByIdRef = useRef<Record<string, Direction>>({});
   const nextCellEntrySerialRef = useRef(1);
   const stackAnimationByIdRef = useRef<
     Record<string, { fromIndex: number; startedAtMs: number; toIndex: number }>
@@ -509,6 +511,13 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
   const stableDisplayedTiles = useStableTileDefinitions(displayedTiles);
   const displayedPlayers = playbackState.displayedPlayers;
   const displayedSummons = playbackState.displayedSummons;
+  const displayedSummonPositions = useMemo(
+    () =>
+      Object.fromEntries(
+        displayedSummons.map((summon) => [summon.instanceId, summon.position] as const)
+      ),
+    [displayedSummons]
+  );
   const snapshotPlayersById = useMemo(
     () =>
       new Map(
@@ -612,6 +621,24 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         "down";
 
       nextFacingById[player.id] = nextFacing;
+    }
+
+    return nextFacingById;
+  }, [snapshot]);
+  const summonFacingById = useMemo(() => {
+    const nextFacingById = { ...summonFacingByIdRef.current };
+
+    if (!snapshot) {
+      return nextFacingById;
+    }
+
+    for (const summon of snapshot.summons) {
+      const nextFacing =
+        getFacingFromDelta(previousSummonPositionsRef.current[summon.instanceId], summon.position) ??
+        nextFacingById[summon.instanceId] ??
+        "down";
+
+      nextFacingById[summon.instanceId] = nextFacing;
     }
 
     return nextFacingById;
@@ -740,10 +767,14 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
     }
 
     facingByIdRef.current = facingById;
+    summonFacingByIdRef.current = summonFacingById;
     previousPositionsRef.current = Object.fromEntries(
       snapshot.players.map((player) => [player.id, player.position])
     );
-  }, [facingById, snapshot]);
+    previousSummonPositionsRef.current = Object.fromEntries(
+      snapshot.summons.map((summon) => [summon.instanceId, summon.position])
+    );
+  }, [facingById, snapshot, summonFacingById]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -1705,6 +1736,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
       playback: {
         activePresentationSequence: activeActionPresentation?.sequence ?? null,
         activePlayerMotionCount: Object.keys(playbackState.playerMotions).length,
+        activeSummonMotionCount: Object.keys(playbackState.summonMotions).length,
         activeProjectileCount: playbackState.projectiles.length,
         activeReactionCount: playbackState.reactions.length,
         queuedPresentationCount: actionPresentationQueue.length
@@ -1938,9 +1970,20 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
         effectTiles={scenePreview.effectTiles}
         toolId={interactionSession?.toolId ?? null}
       />
-      {displayedSummons.map((summon) => {
+      {displayedSummons.map((summon, index) => {
         const ownerColor =
           snapshot.players.find((player) => player.id === summon.ownerId)?.color ?? "#8d7a3d";
+        const activeMotion = playbackState.summonMotions[summon.instanceId] ?? null;
+        const facingDirection =
+          activeMotion?.position.facing ?? summonFacingById[summon.instanceId] ?? "down";
+        const summonPose = getGridEntityPresentationPose(
+          activeMotion?.motionStyle ?? null,
+          activeMotion?.progress ?? 0,
+          DIRECTION_ROTATION_Y[facingDirection],
+          facingDirection
+        );
+        const bob = activeMotion ? 0 : Math.sin(simulationTimeMs / 520 + index) * 0.025;
+        const positionY = bob + (activeMotion?.position.lift ?? 0) + summonPose.yOffset;
 
         return (
           <SummonVisual
@@ -1950,6 +1993,8 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
             boardHeight={snapshot.boardHeight}
             color={ownerColor}
             onPointerDown={(event) => handleSummonPointerDown(summon, event)}
+            positionY={positionY}
+            rotation={summonPose.rotation}
           />
         );
       })}
@@ -1991,7 +2036,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
           reactionLift;
         const pieceTopY = pieceBaseY + 0.96;
         const facingDirection = activeMotion?.position.facing ?? facingById[player.id] ?? "down";
-        const playerPose = getPlayerPresentationPose(
+        const playerPose = getGridEntityPresentationPose(
           activeMotion?.motionStyle ?? null,
           activeMotion?.progress ?? 0,
           DIRECTION_ROTATION_Y[facingDirection],
@@ -2108,6 +2153,7 @@ export function BoardScene({ cameraControlMode, setChoiceModal, terrainThumbnail
           boardWidth={snapshot.boardWidth}
           boardHeight={snapshot.boardHeight}
           playerPositions={displayedPlayerPositions}
+          summonPositions={displayedSummonPositions}
           reaction={reaction}
         />
       ))}

@@ -5,6 +5,7 @@ import type {
   MovementDescriptor,
   MovementTiming,
   PresentationProjectileType,
+  BoardSummonState,
   TileDefinition
 } from "../types";
 import type { ResolutionDraft } from "../rules/actionDraft";
@@ -40,6 +41,11 @@ export type TerrainImpactSource =
       kind: "player";
       movement: MovementDescriptor;
       player: MovementActor;
+    }
+  | {
+      kind: "summon";
+      movement: MovementDescriptor;
+      summon: BoardSummonState;
     }
   | {
       kind: "projectile";

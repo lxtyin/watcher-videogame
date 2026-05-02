@@ -70,7 +70,7 @@ function appendUniquePosition(positions: GridPosition[], position: GridPosition)
 }
 
 function getPunchEffectTiles(trace: ReturnType<typeof traceProjectile>): GridPosition[] {
-  if (trace.collision.kind === "player" || trace.collision.kind === "solid") {
+  if (trace.collision.kind === "entity" || trace.collision.kind === "solid") {
     return appendUniquePosition(trace.path, trace.collision.position);
   }
 
@@ -118,7 +118,7 @@ function resolvePunchTool(
 
   setDraftToolInventory(draft, consumeActiveTool(context));
 
-  if (trace.collision.kind === "player") {
+  if (trace.collision.kind === "entity") {
     nestedEvents.push(
       createDraftSoundEvent(draft, "tool_punch", "punch:impact", {
         anchor: createPositionAnchor(trace.collision.position)
@@ -133,13 +133,13 @@ function resolvePunchTool(
       )
     );
 
-    for (const hitPlayer of trace.collision.players) {
+    for (const hitEntity of trace.collision.entities) {
       const presentationMark = markDraftPresentation(draft);
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         movePoints: pushDistance,
         movement: pushedOtherMovement,
-        player: toMovementSubject(hitPlayer),
+        player: toMovementSubject(hitEntity),
         startMs: PUNCH_PUSH_START_MS,
         trackAffectedPlayerReason: "punch"
       });

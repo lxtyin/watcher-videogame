@@ -142,26 +142,30 @@ function resolveAwmShootTool(
     });
   }
 
-  if (trace.collision.kind === "player" && shotPower > 0) {
+  if (trace.collision.kind === "entity" && shotPower > 0) {
     const pushStartMs = projectileEvent ? projectileEvent.startMs + projectileEvent.durationMs : 0;
 
-    for (const hitPlayer of trace.collision.players) {
+    for (const hitEntity of trace.collision.entities) {
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         movePoints: shotPower,
         movement: bulletPushMovement,
-        player: toMovementSubject(hitPlayer),
+        player: toMovementSubject(hitEntity),
         startMs: pushStartMs
       });
 
+      if (hitEntity.kind !== "player") {
+        continue;
+      }
+
       affectedPlayers.push({
-        boardVisible: draft.playersById.get(hitPlayer.id)?.boardVisible ?? true,
+        boardVisible: draft.playersById.get(hitEntity.id)?.boardVisible ?? true,
         movement: bulletPushMovement,
         modifiers: attachModifier(pushResolution.actor.modifiers, BONDAGE_MODIFIER_ID),
         path: pushResolution.path,
-        playerId: hitPlayer.id,
+        playerId: hitEntity.id,
         reason: "awm_shot",
-        startPosition: hitPlayer.position,
+        startPosition: hitEntity.position,
         target: pushResolution.actor.position,
         tags: setPlayerTagValue(pushResolution.actor.tags, BONDAGE_STACKS_TAG, shotPower),
         turnFlags: pushResolution.actor.turnFlags

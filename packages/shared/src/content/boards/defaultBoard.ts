@@ -1,7 +1,11 @@
-import type { Direction, TeamId, TileType } from "../../types";
+import type { Direction, SummonId, TeamId, TileType } from "../../types";
 
 export interface LayoutSymbolDefinition {
   faction?: TeamId;
+  initialSummon?: {
+    ownerId?: string;
+    summonId: SummonId;
+  };
   type: TileType;
   direction?: Direction;
   durability?: number;
@@ -13,7 +17,7 @@ export const DEFAULT_BOARD_LAYOUT = [
   "#s>lx..g..#",
   "#.v.H..U..#",
   "#.pe#e.L..#",
-  "#..^..o...#",
+  "#..^..oP..#",
   "#..e..R...#",
   "#D..##..b.#",
   "#....<....#",
@@ -25,6 +29,7 @@ export const DEFAULT_BOARD_SYMBOLS: Record<string, LayoutSymbolDefinition> = {
   "#": { type: "wall" },
   e: { type: "earthWall", durability: 2 },
   b: { type: "boxingBall" },
+  P: { type: "floor", initialSummon: { summonId: "dicePig" } },
   t: { type: "tower", durability: 5, faction: "white" },
   T: { type: "tower", durability: 5, faction: "black" },
   i: { type: "teamSpawn", faction: "white" },

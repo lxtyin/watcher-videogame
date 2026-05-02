@@ -454,16 +454,25 @@ export type TriggeredTerrainEffect =
       toDirection: Direction;
     };
 
-export type TriggeredSummonEffect = {
-  grantedTool: TurnToolSnapshot;
-  kind: "wallet_pickup";
-  movement: MovementDescriptor | null;
-  ownerId: string;
-  playerId: string;
-  position: GridPosition;
-  summonId: SummonId;
-  summonInstanceId: string;
-};
+export type TriggeredSummonEffect =
+  | {
+      grantedTool: TurnToolSnapshot;
+      kind: "wallet_pickup";
+      movement: MovementDescriptor | null;
+      ownerId: string;
+      playerId: string;
+      position: GridPosition;
+      summonId: SummonId;
+      summonInstanceId: string;
+    }
+  | {
+      grantedTool: TurnToolSnapshot;
+      kind: "dice_pig_death";
+      playerId: string;
+      position: GridPosition;
+      summonId: SummonId;
+      summonInstanceId: string;
+    };
 
 export type SummonMutation =
   | {
@@ -476,6 +485,8 @@ export type SummonMutation =
   | {
       instanceId: string;
       kind: "remove";
+      position?: GridPosition;
+      presentationStartMs?: number;
     };
 
 export interface ActionPresentationEventBase {
@@ -489,6 +500,11 @@ export type MotionPresentationSubject =
       kind: "player";
       motionStyle: PresentationMotionStyle;
       playerId: string;
+    }
+  | {
+      kind: "summon";
+      motionStyle: PresentationMotionStyle;
+      summonInstanceId: string;
     }
   | {
       kind: "projectile";
@@ -506,6 +522,10 @@ export type PresentationAnchor =
   | {
       kind: "player";
       playerId: string;
+    }
+  | {
+      kind: "summon";
+      summonInstanceId: string;
     }
   | {
       kind: "position";

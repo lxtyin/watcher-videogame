@@ -1,5 +1,6 @@
 import type {
   AffectedPlayerMove,
+  BoardSummonState,
   Direction,
   GridPosition,
   ModifierId,
@@ -21,6 +22,7 @@ import type { ResolutionDraft } from "./actionDraft";
 import {
   appendDraftPresentationEvents,
   appendDraftAffectedPlayerMove,
+  appendDraftSummonMutations,
   appendDraftPreviewHighlightTiles,
   applyResolvedPlayerStateToDraft,
   createDraftEventId,
@@ -30,6 +32,7 @@ import {
   buildMotionPositions,
   IMPACT_RECOIL_CONTACT_PROGRESS,
   createPlayerMotionEvent,
+  createSummonMotionEvent,
   createSoundEvent,
   getMotionStepDurationMs
 } from "./actionPresentation";
@@ -44,9 +47,12 @@ import {
 interface MovementSubject {
   characterId: MovementActor["characterId"];
   id: string;
+  kind: "player" | "summon";
   modifiers: ModifierId[];
+  ownerId?: string;
   position: GridPosition;
   spawnPosition: GridPosition;
+  summonId?: BoardSummonState["summonId"];
   tags: PlayerTagMap;
   teamId: MovementActor["teamId"];
   turnFlags: MovementActor["turnFlags"];
@@ -130,9 +136,12 @@ function cloneSubject(player: MovementSubject): MovementSubject {
   return {
     characterId: player.characterId,
     id: player.id,
+    kind: player.kind,
     modifiers: [...player.modifiers],
+    ...(player.ownerId === undefined ? {} : { ownerId: player.ownerId }),
     position: clonePosition(player.position),
     spawnPosition: clonePosition(player.spawnPosition),
+    ...(player.summonId === undefined ? {} : { summonId: player.summonId }),
     tags: clonePlayerTags(player.tags),
     teamId: player.teamId,
     turnFlags: [...player.turnFlags]
@@ -193,7 +202,7 @@ function appendMovementFootstepSoundEvents(
 
 function appendMovementMotionEvent(
   draft: ResolutionDraft,
-  playerId: string,
+  subject: MovementSubject,
   startPosition: GridPosition,
   path: GridPosition[],
   movement: MovementDescriptor,
@@ -204,13 +213,23 @@ function appendMovementMotionEvent(
   motionStartMs: number | null;
 } {
   const motionStyle = resolveMotionStyle(movement);
-  const motionEvent = createPlayerMotionEvent(
-    createDraftEventId(draft, `movement:${playerId}`),
-    playerId,
-    buildMotionPositions(startPosition, path),
-    motionStyle,
-    startMs
-  );
+  const motionPositions = buildMotionPositions(startPosition, path);
+  const motionEvent =
+    subject.kind === "summon"
+      ? createSummonMotionEvent(
+          createDraftEventId(draft, `movement:${subject.id}`),
+          subject.id,
+          motionPositions,
+          motionStyle,
+          startMs
+        )
+      : createPlayerMotionEvent(
+          createDraftEventId(draft, `movement:${subject.id}`),
+          subject.id,
+          motionPositions,
+          motionStyle,
+          startMs
+        );
 
   if (!motionEvent) {
     return {
@@ -221,7 +240,7 @@ function appendMovementMotionEvent(
   }
 
   appendDraftPresentationEvents(draft, [motionEvent]);
-  appendMovementFootstepSoundEvents(draft, playerId, path, motionStyle, startMs);
+  appendMovementFootstepSoundEvents(draft, subject.id, path, motionStyle, startMs);
 
   return {
     endMs: motionEvent.startMs + motionEvent.durationMs,
@@ -245,22 +264,32 @@ function createDirectionalOffsetPosition(
 
 function appendImpactRecoilMotionEvent(
   draft: ResolutionDraft,
-  playerId: string,
+  subject: MovementSubject,
   position: GridPosition,
   direction: Direction,
   startMs: number
 ): ImpactTiming {
-  const motionEvent = createPlayerMotionEvent(
-    createDraftEventId(draft, `impact:${playerId}`),
-    playerId,
-    [
-      clonePosition(position),
-      createDirectionalOffsetPosition(position, direction, 0.42),
-      clonePosition(position)
-    ],
-    "impact_recoil",
-    startMs
-  );
+  const positions = [
+    clonePosition(position),
+    createDirectionalOffsetPosition(position, direction, 0.42),
+    clonePosition(position)
+  ];
+  const motionEvent =
+    subject.kind === "summon"
+      ? createSummonMotionEvent(
+          createDraftEventId(draft, `impact:${subject.id}`),
+          subject.id,
+          positions,
+          "impact_recoil",
+          startMs
+        )
+      : createPlayerMotionEvent(
+          createDraftEventId(draft, `impact:${subject.id}`),
+          subject.id,
+          positions,
+          "impact_recoil",
+          startMs
+        );
 
   if (!motionEvent) {
     return {
@@ -281,6 +310,20 @@ function syncMovementStatePlayerFromDraft(
   draft: ResolutionDraft,
   player: MovementSubject
 ): void {
+  if (player.kind === "summon") {
+    const liveSummon = draft.summonsById.get(player.id);
+
+    if (!liveSummon) {
+      player.turnFlags = [];
+      return;
+    }
+
+    player.ownerId = liveSummon.ownerId;
+    player.position = clonePosition(liveSummon.position);
+    player.summonId = liveSummon.summonId;
+    return;
+  }
+
   const livePlayer =
     player.id === draft.actorId
       ? draft.actor
@@ -296,6 +339,45 @@ function syncMovementStatePlayerFromDraft(
   player.spawnPosition = clonePosition(livePlayer.spawnPosition);
   player.tags = clonePlayerTags(livePlayer.tags);
   player.turnFlags = [...livePlayer.turnFlags];
+}
+
+function applyMovementSubjectStateToDraft(
+  draft: ResolutionDraft,
+  subject: MovementSubject,
+  recordSummonMutation = false
+): void {
+  if (subject.kind === "player") {
+    applyResolvedPlayerStateToDraft(draft, subject);
+    return;
+  }
+
+  const existingSummon = draft.summonsById.get(subject.id);
+
+  if (!existingSummon) {
+    return;
+  }
+
+  const nextSummon = {
+    ...existingSummon,
+    ownerId: subject.ownerId ?? existingSummon.ownerId,
+    position: clonePosition(subject.position),
+    summonId: subject.summonId ?? existingSummon.summonId
+  };
+
+  if (recordSummonMutation) {
+    appendDraftSummonMutations(draft, [
+      {
+        instanceId: nextSummon.instanceId,
+        kind: "upsert",
+        ownerId: nextSummon.ownerId,
+        position: nextSummon.position,
+        summonId: nextSummon.summonId
+      }
+    ]);
+    return;
+  }
+
+  draft.summonsById.set(nextSummon.instanceId, nextSummon);
 }
 
 function runPassThroughTriggers(
@@ -316,7 +398,7 @@ function runPassThroughTriggers(
 
   const triggerPosition = clonePosition(state.player.position);
 
-  applyResolvedPlayerStateToDraft(draft, state.player);
+  applyMovementSubjectStateToDraft(draft, state.player);
 
   resolvePassThroughTerrainEffect(draft, {
     movement,
@@ -351,7 +433,7 @@ function runStopTriggers(
   movement: MovementDescriptor | null,
   startMs: number
 ): void {
-  applyResolvedPlayerStateToDraft(draft, state.player);
+  applyMovementSubjectStateToDraft(draft, state.player);
 
   resolveStopSummonEffects(draft, {
     movement,
@@ -392,9 +474,9 @@ function buildResolution(
   impactStrength: number | null
 ): MovementSystemResolution {
   if (path.length) {
-    applyResolvedPlayerStateToDraft(draft, state.player);
+    applyMovementSubjectStateToDraft(draft, state.player, true);
 
-    if (trackAffectedPlayerReason) {
+    if (trackAffectedPlayerReason && state.player.kind === "player") {
       appendDraftAffectedPlayerMove(draft, {
         boardVisible: draft.playersById.get(state.player.id)?.boardVisible ?? true,
         movement,
@@ -516,7 +598,7 @@ function resolveSteppedDisplacement(
 
   const timing = appendMovementMotionEvent(
     draft,
-    state.player.id,
+    state.player,
     startPosition,
     path,
     movement,
@@ -527,7 +609,7 @@ function resolveSteppedDisplacement(
   if (pendingImpact) {
     impactTiming = appendImpactRecoilMotionEvent(
       draft,
-      state.player.id,
+      state.player,
       state.player.position,
       pendingImpact.direction,
       timing.endMs
@@ -538,11 +620,23 @@ function resolveSteppedDisplacement(
         x: pendingImpact.tile.x,
         y: pendingImpact.tile.y
       },
-      source: {
-        kind: "player",
-        movement,
-        player: state.player
-      },
+      source:
+        state.player.kind === "player"
+          ? {
+              kind: "player",
+              movement,
+              player: state.player
+            }
+          : {
+              kind: "summon",
+              movement,
+              summon: draft.summonsById.get(state.player.id) ?? {
+                instanceId: state.player.id,
+                ownerId: state.player.ownerId ?? "",
+                position: clonePosition(state.player.position),
+                summonId: state.player.summonId!
+              }
+            },
       startMs: impactTiming.contactMs,
       strength: pendingImpact.strength,
       tile: pendingImpact.tile
@@ -648,7 +742,7 @@ export function resolveLeapDisplacement(
 
   const timing = appendMovementMotionEvent(
     draft,
-    state.player.id,
+    state.player,
     startPosition,
     traversedPath,
     movement,

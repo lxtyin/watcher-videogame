@@ -26,7 +26,7 @@ import {
 } from "../rules/movementSystem";
 import { collectAdjacentSelectionTiles } from "../rules/previewDescriptor";
 import { collectExplosionPreviewTiles } from "../rules/spatial";
-import { findPlayersAtPosition } from "../rules/spatial";
+import { findMovableEntitiesAtPosition } from "../rules/spatial";
 import type { ToolModule } from "./types";
 import {
   createPlayerAnchor,
@@ -148,10 +148,10 @@ function resolveBlazeBombThrowTool(
     return;
   }
 
-  const targetPlayers = findPlayersAtPosition(context.players, targetPosition, []);
+  const targetEntities = findMovableEntitiesAtPosition(context.players, context.summons, targetPosition, []);
   const effectTiles = collectExplosionPreviewTiles(context.board, targetPosition);
 
-  if (!targetPlayers.length) {
+  if (!targetEntities.length) {
     setDraftBlocked(draft, "No players are standing on the target tile", {
       preview: createToolPreview(context, {
         effectTiles: [targetPosition],
@@ -184,13 +184,13 @@ function resolveBlazeBombThrowTool(
     );
   }
 
-  for (const targetPlayer of targetPlayers) {
+  for (const targetEntity of targetEntities) {
     const presentationMark = markDraftPresentation(draft);
     const pushResolution = resolveLinearDisplacement(draft, {
       direction,
       movePoints: pushDistance,
       movement: pushMovement,
-      player: toMovementSubject(targetPlayer),
+      player: toMovementSubject(targetEntity),
       startMs: explosionStartMs,
       trackAffectedPlayerReason: "bomb_throw"
     });

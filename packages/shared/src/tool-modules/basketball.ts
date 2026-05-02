@@ -103,14 +103,14 @@ function resolveBasketballTool(
 
   setDraftToolInventory(draft, consumeActiveTool(context));
 
-  if (trace.collision.kind === "player") {
-    for (const hitPlayer of trace.collision.players) {
+  if (trace.collision.kind === "entity") {
+    for (const hitEntity of trace.collision.entities) {
       const presentationMark = markDraftPresentation(draft);
       const pushResolution = resolveLinearDisplacement(draft, {
         direction: trace.collision.direction,
         movePoints: pushDistance,
         movement: pushedMovement,
-        player: toMovementSubject(hitPlayer),
+        player: toMovementSubject(hitEntity),
         startMs: impactStartMs,
         trackAffectedPlayerReason: "basketball"
       });

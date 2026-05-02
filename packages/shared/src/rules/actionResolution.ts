@@ -114,6 +114,17 @@ function buildSummonStateTransition(
   };
 }
 
+function getSummonTransitionAnchorPosition(
+  transition: SummonStateTransition,
+  mutation: SummonMutation
+): GridPosition | null {
+  if (mutation.kind === "remove") {
+    return mutation.position ?? transition.before?.position ?? null;
+  }
+
+  return transition.after?.position ?? transition.before?.position ?? null;
+}
+
 // State transitions align with motion arrival so visuals change at the semantic impact frame.
 function findStateTransitionStartMs(
   presentation: ActionPresentation | null,
@@ -124,7 +135,10 @@ function findStateTransitionStartMs(
   }
 
   const arrivalTimes = presentation.events.flatMap((event) => {
-    if (event.kind !== "motion" || event.subject.kind !== "player") {
+    if (
+      event.kind !== "motion" ||
+      (event.subject.kind !== "player" && event.subject.kind !== "summon")
+    ) {
       return [];
     }
 
@@ -197,18 +211,27 @@ export function buildStateTransitionPresentationEvents(options: {
   });
   const summonEvents: ActionPresentationEvent[] = options.summonMutations.flatMap((mutation, index) => {
     const transition = buildSummonStateTransition(options.summons, mutation);
-    const anchorPosition = transition?.before?.position ?? transition?.after?.position;
 
-    if (!transition || !anchorPosition) {
+    if (!transition) {
       return [];
     }
 
+    const anchorPosition = getSummonTransitionAnchorPosition(transition, mutation);
+
+    if (!anchorPosition) {
+      return [];
+    }
+
+    const startMs =
+      mutation.kind === "remove" && mutation.presentationStartMs !== undefined
+        ? mutation.presentationStartMs
+        : findStateTransitionStartMs(options.activePresentation, anchorPosition);
     const event = createStateTransitionEvent(
       `${options.sourceId}:summon-transition-${index}`,
       [],
       [transition],
       [],
-      findStateTransitionStartMs(options.activePresentation, anchorPosition)
+      startMs
     );
 
     return event ? [event] : [];

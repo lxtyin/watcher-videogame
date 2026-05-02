@@ -3,14 +3,20 @@ import {
   applyResolvedPlayerStateToDraft,
   appendDraftPreviewHighlightTiles,
   appendDraftTileMutations,
+  appendDraftSummonMutations,
   appendDraftTriggeredTerrainEffects,
   setDraftPlayerVisibility,
   setDraftToolDieSeed,
   setDraftToolInventory,
   type ResolutionDraft
 } from "../rules/actionDraft";
-import { createPlayerMotionEvent, createStateTransitionEvent } from "../rules/actionPresentation";
+import {
+  createPlayerMotionEvent,
+  createStateTransitionEvent,
+  createSummonMotionEvent
+} from "../rules/actionPresentation";
 import { getTileAfterMutations } from "../rules/spatial";
+import { resolveSummonDeath } from "../summons";
 import { STUN_MODIFIER_ID } from "../buffers";
 import { attachModifier } from "../modifiers";
 import { applyOnGetToolModifiers } from "../skills";
@@ -48,7 +54,7 @@ function canRespawnPlayer(draft: ResolutionDraft, player: MovementActor): boolea
   return teamHasStandingTower(draft, player.teamId);
 }
 
-export function respawnPlayerOnTerrain(
+export function defeatEntityOnTerrain(
   draft: ResolutionDraft,
   options: {
     eventId: string;
@@ -58,16 +64,45 @@ export function respawnPlayerOnTerrain(
     triggerPosition: GridPosition;
   }
 ): void {
-  const motionEvent = createPlayerMotionEvent(
-    options.eventId,
-    options.player.id,
-    [clonePosition(options.triggerPosition), clonePosition(options.triggerPosition)],
-    options.motionStyle,
-    options.startMs
-  );
+  const summon = draft.summonsById.get(options.player.id);
+  const motionEvent = summon
+    ? createSummonMotionEvent(
+        options.eventId,
+        summon.instanceId,
+        [clonePosition(options.triggerPosition), clonePosition(options.triggerPosition)],
+        options.motionStyle,
+        options.startMs
+      )
+    : createPlayerMotionEvent(
+        options.eventId,
+        options.player.id,
+        [clonePosition(options.triggerPosition), clonePosition(options.triggerPosition)],
+        options.motionStyle,
+        options.startMs
+      );
 
   if (motionEvent) {
     appendDraftPresentationEvents(draft, [motionEvent]);
+  }
+
+  if (summon) {
+    const removalStartMs = motionEvent ? motionEvent.startMs + motionEvent.durationMs : options.startMs;
+
+    appendDraftSummonMutations(draft, [
+      {
+        instanceId: summon.instanceId,
+        kind: "remove",
+        position: clonePosition(options.triggerPosition),
+        presentationStartMs: removalStartMs
+      }
+    ]);
+    resolveSummonDeath(draft, {
+      player: options.player,
+      position: clonePosition(options.triggerPosition),
+      startMs: removalStartMs,
+      summon
+    });
+    return;
   }
 
   const respawnAllowed = canRespawnPlayer(draft, options.player);

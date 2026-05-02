@@ -9,13 +9,14 @@ export function WalletSummonAsset({
   opacity = 1,
   position
 }: {
-  boardHeight: number;
-  boardWidth: number;
+  boardHeight?: number;
+  boardWidth?: number;
   color: string;
   opacity?: number;
-  position: GridPosition;
+  position?: GridPosition;
 }) {
-  const [x, , z] = toWorldPosition(position, boardWidth, boardHeight);
+  const shouldPlace = position !== undefined && boardWidth !== undefined && boardHeight !== undefined;
+  const [x, , z] = shouldPlace ? toWorldPosition(position, boardWidth, boardHeight) : [0, 0, 0];
   const transparent = opacity < 1;
 
   return (

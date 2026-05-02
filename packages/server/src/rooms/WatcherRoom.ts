@@ -4,6 +4,8 @@ import {
   buildGameMapRuntimeMetadata,
   createBoardDefinitionFromLayout,
   createBoardDefinition,
+  createInitialSummons,
+  createInitialSummonsFromLayout,
   DEFAULT_CHARACTER_ID,
   createGameOrchestrator,
   createInitialGameRuntimeState,
@@ -11,6 +13,7 @@ import {
   getCharacterDefinition,
   getCharacterIds,
   type BoardDefinition,
+  type BoardSummonState,
   type CustomMapDefinition,
   type GameOrchestrator,
   type GameRuntimeState,
@@ -23,7 +26,7 @@ import {
   type SimulationCommand,
   type UseToolCommandPayload
 } from "@watcher/shared";
-import { PlayerState, TileState, WatcherState } from "../schema/WatcherState";
+import { PlayerState, SummonState, TileState, WatcherState } from "../schema/WatcherState";
 import { pushRoomEvent } from "./roomEventLog";
 import { createGameSnapshotFromState } from "./roomStateMappers";
 import { applyGameSnapshotToState, clearPlayerTurnResources } from "./roomStateMutations";
@@ -43,6 +46,7 @@ const RECONNECTION_WINDOW_SECONDS = 45;
 
 export class WatcherRoom extends Room<WatcherState> {
   private customBoard: BoardDefinition | null = null;
+  private customInitialSummons: BoardSummonState[] = [];
   private matchSeedSerial = 0;
   private pendingKickMessages = new Map<string, string>();
   private pendingRaceAdvanceTimer: Delayed | null = null;
@@ -56,6 +60,7 @@ export class WatcherRoom extends Room<WatcherState> {
 
     if (options.customMap) {
       this.customBoard = createBoardDefinitionFromLayout(options.customMap.layout);
+      this.customInitialSummons = createInitialSummonsFromLayout(options.customMap.layout);
       this.state.mapId = "custom";
       this.state.mapLabel = options.customMap.mapLabel.trim() || "自定义地图";
       this.state.mode = options.customMap.mode;
@@ -260,6 +265,23 @@ export class WatcherRoom extends Room<WatcherState> {
     this.state.summons.clear();
   }
 
+  private seedInitialSummons(): void {
+    const initialSummons =
+      this.customBoard
+        ? this.customInitialSummons
+        : createInitialSummons(this.state.mapId);
+
+    for (const summon of initialSummons) {
+      const summonState = new SummonState();
+      summonState.instanceId = summon.instanceId;
+      summonState.summonId = summon.summonId;
+      summonState.ownerId = summon.ownerId;
+      summonState.x = summon.position.x;
+      summonState.y = summon.position.y;
+      this.state.summons.set(summon.instanceId, summonState);
+    }
+  }
+
   private createMatchSeed(offset: number): number {
     const roomHash = [...this.roomId].reduce(
       (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0,
@@ -292,6 +314,7 @@ export class WatcherRoom extends Room<WatcherState> {
     this.clearSummonsState();
     this.clearPresentationState();
     this.seedBoard();
+    this.seedInitialSummons();
     this.state.settlementState = "active";
   }
 

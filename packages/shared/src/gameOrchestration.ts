@@ -1,4 +1,4 @@
-import { getTile } from "./board";
+import { createInitialSummonsFromLayout, getTile } from "./board";
 import { DEFAULT_CHARACTER_ID, getCharacterDefinition, getCharacterIds } from "./characters";
 import { rollMovementDie, rollToolDie } from "./dice";
 import {
@@ -611,21 +611,28 @@ function pushSummonEvents(
   triggeredSummonEffects: TriggeredSummonEffect[]
 ): void {
   for (const summonEffect of triggeredSummonEffects) {
-    if (summonEffect.kind !== "wallet_pickup") {
-      continue;
-    }
-
     const player = findPlayer(state.snapshot, summonEffect.playerId);
 
     if (!player) {
       continue;
     }
 
-    pushEvent(
-      state,
-      "summon_triggered",
-      `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
-    );
+    if (summonEffect.kind === "wallet_pickup") {
+      pushEvent(
+        state,
+        "summon_triggered",
+        `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
+    if (summonEffect.kind === "dice_pig_death") {
+      pushEvent(
+        state,
+        "summon_triggered",
+        `${player.name} defeated a dice pig and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
+      );
+    }
   }
 }
 
@@ -1951,12 +1958,16 @@ export function createGameOrchestrationStateFromScene(
     );
   }
 
-  state.snapshot.summons = (sceneDefinition.summons ?? []).map((summon, index) => ({
-    instanceId: summon.instanceId ?? `${summon.summonId}-${index + 1}`,
-    summonId: summon.summonId,
-    ownerId: summon.ownerId,
-    position: clonePosition(summon.position)
-  }));
+  const layoutSummons = createInitialSummonsFromLayout(sceneDefinition.layout, sceneDefinition.symbols);
+  state.snapshot.summons = [
+    ...layoutSummons,
+    ...(sceneDefinition.summons ?? []).map((summon, index) => ({
+      instanceId: summon.instanceId ?? `${summon.summonId}-${index + 1}`,
+      summonId: summon.summonId,
+      ownerId: summon.ownerId,
+      position: clonePosition(summon.position)
+    }))
+  ];
 
   if (sceneDefinition.seeds?.nextToolInstanceSerial === undefined) {
     state.runtime.nextToolInstanceSerial = detectNextToolInstanceSerial(state.snapshot.players);

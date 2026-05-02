@@ -37,6 +37,7 @@ import {
   createPreviewDescriptor,
   createPreviewPlayerTargets
 } from "../rules/previewDescriptor";
+import type { BoardEntityState } from "../rules/spatial";
 import type {
   resolveLeapDisplacement,
   resolveLinearDisplacement
@@ -88,8 +89,29 @@ export function getToolParamValue(
   return typeof value === "number" ? value : fallback;
 }
 
-export function toMovementSubject(actor: MovementActor | ToolActionContext["players"][number]) {
+export function toMovementSubject(actor: MovementActor | ToolActionContext["players"][number] | BoardEntityState) {
+  if ("kind" in actor) {
+    if (actor.kind === "player") {
+      return toMovementSubject(actor.player);
+    }
+
+    return {
+      kind: "summon" as const,
+      characterId: "ehh" as const,
+      id: actor.summon.instanceId,
+      modifiers: [],
+      ownerId: actor.summon.ownerId,
+      position: actor.summon.position,
+      spawnPosition: actor.summon.position,
+      summonId: actor.summon.summonId,
+      tags: {},
+      teamId: null,
+      turnFlags: []
+    };
+  }
+
   return {
+    kind: "player" as const,
     characterId: actor.characterId,
     id: actor.id,
     modifiers: actor.modifiers,
@@ -127,6 +149,13 @@ export function createPlayerAnchor(playerId: string): PresentationAnchor {
   return {
     kind: "player",
     playerId
+  };
+}
+
+export function createSummonAnchor(summonInstanceId: string): PresentationAnchor {
+  return {
+    kind: "summon",
+    summonInstanceId
   };
 }
 

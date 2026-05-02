@@ -126,20 +126,27 @@ export function pushSummonEvents(
   triggeredSummonEffects: TriggeredSummonEffect[]
 ): void {
   for (const summonEffect of triggeredSummonEffects) {
-    if (summonEffect.kind !== "wallet_pickup") {
-      continue;
-    }
-
     const player = state.players.get(summonEffect.playerId);
 
     if (!player) {
       continue;
     }
 
-    pushRoomEvent(
-      state,
-      "summon_triggered",
-      `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
-    );
+    if (summonEffect.kind === "wallet_pickup") {
+      pushRoomEvent(
+        state,
+        "summon_triggered",
+        `${player.name} picked up a wallet and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
+      );
+      continue;
+    }
+
+    if (summonEffect.kind === "dice_pig_death") {
+      pushRoomEvent(
+        state,
+        "summon_triggered",
+        `${player.name} defeated a dice pig and gained ${getToolDefinition(summonEffect.grantedTool.toolId).label}.`
+      );
+    }
   }
 }

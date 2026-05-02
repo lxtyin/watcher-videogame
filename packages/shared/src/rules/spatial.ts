@@ -2,6 +2,7 @@
 import type {
   BoardDefinition,
   BoardPlayerState,
+  BoardSummonState,
   Direction,
   GridPosition,
   TileDefinition,
@@ -9,6 +10,7 @@ import type {
   TileType,
   ToolActionContext
 } from "../types";
+import { getSummonDefinition } from "../summons";
 
 export interface AxisTarget {
   direction: Direction;
@@ -37,13 +39,27 @@ export interface ProjectileTraceResult {
       }
     | {
         direction: Direction;
-        kind: "player";
-        players: BoardPlayerState[];
+        entities: BoardEntityState[];
+        kind: "entity";
         position: GridPosition;
         previousPosition: GridPosition;
       };
   path: GridPosition[];
 }
+
+export type BoardEntityState =
+  | {
+      id: string;
+      kind: "player";
+      player: BoardPlayerState;
+      position: GridPosition;
+    }
+  | {
+      id: string;
+      kind: "summon";
+      position: GridPosition;
+      summon: BoardSummonState;
+    };
 
 const DIRECTION_VECTORS: Record<Direction, GridPosition> = {
   up: { x: 0, y: -1 },
@@ -145,6 +161,47 @@ export function findPlayersAtPosition(
       player.position.x === position.x &&
       player.position.y === position.y
   );
+}
+
+export function isCreatureSummon(summon: BoardSummonState): boolean {
+  return getSummonDefinition(summon.summonId).kind === "creature";
+}
+
+export function findMovableEntitiesAtPosition(
+  players: BoardPlayerState[],
+  summons: BoardSummonState[],
+  position: GridPosition,
+  ignoredEntityIds: string[] = []
+): BoardEntityState[] {
+  const playerEntities: BoardEntityState[] = players
+    .filter(
+      (player) =>
+        !ignoredEntityIds.includes(player.id) &&
+        player.position.x === position.x &&
+        player.position.y === position.y
+    )
+    .map((player) => ({
+      id: player.id,
+      kind: "player" as const,
+      player,
+      position: player.position
+    }));
+  const summonEntities: BoardEntityState[] = summons
+    .filter(
+      (summon) =>
+        isCreatureSummon(summon) &&
+        !ignoredEntityIds.includes(summon.instanceId) &&
+        summon.position.x === position.x &&
+        summon.position.y === position.y
+    )
+    .map((summon) => ({
+      id: summon.instanceId,
+      kind: "summon" as const,
+      position: summon.position,
+      summon
+    }));
+
+  return [...playerEntities, ...summonEntities];
 }
 
 // Tile lookups can be overridden by pending mutations during one composite action.
@@ -296,7 +353,8 @@ export function traceProjectile(
   return traceProjectileFromPosition(
     {
       board: context.board,
-      players: context.players
+      players: context.players,
+      summons: context.summons
     },
     context.actor.position,
     direction,
@@ -306,7 +364,7 @@ export function traceProjectile(
 }
 
 export function traceProjectileFromPosition(
-  context: Pick<ToolActionContext, "board" | "players">,
+  context: Pick<ToolActionContext, "board" | "players" | "summons">,
   startPosition: GridPosition,
   direction: Direction,
   maxDistance: number,
@@ -356,17 +414,17 @@ export function traceProjectileFromPosition(
     currentPosition = target;
     path.push(target);
 
-    const hitPlayers = findPlayersAtPosition(context.players, target, []);
+    const hitEntities = findMovableEntitiesAtPosition(context.players, context.summons, target, []);
 
-    if (hitPlayers.length) {
+    if (hitEntities.length) {
       return {
         path,
         collision: {
-          kind: "player",
+          kind: "entity",
           position: target,
           previousPosition: path[path.length - 2] ?? startPosition,
           direction: currentDirection,
-          players: hitPlayers
+          entities: hitEntities
         }
       };
     }

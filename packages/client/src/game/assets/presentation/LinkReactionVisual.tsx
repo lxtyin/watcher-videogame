@@ -20,10 +20,15 @@ const LINK_REACTION_ASSETS: Record<PresentationLinkStyle, LinkReactionAssetCompo
 
 function resolveAnchorPosition(
   anchor: PresentationAnchor,
-  playerPositions: Record<string, { x: number; y: number }>
+  playerPositions: Record<string, { x: number; y: number }>,
+  summonPositions: Record<string, { x: number; y: number }>
 ): { x: number; y: number } | null {
   if (anchor.kind === "position") {
     return anchor.position;
+  }
+
+  if (anchor.kind === "summon") {
+    return summonPositions[anchor.summonInstanceId] ?? null;
   }
 
   return playerPositions[anchor.playerId] ?? null;
@@ -33,15 +38,17 @@ export function LinkReactionVisual({
   boardHeight,
   boardWidth,
   playerPositions,
+  summonPositions,
   reaction
 }: {
   boardHeight: number;
   boardWidth: number;
   playerPositions: Record<string, { x: number; y: number }>;
+  summonPositions: Record<string, { x: number; y: number }>;
   reaction: ActiveLinkReactionPlayback;
 }) {
-  const fromPosition = resolveAnchorPosition(reaction.from, playerPositions);
-  const toPosition = resolveAnchorPosition(reaction.to, playerPositions);
+  const fromPosition = resolveAnchorPosition(reaction.from, playerPositions, summonPositions);
+  const toPosition = resolveAnchorPosition(reaction.to, playerPositions, summonPositions);
 
   if (!fromPosition || !toPosition) {
     return null;

@@ -42,6 +42,7 @@ interface WatcherSceneDebugState {
   playback: {
     activePresentationSequence: number | null;
     activePlayerMotionCount: number;
+    activeSummonMotionCount: number;
     activeProjectileCount: number;
     activeReactionCount: number;
     queuedPresentationCount: number;
