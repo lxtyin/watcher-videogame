@@ -16,7 +16,7 @@ export const CANNON_TERRAIN_MODULE: TerrainModule = {
   accent: "#8c6850",
   getTextDescription: (tile) => ({
     title: "大炮",
-    description: "停留时会立刻朝当前朝向发射一枚无来源火箭。",
+    description: "停留时会立刻朝当前朝向发射一枚火箭。",
     details: [`发射方向 ${tile.direction ? DIRECTION_LABELS[tile.direction] : "未设置"}`]
   }),
   label: "大炮",

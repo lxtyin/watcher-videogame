@@ -48,7 +48,7 @@ export const BEDWARS_GAME_MAP_ID = "bedwars_test" as const;
 export const GAME_MAP_REGISTRY = defineGameMapRegistry({
   [NEWBIE_VILLAGE_MAP_ID]: {
     label: "走出新手村",
-    description: "一分钟走出新手村，三把成为大师",
+    description: "一分钟上手，成为Watcher大师",
     mode: "race",
     allowDebugTools: false,
     layout: NEWBIE_VILLAGE_BOARD_LAYOUT,

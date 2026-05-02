@@ -13,7 +13,7 @@ export const CONVEYOR_TERRAIN_MODULE: TerrainModule = {
   accent: "#6db0c6",
   getTextDescription: (tile) => ({
     title: "传送带",
-    description: "平移经过时生效。顺行会加速，逆行或侧行会被强制转向。",
+    description: "顺行经过时获得+2移动步数，逆行或侧行经过时会被强制转向。",
     details: [`传送方向 ${tile.direction ? DIRECTION_LABELS[tile.direction] : "未设置"}`]
   }),
   label: "传送带",

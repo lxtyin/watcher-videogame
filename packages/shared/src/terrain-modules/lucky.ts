@@ -24,7 +24,7 @@ export const LUCKY_TERRAIN_MODULE: TerrainModule = {
   accent: "#d6bf70",
   getTextDescription: () => ({
     title: "幸运方块",
-    description: "停留时会按地里露出的骰子奖励点数或工具。",
+    description: "在上方停留时，获得相应的奖励。",
     details: []
   }),
   label: "幸运方块",

@@ -39,7 +39,7 @@ import {
 
 export const AWM_SHOOT_TOOL_DEFINITION: ToolContentDefinition = {
   label: "子弹",
-  disabledHint: "当前还不能发射这发子弹。",
+  disabledHint: "无法使用",
   source: "character_skill",
   interaction: createDragDirectionInteraction(),
   isAvailable: (context) => {

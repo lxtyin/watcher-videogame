@@ -27,7 +27,7 @@ import {
 
 export const JUMP_TOOL_DEFINITION: ToolContentDefinition = {
   label: "跳跃",
-  disabledHint: "当前不能使用跳跃。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isChargedToolAvailable,

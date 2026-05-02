@@ -33,7 +33,7 @@ import { collectDirectionSelectionTiles } from "../rules/previewDescriptor";
 
 export const BRAKE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "制动",
-  disabledHint: "当前不能使用制动。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragAxisTileInteraction(),
   isAvailable: isMovePointToolAvailable,

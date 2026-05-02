@@ -38,7 +38,7 @@ const PUNCH_PUSH_START_MS = 80;
 
 export const PUNCH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "拳击",
-  disabledHint: "当前不能使用拳击。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isChargedToolAvailable,

@@ -46,7 +46,7 @@ const BOMB_THROW_EXPLOSION_EFFECT_MS = 420;
 
 export const BLAZE_BOMB_THROW_TOOL_DEFINITION: ToolContentDefinition = {
   label: "投弹",
-  disabledHint: "当前不能使用投弹。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createSequentialInteraction([
     {

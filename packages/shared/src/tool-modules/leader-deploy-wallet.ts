@@ -26,7 +26,7 @@ import {
 
 export const LEADER_DEPLOY_WALLET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "放置钱包",
-  disabledHint: "当前无法在这个位置放置钱包。",
+  disabledHint: "无法放置",
   source: "character_skill",
   interaction: createDragTileInteraction(),
   isAvailable: isChargedToolAvailable,

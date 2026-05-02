@@ -27,7 +27,7 @@ import {
 
 export const BUILD_WALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "砌墙",
-  disabledHint: "这个位置不能砌墙。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragTileInteraction(),
   isAvailable: isChargedToolAvailable,

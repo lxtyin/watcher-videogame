@@ -32,7 +32,7 @@ import {
 
 export const MOVEMENT_TOOL_DEFINITION: ToolContentDefinition = {
   label: "移动",
-  disabledHint: "没有可用的移动点数时不能使用移动。",
+  disabledHint: "点数不足",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isMovePointToolAvailable,

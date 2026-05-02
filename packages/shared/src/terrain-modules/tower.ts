@@ -12,7 +12,7 @@ export const TOWER_TERRAIN_MODULE: TerrainModule = {
   accent: "#8e8ea0",
   getTextDescription: (tile) => ({
     title: tile.faction === "black" ? "黑队塔" : "白队塔",
-    description: "会阻挡移动。敌方角色撞击时耐久 -1，耐久归零后被击碎。",
+    description: "墙体。敌方角色撞击时耐久 -1，耐久归零后被击碎。",
     details: [`当前耐久 ${Math.max(0, tile.durability)}`]
   }),
   label: "塔",

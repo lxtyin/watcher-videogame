@@ -71,7 +71,7 @@ function getBalanceChoices(
 
 export const FARTHER_BALANCE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "制衡",
-  disabledHint: "需要先持有【移动】，并且至少保留 2 点可分配的移动点数。",
+  disabledHint: "点数不足",
   source: "character_skill",
   interaction: createModalChoiceInteraction(),
   isAvailable: (context) => {

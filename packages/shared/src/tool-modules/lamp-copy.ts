@@ -103,7 +103,7 @@ function isLampCopyAvailable(
 
 export const LAMP_COPY_TOOL_DEFINITION: ToolContentDefinition = {
   label: "复制",
-  disabledHint: "当前无法替换本回合的工具骰",
+  disabledHint: "没有可复制的工具",
   source: "character_skill",
   interaction: createModalChoiceInteraction(),
   isAvailable: isLampCopyAvailable,
@@ -113,7 +113,7 @@ export const LAMP_COPY_TOOL_DEFINITION: ToolContentDefinition = {
   getTextDescription: () => ({
     title: "复制",
     description: "放弃本回合工具骰，改为在行动阶段获得一个复制工具。",
-    details: ["候选来自自己上回合结束后到本回合开始前，其他玩家使用过的至多三个工具记录。"]
+    details: ["偷走工具"]
   }),
   color: "#c98e44",
   rollable: false,

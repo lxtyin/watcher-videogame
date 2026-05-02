@@ -34,7 +34,7 @@ function isVolatySkipToolDieAvailable(
 
 export const VOLATY_SKIP_TOOL_DIE_TOOL_DEFINITION: ToolContentDefinition = {
   label: "飞跃",
-  disabledHint: "当前无法进入飞跃模式。",
+  disabledHint: "无法使用",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
   isAvailable: isVolatySkipToolDieAvailable,

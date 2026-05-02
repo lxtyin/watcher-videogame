@@ -50,7 +50,7 @@ const ROCKET_EXPLOSION_EFFECT_MS = 420;
 
 export const ROCKET_TOOL_DEFINITION: ToolContentDefinition = {
   label: "火箭",
-  disabledHint: "当前不能使用火箭。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isChargedToolAvailable,

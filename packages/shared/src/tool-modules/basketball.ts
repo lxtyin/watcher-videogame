@@ -36,7 +36,7 @@ import {
 
 export const BASKETBALL_TOOL_DEFINITION: ToolContentDefinition = {
   label: "篮球",
-  disabledHint: "当前不能使用篮球。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isChargedToolAvailable,

@@ -42,7 +42,7 @@ import {
 
 export const HOOKSHOT_TOOL_DEFINITION: ToolContentDefinition = {
   label: "钩锁",
-  disabledHint: "当前不能使用钩锁。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragDirectionInteraction(),
   isAvailable: isChargedToolAvailable,

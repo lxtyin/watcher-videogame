@@ -5,7 +5,7 @@ export const GOAL_TERRAIN_MODULE: TerrainModule = {
   accent: "#d97a70",
   getTextDescription: () => ({
     title: "终点",
-    description: "只会在自己的回合停留时触发，用于竞速模式的到达结算。",
+    description: "竞速终点，等待你获得胜利",
     details: []
   }),
   label: "终点",

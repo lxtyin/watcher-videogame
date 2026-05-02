@@ -29,7 +29,7 @@ import {
 
 export const TELEPORT_TOOL_DEFINITION: ToolContentDefinition = {
   label: "瞬移",
-  disabledHint: "当前还不能瞬移到这个位置。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: createDragTileInteraction(),
   isAvailable: isChargedToolAvailable,

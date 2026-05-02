@@ -34,7 +34,7 @@ function isBlazePrepareBombAvailable(
 
 export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   label: "备弹",
-  disabledHint: "当前无法进行备弹。",
+  disabledHint: "无法使用",
   source: "character_skill",
   interaction: INSTANT_TOOL_INTERACTION,
   isAvailable: isBlazePrepareBombAvailable,
@@ -44,7 +44,7 @@ export const BLAZE_PREPARE_BOMB_TOOL_DEFINITION: ToolContentDefinition = {
   getTextDescription: () => ({
     title: "备弹",
     description: "放弃本回合移动骰，立刻只投工具骰，并在本回合行动阶段获得投弹。",
-    details: ["回合开始阶段使用", "本回合获得投弹"]
+    details: ["准备投弹"]
   }),
   color: "#d86a42",
   rollable: false,

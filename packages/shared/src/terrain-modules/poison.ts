@@ -5,7 +5,7 @@ export const POISON_TERRAIN_MODULE: TerrainModule = {
   accent: "#6da552",
   getTextDescription: () => ({
     title: "毒气",
-    description: "停留在上面时会被毒气放倒，并立刻送回出生点。",
+    description: "停留时将中毒，死亡并回到出身点。",
     details: []
   }),
   label: "毒气",

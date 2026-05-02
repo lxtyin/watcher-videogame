@@ -23,7 +23,7 @@ export const TEAM_CAMP_TERRAIN_MODULE: TerrainModule = {
   accent: "#ccb37b",
   getTextDescription: (tile) => ({
     title: tile.faction === "black" ? "黑队营地" : "白队营地",
-    description: "仅己方角色在自己的回合停留时会奖励一次随机工具骰。",
+    description: "仅己方角色停留时，获得随机工具。",
     details: []
   }),
   label: "阵营营地",

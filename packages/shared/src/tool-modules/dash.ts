@@ -14,7 +14,7 @@ import {
 
 export const DASH_TOOL_DEFINITION: ToolContentDefinition = {
   label: "冲刺",
-  disabledHint: "当前不能使用冲刺。",
+  disabledHint: "无法使用",
   source: "turn",
   interaction: INSTANT_TOOL_INTERACTION,
   isAvailable: isChargedToolAvailable,

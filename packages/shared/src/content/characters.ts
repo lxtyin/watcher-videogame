@@ -20,7 +20,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Late",
     nativeName: "罗素",
     portraitId: "late",
-    summary: "将获得的移动改为等距离制动。",
+    summary: "将获得的移动改为等距离的【制动】。",
     skillIds: ["late:brake-movement"]
   },
   ehh: {
@@ -28,7 +28,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Ehh",
     nativeName: "鹅哈哈",
     portraitId: "ehh",
-    summary: "每个行动阶段额外获得一个篮球。",
+    summary: "行动阶段，额外获得一个【篮球】。",
     skillIds: ["ehh:extra-basketball"]
   },
   lamp: {
@@ -36,7 +36,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Lamp",
     nativeName: "兰彭",
     portraitId: "lamp",
-    summary: "回合开始可放弃本回合工具骰，并在行动阶段复制自己上回合结束后其他玩家用过的一件工具。",
+    summary: "回合开始时，可选择放弃工具骰，复制上回合其他玩家用过的一件工具。",
     skillIds: ["lamp:copy-roll"]
   },
   leader: {
@@ -44,7 +44,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Leader",
     nativeName: "领导",
     portraitId: "leader",
-    summary: "每个回合结束阶段获得一个放置钱包。",
+    summary: "回合结束阶段，可以放置一个钱包，捡到时获得随机工具",
     skillIds: ["leader-deploy-wallet"]
   },
   blaze: {
@@ -52,7 +52,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Blaze",
     nativeName: "布拉泽",
     portraitId: "blaze",
-    summary: "回合开始可放弃移动骰，并在本回合行动阶段获得投弹。",
+    summary: "回合开始时，可选择放弃移动骰，行动阶段获得【投弹】。",
     skillIds: ["blaze:prepare-bomb"]
   },
   volaty: {
@@ -60,7 +60,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Volaty",
     nativeName: "芙兰迪",
     portraitId: "volaty",
-    summary: "回合开始可跳过工具骰，立刻投掷移动骰，并把本回合平移改成飞跃。",
+    summary: "回合开始时，可选择放弃工具骰，将点数骰获得的移动改为【飞跃】。",
     skillIds: ["volaty:leap-roll"]
   },
   chain: {
@@ -68,7 +68,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Chain",
     nativeName: "常",
     portraitId: "chain",
-    summary: "若回合外没有被移动，下个行动阶段获得短钩锁。",
+    summary: "若回合外没有发生移动，下个行动阶段获得一个长度为3的【钩锁】。",
     skillIds: ["chain:hook-if-still"]
   },
   farther: {
@@ -76,7 +76,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Farther",
     nativeName: "法真",
     portraitId: "farther",
-    summary: "每个行动阶段获得制衡，可扣除至多一半移动点，并在下回合取回等量移动。",
+    summary: "行动阶段，可以使用一次【制衡】：可扣除至多一半移动点数，并在下回合取回等量移动。",
     skillIds: ["farther-balance"]
   },
   mountain: {
@@ -84,7 +84,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "Mountain",
     nativeName: "莫汀",
     portraitId: "mountain",
-    summary: "每个行动阶段获得一个耐久 2 的砌墙。",
+    summary: "行动阶段，额外获得一个【砌墙】。",
     skillIds: ["mountain:end-turn-build-wall"]
   },
   awm: {
@@ -92,7 +92,7 @@ export const CHARACTER_REGISTRY = defineCharacterRegistry({
     label: "AWM",
     nativeName: "AWM",
     portraitId: "awm",
-    summary: "行动阶段开始时获得一发子弹，可消耗未使用移动点数充能，推动并束缚命中的玩家。",
+    summary: "可消耗未使用移动点数充能，行动阶段，可以消耗充能使用【子弹】，推动并束缚命中的玩家。",
     skillIds: ["awm:grant-shot"]
   }
 } as const);
